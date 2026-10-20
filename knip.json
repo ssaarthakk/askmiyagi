@@ -1,0 +1,5 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [".claude/hooks/*.mjs", "src/server/cli.ts"],
+  "ignore": [".claude/workflows/**", "test/fixtures/**"]
+}

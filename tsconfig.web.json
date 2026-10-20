@@ -1,0 +1,18 @@
+{
+  "extends": "@tsconfig/svelte/tsconfig.json",
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "esnext",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "types": ["svelte", "vite/client"],
+    "allowArbitraryExtensions": true,
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true
+  },
+  "include": ["src/web/**/*.ts", "src/web/**/*.svelte", "src/shared"]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "miyagi",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A voice tutor for codebases: ask out loud, and it explains while highlighting the code it talks about.",
+  "license": "MIT",
+  "author": "Sarthak Kumar",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "format": "biome check --write .",
+    "check": "biome check . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings && knip && vitest run --passWithNoTests",
+    "check:fast": "biome lint . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@tsconfig/svelte": "5.0.8",
+    "@types/node": "24.19.2",
+    "knip": "6.42.1",
+    "svelte": "5.57.2",
+    "svelte-check": "4.7.7",
+    "typescript": "6.0.3",
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
+  }
+}

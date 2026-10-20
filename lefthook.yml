@@ -1,0 +1,6 @@
+pre-commit:
+  jobs:
+    - name: secrets
+      run: mise exec -- gitleaks git --staged --redact --no-banner
+    - name: check-fast
+      run: mise exec -- npm run check:fast

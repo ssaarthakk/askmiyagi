@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+evals/results/
+*.log
+.env*
+!.env.example
+.DS_Store
+Thumbs.db
+desktop.ini
+*playbook*.md
+CLAUDE.local.md
+voice-tutor-design-notes.md

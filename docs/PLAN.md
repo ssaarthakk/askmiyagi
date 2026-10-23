@@ -8,9 +8,9 @@ Every Gate includes `npm run check` passing. Phases 1–4 are the usable text-on
 
 All paths in tools, anchors, routes and events are root-relative with `/` separators (see `docs/ARCHITECTURE.md`).
 
-## Phase 1: Server foundations
+## Phase 1: Server foundations (shipped)
 
-- [ ] **CLI entry.**
+- [x] **CLI entry.**
   - `src/server/cli.ts` (shebang `#!/usr/bin/env node`) runs `miyagi [path] [--port <n>] [--no-open]`. Args are parsed with `node:util` `parseArgs`, then validated with zod. `path` defaults to the current folder; `--port` defaults to `0` (a free port).
   - Once listening on `127.0.0.1`, it prints exactly one stdout line: `http://127.0.0.1:<port>/`.
   - Unless `--no-open`, it opens the browser with `spawn(cmd, args, { shell: false, detached: true, stdio: "ignore" })`: Windows `rundll32 url.dll,FileProtocolHandler <url>`, macOS `open <url>`, Linux `xdg-open <url>`. If that fails, it prints `Open <url> in your browser` to stderr and keeps running.
@@ -19,23 +19,23 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
   - `test/global-setup.ts`, registered as Vitest `globalSetup`, runs `npm run build` once per test run, so integration tests always serve a fresh `dist/web`.
   - Create the committed fixture `test/fixtures/basic`: `package.json` (name `basic`, scripts `build` and `test`, dependency `zod`), `README.md` (one paragraph), `src/upload.ts` (`export async function uploadClip(path: string)`), `src/clip-service.ts` (`export class ClipService` with `save(clip)`), `src/clip-service.test.ts`, `notes.md`.
   - Tests: no path, a missing path, a file path, `--port 0` printing a parseable URL, Ctrl+C exit code, and `node dist/server/cli.js --no-open test/fixtures/basic` starting from the build.
-- [ ] **Page serving.**
+- [x] **Page serving.**
   - `GET /` returns `dist/web/index.html` with `<meta name="miyagi-token" content="<token>">` inserted right before `</head>`. The token is `randomBytes(32).toString("hex")`, new on every start.
   - `dist/web` is found relative to the module's own location (`import.meta.dirname`), which works from both `src/server` and `dist/server`. If `dist/web/index.html` is missing, startup prints `Run npm run build first` and exits 1.
   - Other files under `dist/web` are served with content types by extension: `.html` `text/html; charset=utf-8`, `.js` `text/javascript`, `.css` `text/css`, `.svg` `image/svg+xml`, `.json` `application/json`, `.wasm` `application/wasm`, `.woff2` `font/woff2`, anything else `application/octet-stream`. A path that escapes `dist/web` or doesn't exist returns 404 with body `Not found`.
   - The placeholder Svelte page shows the product name only.
-- [ ] **Localhost security.** A request whose `Host` isn't `127.0.0.1:<port>` or `localhost:<port>` gets 403. A request with an `Origin` other than the server's own gets 403. Any `/api/*` request without the right `x-miyagi-token` header gets 401. Error bodies are `{ "error": "<reason>" }`. The server never listens on any other interface.
-- [ ] **CodeSource and LocalFolder.** `CodeSource = { root: string; dispose(): Promise<void> }`, where `root` is a real absolute path. `openLocalFolder(path): Promise<Result<CodeSource>>` resolves the path with `realpath`. Errors: `Folder not found: <path>` and `Not a folder: <path>`. `dispose` does nothing for a local folder. Nothing in the repo is ever executed.
-- [ ] **Shared file filter.**
+- [x] **Localhost security.** A request whose `Host` isn't `127.0.0.1:<port>` or `localhost:<port>` gets 403. A request with an `Origin` other than the server's own gets 403. Any `/api/*` request without the right `x-miyagi-token` header gets 401. Error bodies are `{ "error": "<reason>" }`. The server never listens on any other interface.
+- [x] **CodeSource and LocalFolder.** `CodeSource = { root: string; dispose(): Promise<void> }`, where `root` is a real absolute path. `openLocalFolder(path): Promise<Result<CodeSource>>` resolves the path with `realpath`. Errors: `Folder not found: <path>` and `Not a folder: <path>`. `dispose` does nothing for a local folder. Nothing in the repo is ever executed.
+- [x] **Shared file filter.**
   - `isVisible(root, relPath): Promise<boolean>` decides whether a project file is visible; `listVisibleFiles(root): Promise<string[]>` walks the root asynchronously, never descends into excluded folders, and returns visible files sorted by path.
   - Excluded: paths matched by `.gitignore` files at any depth (using `ignore`); `.git/` and `node_modules/` at any depth; build output folders `dist`, `build`, `out`, `.next`, `coverage` at any depth; lockfiles `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, `bun.lock`, `bun.lockb`, `Cargo.lock`, `poetry.lock`, `Pipfile.lock`, `composer.lock`, `Gemfile.lock`, `go.sum`; secret files `.env*`, `*.pem`, `*.key`, `id_rsa*`, `*.p12`, `*.pfx`; binaries (a null byte in the first 8 KB); generated files (`@generated` or `DO NOT EDIT` in the first 5 lines, or matched by a `linguist-generated` or `linguist-generated=true` line in the root `.gitattributes`); files over 1 MB.
   - Fixtures: add a nested `test/fixtures/basic/src/.gitignore` (ignoring `*.tmp`), a generated file `src/generated.ts`, and a root `.gitattributes` marking `src/schema.gen.ts` as `linguist-generated`. Files the repo itself can't or mustn't commit (`.env`, `id_rsa`, `dist/`, `node_modules/`, a lockfile, a binary, a file over 1 MB, a `*.tmp` file) are created by the tests in a temp copy of the fixture.
-- [ ] **Secret redaction.**
+- [x] **Secret redaction.**
   - `redact(text): string` replaces key-like strings with `[REDACTED]`: AWS access keys, GitHub tokens (`ghp_`, `github_pat_`), Anthropic and OpenAI keys (`sk-ant-`, `sk-`), Google API keys (`AIza`), Slack tokens (`xox`), private key blocks, JWTs, and high-entropy values assigned to names containing `key`, `secret`, `token` or `password`.
   - High-entropy means a value of at least 20 characters with Shannon entropy of at least 3.5 bits per character, assigned with `=` or `:` (quoted or not) to a name containing one of those words, case-insensitive. Only the value is replaced.
   - Redaction never changes the line count: each line of a private key block becomes `[REDACTED]`.
   - Ordinary code, including words like `token` in names, is left unchanged.
-- [ ] **Path guard.**
+- [x] **Path guard.**
   - `guardPath(root, requested): Promise<Result<{ realPath: string; relPath: string }>>`. Only root-relative paths are accepted, with `/` or `\` separators; `relPath` always uses `/`.
   - It refuses: absolute paths in any form (`/x`, `\x`, `C:\x`, `C:x`, `\\server\share`); `..` that escapes the root; symlinks or junctions whose real path is outside the root (compared case-insensitively on Windows and macOS); paths the file filter hides; missing files.
   - A refusal is an error value with a one-line reason, never a thrown crash.

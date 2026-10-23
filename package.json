@@ -9,7 +9,14 @@
   "engines": {
     "node": ">=24"
   },
+  "bin": {
+    "miyagi": "dist/server/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json",
     "format": "biome check --write .",
     "check": "biome check . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings && knip && vitest run --passWithNoTests",
     "check:fast": "biome lint . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings"
@@ -25,5 +32,9 @@
     "typescript": "6.0.3",
     "vite": "8.3.4",
     "vitest": "5.0.5"
+  },
+  "dependencies": {
+    "ignore": "7.0.12",
+    "zod": "4.6.7"
   }
 }

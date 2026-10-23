@@ -105,6 +105,7 @@ Browser (Svelte)                         Node server (one process)
 - Bind to `127.0.0.1` only. Reject a `Host` other than `127.0.0.1:<port>` or `localhost:<port>` (403), any `Origin` that isn't the server's own (403), and `/api/*` requests without the session token (401).
 - Never execute anything from a repo. Read only. Git is used only for `clone --depth 1` (no submodules, no LFS smudge) and the read-only `diff`, `show`, `log`, `fetch`.
 - Every path goes through the path guard: resolve, `realpath` (follows symlinks), refuse anything outside the project root, then the shared file filter.
+- The shared file filter exposes `isVisible(root, relPath): Promise<boolean>` and `listVisibleFiles(root): Promise<string[]>`. The list contains sorted root-relative paths, and traversal prunes excluded directories before descending. Filtering applies nested `.gitignore` files and root `.gitattributes` generated markers, and excludes the planned lockfiles, secrets, binaries and oversized files.
 - Every byte leaving the machine (tool results, brute-force content) passes secret redaction.
 - No network tools for the model, ever ("lethal trifecta": remove external communication). File contents are data, never instructions; tool results are wrapped in labelled untrusted blocks.
 - PR review drafts comments; it never posts them.

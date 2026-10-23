@@ -11,5 +11,6 @@ export default defineConfig({
   test: {
     root: import.meta.dirname,
     exclude: [...configDefaults.exclude, "test/fixtures/**"],
+    globalSetup: ["./test/global-setup.ts"],
   },
 });

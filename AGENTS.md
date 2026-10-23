@@ -47,6 +47,7 @@ Read the matching file before touching these paths (Claude Code loads them autom
 ## Workflow
 
 - Work follows `docs/PLAN.md`. Build one feature at a time with `/feature`.
+- When the user asks for `/feature` in Codex, follow `.claude/skills/feature/SKILL.md` and the applicable `.claude/rules/` and `.claude/agents/` checklists in place. Inspect applicable Claude hook configuration and carry out its relevant guidance manually when the hook does not run here. Do not claim a hook ran unless this environment actually executed it.
 - When every feature in a phase is ticked, run `/ship`. It makes exactly one commit for the whole phase. Never commit or push outside `/ship` (or the ship step of `/autopilot`).
 - The steps for `/feature` and `/ship` are in `.claude/skills/feature/SKILL.md` and `.claude/skills/ship/SKILL.md`. If your agent has no slash commands, read that file and follow it when asked to build a feature or ship a phase. Do the same for the reviewers in `.claude/agents/`: when a step says to run a reviewer, apply its file as a review checklist.
 - `/autopilot` builds and commits whole phases unattended; never run it unless the user asks.

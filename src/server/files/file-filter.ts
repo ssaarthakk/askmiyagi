@@ -40,11 +40,12 @@ function isExcludedName(relPath: string, isDirectory: boolean) {
     if ((index < segments.length - 1 || isDirectory) && excludedDirectories.has(segment))
       return true;
     if (index !== segments.length - 1 || isDirectory) return false;
+    const name = segment.toLowerCase();
     return (
       excludedFiles.has(segment) ||
-      /^\.env/.test(segment) ||
-      /\.(?:pem|key|p12|pfx)$/.test(segment) ||
-      /^id_rsa/.test(segment)
+      (/^\.env/.test(name) && name !== ".env.example") ||
+      /\.(?:pem|key|p12|pfx)$/.test(name) ||
+      /^id_rsa/.test(name)
     );
   });
 }

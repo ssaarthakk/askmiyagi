@@ -1,7 +1,8 @@
-import { realpath } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep, win32 } from "node:path";
 import type { Result } from "../../shared/result.ts";
 import { isVisible } from "./file-filter.ts";
+import { redact } from "./redact.ts";
 
 export type GuardedPath = { realPath: string; relPath: string };
 
@@ -66,4 +67,14 @@ export async function guardPath(root: string, requested: string): Promise<Result
   if (!visible) return { ok: false, error: "Path is not a visible file" };
 
   return { ok: true, value: { realPath, relPath: normalizedPath } };
+}
+
+export async function readRedactedFile(
+  root: string,
+  requested: string,
+): Promise<Result<{ relPath: string; source: string }>> {
+  const guarded = await guardPath(root, requested);
+  if (!guarded.ok) return guarded;
+  const source = redact(await readFile(guarded.value.realPath, "utf8"));
+  return { ok: true, value: { relPath: guarded.value.relPath, source } };
 }

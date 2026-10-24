@@ -1,6 +1,6 @@
 ---
 name: ponytail-reviewer
-description: Strict read-only reviewer that only finds bloat (unused code, duplication, over-engineering, comments, out-of-scope work) in given files or the uncommitted diff. Use after building a feature and before shipping a phase.
+description: Strict read-only reviewer that only finds bloat (unused code, duplication, over-engineering, comments, out-of-scope work) in given files or the uncommitted diff. Use once per phase, before shipping it.
 tools: Read, Grep, Glob, Bash
 hooks:
   PreToolUse:

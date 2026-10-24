@@ -130,6 +130,23 @@ describe("shared file filter", () => {
     for (const path of excludedFiles) expect(files).not.toContain(path);
   });
 
+  it("hides secret files whatever the case of their names", async () => {
+    const root = await makeProject();
+    for (const name of [".ENV", ".Env.local", "ID_RSA", "KEY.PEM"]) {
+      await writeFile(join(root, name), "secret\n");
+      await expect(isVisible(root, name)).resolves.toBe(false);
+    }
+  });
+
+  it("keeps .env.example visible as the one allowed env file", async () => {
+    const root = await makeProject();
+    await writeFile(join(root, ".env.example"), "API_URL=\n");
+    await writeFile(join(root, ".env.example.local"), "private\n");
+
+    await expect(isVisible(root, ".env.example")).resolves.toBe(true);
+    await expect(isVisible(root, ".env.example.local")).resolves.toBe(false);
+  });
+
   it("excludes generated markers, binary files, and files over one megabyte", async () => {
     const root = await makeProject();
     await writeFile(

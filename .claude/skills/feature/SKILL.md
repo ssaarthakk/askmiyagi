@@ -1,6 +1,6 @@
 ---
 name: feature
-description: Build the next feature of docs/PLAN.md test-first, review it, tick it. Never commits.
+description: Build the next feature of docs/PLAN.md test-first, tick it. Never commits.
 argument-hint: "[feature name]"
 disable-model-invocation: true
 model: sonnet
@@ -17,10 +17,7 @@ Feature requested: $ARGUMENTS
 5. Read only what the feature touches: the relevant part of `docs/ARCHITECTURE.md`, the matching `.claude/rules/` file, and the nearest existing code. If it uses a third-party library, check its current docs first with the `docs-researcher` agent.
 6. Write the tests first and nothing else: one or more per behaviour the feature's text describes. Run them and confirm each fails for the right reason.
 7. Write the least code that makes them pass, following `AGENTS.md`. Never edit a test to make it pass.
-8. Run `npm run check` and fix every failure.
-9. Run the `ponytail-reviewer` agent on the files this feature touched. Remove every bloat item it reports, unless removing it would break the feature. In that case keep it and say why in one line.
-10. Test audit: delete any test that wouldn't fail if its behaviour broke, duplicates another test, or tests trivial code.
-11. Run the `correctness-reviewer` agent on the same files and fix every must-fix item.
-12. Run `npm run check` again.
-13. If the feature changed the structure, contracts or services, update `docs/ARCHITECTURE.md`. If it made a real decision, record it with `/adr`. Tick the feature in `docs/PLAN.md`.
-14. Give a short summary: what changed, which files, which tests, what the reviewers changed. If that was the last feature of the phase, tell the user to run `/ship`. Otherwise tell them to start a fresh session and run `/feature`. Do not commit.
+8. Test audit: delete any test that wouldn't fail if its behaviour broke, duplicates another test, or tests trivial code.
+9. Run `npm run check` and fix every failure. The reviewer agents run once per phase in `/ship`, not here.
+10. If the feature changed the structure, contracts or services, update `docs/ARCHITECTURE.md`. If it made a real decision, record it with `/adr`. Tick the feature in `docs/PLAN.md`.
+11. Give a short summary: what changed, which files, which tests. If that was the last feature of the phase, tell the user to run `/ship`. Otherwise tell them to start a fresh session and run `/feature`. Do not commit.

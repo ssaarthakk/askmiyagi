@@ -5,7 +5,7 @@ export const meta = {
   phases: [
     { title: 'Plan', detail: 'read docs/PLAN.md and git status' },
     { title: 'Build', detail: 'one fresh Sonnet agent per feature, test-first', model: 'sonnet' },
-    { title: 'Verify', detail: 'checks, acceptance criteria and reviewers, in parallel, on the session model' },
+    { title: 'Verify', detail: 'checks and acceptance criteria per feature; reviewers once per phase; on the session model' },
     { title: 'Fix', detail: 'Sonnet first, the session model for the last round' },
     { title: 'Checkpoint', detail: 'stage a verified feature, or set a failed attempt aside' },
     { title: 'Ship', detail: 'phase review, gate, one commit per phase' },
@@ -60,13 +60,13 @@ function finish(reason) {
   return { stoppedBecause: reason, phases: run }
 }
 
-async function review(subject, scope, checks, label) {
+async function review(subject, scope, checks, label, reviewers) {
   const results = await parallel([
     () => agent(
       `${UNATTENDED} Independently verify ${subject}. ${scope} Do not edit any file. ${checks} Return only real problems, each with file and line. Return an empty list if there are none.`,
       { label: `verify ${label}`, phase: 'Verify', schema: PROBLEMS, effort: 'high' },
     ),
-    ...REVIEWERS.map((reviewer) => () => agent(
+    ...reviewers.map((reviewer) => () => agent(
       `Review ${subject}. ${scope} Return each item that must change as one problem with file and line. Leave out optional suggestions. Return an empty list if nothing must change.`,
       { label: `${reviewer} ${label}`, phase: 'Verify', agentType: reviewer, schema: PROBLEMS },
     )),
@@ -75,8 +75,8 @@ async function review(subject, scope, checks, label) {
   return results.flatMap((result) => result.problems)
 }
 
-async function verifyUntilClean(subject, scope, checks, label) {
-  let problems = await review(subject, scope, checks, label)
+async function verifyUntilClean(subject, scope, checks, label, reviewers) {
+  let problems = await review(subject, scope, checks, label, reviewers)
   let rounds = 0
   while (problems.length && rounds < MAX_FIX_ROUNDS) {
     rounds += 1
@@ -85,7 +85,7 @@ async function verifyUntilClean(subject, scope, checks, label) {
       `${UNATTENDED} Fix these problems in ${subject}. ${scope} Never weaken or delete a test to make it pass; if a test itself is wrong, fix the test and say why. Run the check script when done.\n\n${problems.map((problem) => `- ${problem}`).join('\n')}`,
       { label: `fix ${label} round ${rounds}`, phase: 'Fix', model: rounds < MAX_FIX_ROUNDS ? BUILD_MODEL : undefined },
     )
-    problems = await review(subject, scope, checks, `${label} round ${rounds}`)
+    problems = await review(subject, scope, checks, `${label} round ${rounds}`, reviewers)
   }
   return { problems, rounds }
 }
@@ -117,7 +117,7 @@ while (run.length < MAX_PHASES) {
     const label = `p${run.length} ${index + 1}/${plan.features.length}`
     const subject = `the feature "${feature}"`
     const built = await agent(
-      `${UNATTENDED} Never commit. Build this feature from docs/PLAN.md: "${feature}". ${FEATURE_SCOPE} Its text in docs/PLAN.md says exactly what it must do; docs/ARCHITECTURE.md says where it lives. Follow .claude/skills/feature/SKILL.md, with three changes: skip its reviewer and test audit steps, because independent agents run them after you; do not stage anything; and if the feature depends on an open question, its text leaves a design decision open, or you would need to ask the user anything, stop before writing code and return blocked with the exact question. Return done only when the tests were written first and failed for the right reason, they now pass, the check script passes, and the feature is ticked in docs/PLAN.md.`,
+      `${UNATTENDED} Never commit. Build this feature from docs/PLAN.md: "${feature}". ${FEATURE_SCOPE} Its text in docs/PLAN.md says exactly what it must do; docs/ARCHITECTURE.md says where it lives. Follow .claude/skills/feature/SKILL.md, with three changes: skip its test audit step, because an independent agent checks the tests after you; do not stage anything; and if the feature depends on an open question, its text leaves a design decision open, or you would need to ask the user anything, stop before writing code and return blocked with the exact question. Return done only when the tests were written first and failed for the right reason, they now pass, the check script passes, and the feature is ticked in docs/PLAN.md.`,
       { label: `build ${label}`, phase: 'Build', schema: BUILD, model: BUILD_MODEL },
     )
     if (!built || built.status !== 'done') {
@@ -126,7 +126,7 @@ while (run.length < MAX_PHASES) {
       return finish(`Blocked on ${feature}. Earlier features of the phase are staged, not committed.`)
     }
 
-    const verified = await verifyUntilClean(subject, FEATURE_SCOPE, FEATURE_CHECKS, label)
+    const verified = await verifyUntilClean(subject, FEATURE_SCOPE, FEATURE_CHECKS, label, [])
     if (verified.problems.length) {
       await setAside(subject, label)
       current.features.push({ feature, status: 'set aside', problems: verified.problems })
@@ -143,7 +143,7 @@ while (run.length < MAX_PHASES) {
   phase('Ship')
   const shipLabel = `p${run.length} ship`
   const phaseSubject = `the whole phase "${plan.phase}"`
-  const phaseReview = await verifyUntilClean(phaseSubject, PHASE_SCOPE, PHASE_CHECKS, shipLabel)
+  const phaseReview = await verifyUntilClean(phaseSubject, PHASE_SCOPE, PHASE_CHECKS, shipLabel, REVIEWERS)
   if (phaseReview.problems.length) {
     await setAside(phaseSubject, shipLabel)
     current.problems = phaseReview.problems

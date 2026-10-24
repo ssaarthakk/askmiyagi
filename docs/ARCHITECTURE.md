@@ -26,7 +26,7 @@
 These may be added when the feature that needs them is built, without asking again. Anything else needs asking first.
 
 - Phase 1: `ignore` (gitignore matching), `zod` (CLI args are validated from Phase 1)
-- Phase 2: `web-tree-sitter`, `tree-sitter-typescript` and `tree-sitter-javascript` (for their `.wasm` grammars), `@vscode/ripgrep`
+- Phase 2: `web-tree-sitter` 0.27.1, `tree-sitter-typescript` 0.23.2 and `tree-sitter-javascript` 0.25.0 (for their `.wasm` grammars), `@vscode/ripgrep`
 - Phase 3: `@modelcontextprotocol/sdk`
 - Phase 4: `codemirror`, `@codemirror/*` packages; dev: `@playwright/test`
 - Phase 6: `@anthropic-ai/sdk`, `@google/genai`
@@ -197,6 +197,20 @@ EvalCase { question, intent, mustHighlight: string[], expectedOrder: string[], k
 | `gh` CLI | read PR descriptions (Phase 13), optional | the user's own `gh` login |
 | Hugging Face model files | Whisper and voice model downloads in the browser, cached | none |
 
+## Code intelligence
+
+`parseFile(path, source)` returns the cached `web-tree-sitter` `Tree` for the extensions in `grammarsByExtension`, or `null` when there is no parser. Trees are cached by grammar and source SHA-256. See [ADR 0001](adr/0001-parse-cache-trees.md).
+
+`readRedactedFile(root, path)` (path guard, then redaction of the whole file) is the only way the repo map, the tools and the anchor resolver read a file, and they parse the redacted text. Redaction keeps line numbers, so tree positions match the file.
+
+`findDefinitions` in `src/server/code/symbols.ts` is the one walker for declarations and class or interface members. `find_symbol`, the repo map and `read_file` outlines use it, and `uniqueDefinition` (one match, or a not-found or ambiguous reason listing candidates) serves both `read_file({ symbol })` and symbol anchors.
+
+`grep` never lets ripgrep see the raw files: it streams the redacted text of the selected visible files into `rg --json -` on stdin and maps stdin line numbers back to each file. A pattern can therefore only match text the model is allowed to see.
+
+`resolveAnchor(root, anchor)` returns `Result<ResolvedAnchor>`. A line anchor takes the smallest syntax node spanning the line's trimmed text and climbs to the nearest `*_statement`, `*_declaration`, `*_definition` or `*_signature` node. `Anchor` and `ResolvedAnchor` are plain types in `src/shared/anchor.ts` until the Phase 3 shared contracts replace them with zod schemas.
+
+The tools share `runTool` (input validation with zod, errors as results with the root path replaced by `.`) and the `ToolResult` type in `src/shared/tool-result.ts`.
+
 ## Prompt layout and caching
 
 ```
@@ -211,4 +225,4 @@ system prompt -> repo map (or whole filtered, numbered repo in brute-force mode)
 
 ## Third-party code
 
-`ClaudeHeadless` adapts spawn, argument hardening, stream parsing and process-tree kill code from `claude-loopback` (MIT; github.com/ssaarthakk/claude-loopback, local copy at `C:\NoCodeHere\loopback`). Its license is kept in `THIRD_PARTY_NOTICES.md`. The package itself is not a dependency: it exposes no library API, is Windows-only, and turns MCP off.
+`ClaudeHeadless` adapts spawn, argument hardening, stream parsing and process-tree kill code from `claude-loopback` (MIT; github.com/ssaarthakk/claude-loopback). Its license is kept in `THIRD_PARTY_NOTICES.md`. The package itself is not a dependency: it exposes no library API, is Windows-only, and turns MCP off.

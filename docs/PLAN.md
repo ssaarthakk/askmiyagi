@@ -1,10 +1,10 @@
 # Build plan
 
-Every Gate includes `npm run check` passing. Phases 1–4 are the usable text-only core (Milestone 1).
+Every Gate includes `npm run check` passing. Phases 1–4 are the usable text-only core (Milestone 1). Phases 5–6 add the spoken tours and demo features for the hackathon submission (Milestone 2).
 
 **Personal target:** Phases 1–4 done by Sunday 25 October 2026, 23:59. A goal, not a hard limit.
 
-**Phases 5–13:** before the first feature of a phase, settle that phase's items in `docs/plan-gaps.md` into the feature text below, then delete them from that file. Owner decisions are under `## Open questions`.
+**Phases 5–15:** before the first feature of a phase, settle that phase's items in `docs/plan-gaps.md` into the feature text below, then delete them from that file. Owner decisions are under `## Open questions`.
 
 All paths in tools, anchors, routes and events are root-relative with `/` separators (see `docs/ARCHITECTURE.md`).
 
@@ -106,7 +106,7 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
   - Spawn, argument and process-tree code is adapted from `claude-loopback` (github.com/ssaarthakk/claude-loopback, MIT). Create `THIRD_PARTY_NOTICES.md` with its license.
   - Unit tests cover the arguments, the spawn command per platform, timeout and abort.
 - [ ] **ClaudeHeadless stream parser.**
-  - It turns Claude Code's stream JSON into `ProviderEvent`s: assistant text is buffered and split on newlines, and each complete line is parsed as a `Step` (a `step` event) or the final `checkQuestion` line; `tool_use` blocks become `tool_call` events; the final result becomes `done` with `Usage` (cost from the reported total cost, else `null`). A line that isn't valid JSON is passed on as a `text` event for the pipeline's retry.
+  - It turns Claude Code's stream JSON into `ProviderEvent`s: assistant text is buffered and split on newlines, and each complete line is parsed as a `Step` (a `step` event) or the final `checkQuestion` line; `tool_use` blocks become `tool_call` events; the final result becomes `done` with `Usage` (cost from the reported total cost, else `null`). A line that isn't valid JSON is passed on as a `text` event.
   - Stream-parsing code is adapted from `claude-loopback` too.
   - Unit tests parse recorded streams in `test/fixtures/recordings/claude-stream-*.jsonl`. A live smoke test runs only when `MIYAGI_LIVE=1`.
 - [ ] **Ask pipeline.**
@@ -115,7 +115,7 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
     - `progress` events for tool calls: `read_file` becomes "Looking at <file name>", `grep` "Searching for <patterns joined with or>", `find_symbol` "Finding <name>";
     - `step` events as steps arrive, then a final `tour` event built from the request's question, the steps and any `checkQuestion`, every anchor resolved (an unresolvable anchor becomes `null`; its step still plays without the highlight);
     - then `done`.
-  - If step N is invalid, the steps already sent stay, and the model is asked once to re-emit from step N with the validation errors. A second failure becomes an `error` event. A second ask while one is running gets 409.
+  - An invalid step or a `text` line ends the ask: the steps already sent stay, and an `error` event lists what was wrong. (The retry comes in Phase 8.) A second ask while one is running gets 409.
 
 **Gate:** `npm run check` passes, including an integration test that posts a question to a running server backed by `FakeProvider` and receives `ack`, `progress` and a valid `tour` with verified ranges in order. The live smoke test (`MIYAGI_LIVE=1 npm test`) needs a person with Claude Code logged in.
 
@@ -130,7 +130,36 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 
 **Gate:** `npm run check` and `npm run e2e` pass. The e2e test asks a question, sees the tour render, clicks segment 2, and finds the expected fixture lines highlighted with the segment 1 range dimmed.
 
-## Phase 5: Measurement and evals
+## Phase 5: Spoken tours
+
+Two swappable voices behind one interface: the browser's own local voice (default, nothing leaves the machine) and ElevenLabs (opt-in, used for the demo). See [ADR 0002](adr/0002-swappable-voice-with-elevenlabs.md).
+
+- [ ] **Voice choice.**
+  - `--voice browser|elevenlabs` (default `browser`), validated with zod. `elevenlabs` reads `ELEVENLABS_API_KEY` from the environment; without it, startup prints `Set ELEVENLABS_API_KEY to use --voice elevenlabs` and exits 1. `--voice-id <id>` picks the ElevenLabs voice; its default is one premade voice id kept as a constant and named in `docs/ARCHITECTURE.md`.
+  - The server injects `<meta name="miyagi-voice" content="browser|elevenlabs">` next to the token tag.
+  - The browser has one `Speaker` shape, `speak(text, signal): Promise<void>` (resolves when the audio ends; aborting stops it at once), with two implementations chosen from the meta tag. The tour player never knows which one it has.
+  - `browserSpeaker` uses `speechSynthesis` with voices where `localService` is true only (some Chrome voices are cloud voices). With no local voice the page says "No local voice found; showing text" and stays in text mode.
+  - `elevenLabsSpeaker` posts each segment's text to `/api/speech` and plays the returned audio. If that request fails, the segment plays with `browserSpeaker` instead and the page shows "ElevenLabs failed, using the browser voice".
+  - With `elevenlabs`, the page shows "Voice by ElevenLabs".
+- [ ] **ElevenLabs speech route.**
+  - `POST /api/speech` with `{ text }` (zod, 1–2,000 characters; 400 otherwise; 404 when the voice isn't `elevenlabs`). The text goes through `redact`, then `fetch` posts it to `https://api.elevenlabs.io/v1/text-to-speech/<voiceId>?output_format=mp3_44100_128` with the `xi-api-key` header and `{ text, model_id: "eleven_flash_v2_5" }`. Success returns 200 `audio/mpeg`. An ElevenLabs error returns 502 `{ "error": "Voice service failed: <status>" }`. The key never appears in a response, error or log.
+  - Audio is cached in memory by SHA-256 of voice id and text, so replays and repeated demo takes spend no credits.
+  - Check the endpoint and model id against the current ElevenLabs docs before building.
+  - Unit tests stub `fetch`; nothing calls ElevenLabs in the normal test run. A live smoke test runs only when `MIYAGI_LIVE=1` and the key is set.
+- [ ] **Spoken tour.** Segments play in order. A segment's highlight appears when its audio starts. Clicking a segment plays from there onward. A Pause/Resume button resumes at the start of the interrupted segment. A Voice on/off toggle switches to the Phase 4 text player. The narration text is hidden while it is spoken and shown when paused or with voice off.
+- [ ] **Streamed speech.** The first segment starts playing as soon as its step arrives, before the tour has finished.
+- [ ] **Spoken acknowledgement and progress.** The `ack` phrase starts within 300 ms of submitting. With ElevenLabs, the phrases in `src/shared/phrases.ts` are fetched once at page load so they play from memory. Progress lines are spoken briefly without file extensions ("looking at upload"); a progress line still waiting when a step arrives is dropped.
+
+**Gate:** `npm run check` and `npm run e2e` pass. The e2e tests inject a stub speaker with `page.addInitScript` setting `window.__MIYAGI_SPEAKER__`, and prove segment order, highlight at audio start, pause and resume at segment start, streamed first segment and acknowledgement timing. `/api/speech` is tested with a stubbed `fetch` (key check, redaction, cache, 400, 404, 502). Listening to both voices needs a person.
+
+## Phase 6: Demo extras (Milestone 2: hackathon demo)
+
+- [ ] **Point and ask.** Selecting code in the viewer, or clicking a symbol (which selects that line with the identifier as `text`), attaches a `Selection` to the next question. A chip shows what is attached and can be removed, and it clears after use. The server checks the lines exist and contain `text`; on a mismatch it drops the selection and sends a `progress` note.
+- [ ] **GitClone source.** `miyagi https://github.com/<owner>/<repo>` (an optional `.git` or trailing `/` is allowed) shallow-clones (depth 1, no submodules, no LFS) into a temp folder that is deleted on exit. Other hosts, `http` and malformed URLs are refused. The URL check is separate from the clone function.
+
+**Gate:** `npm run check` and `npm run e2e` pass, with an e2e test that selects fixture lines, sees the chip, asks, and finds the selection in the request, plus GitClone tests (URL rules, and cloning a local bare repo). Recording the demo video needs a person.
+
+## Phase 7: Measurement and evals
 
 - [ ] **Call log.** Every LLM call appends one JSON line to `.tutor/private/calls.jsonl`: call type, provider, mode, time to `ack`, time to first content, input/output/cache tokens, cost, files opened, and outcome.
 - [ ] **Eval cases.** Suites live in `evals/<suite>.json`: a repo (local path or public git URL) plus cases `{ question, intent, mustHighlight[], expectedOrder[], keyFacts[] }`, validated with zod. A bad suite file fails with a clear message.
@@ -142,44 +171,41 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 
 **Gate:** `npm run eval -- --suite fixtures --provider fake --runs 1` and the same for `injection` print score tables with every code check and failure label. Writing the 20 clipper eval questions and running them with `--provider claude-headless` needs a person.
 
-## Phase 6: Providers and conversation
+## Phase 8: Providers and conversation
 
+- [ ] **Step retry.** If step N is invalid, the steps already sent stay, and the model is asked once to re-emit from step N with the validation errors. A second failure becomes an `error` event.
 - [ ] **Agent loop guards** (for API providers). The loop stops well when the model stops calling tools. Safety stops: 20 tool calls, a time limit, a token or cost budget, the same tool with the same input twice, a user abort, or 3 tool errors in a row. Three calls before the cap it adds the warning "3 steps left, wrap up." After a safety stop it makes one final call with tools off, asking for an honest partial answer. Each guard is tested with a scripted fake model.
 - [ ] **ClaudeAPI provider.** It uses `@anthropic-ai/sdk` with `ANTHROPIC_API_KEY`, calls the tool functions directly inside the guarded loop, sets cache markers per the prompt layout, and streams `ProviderEvent`s. Tested with recorded responses.
 - [ ] **GeminiAPI provider.** The same loop on `@google/genai` with `GEMINI_API_KEY`. A rate-limit response becomes a retryable error event. Tested with recorded responses.
 - [ ] **Provider choice.** `--provider claude-headless|claude-api|gemini`, with `claude-headless` as the default. A missing key or CLI gives a clear startup message.
 - [ ] **Conversation and context manager.** Follow-up questions see earlier turns. The last 3 turns are kept in full; older tool results become one-line placeholders; every question and a one-line record of each tour are kept. Older turns are summarised when the context nears 70% of its budget. Cleanup happens in batches at thresholds, never every turn. A session record is written to `.tutor/private/session.json`. Brute-force vs agentic mode is re-checked as the conversation grows.
-- [ ] **GitClone source.** `miyagi https://github.com/<owner>/<repo>` shallow-clones (depth 1, no submodules, no LFS) into a temp folder that is deleted on exit. Other hosts and malformed URLs are refused.
 - [ ] **File watcher.** When a file's hash changes, only that file's parse, map entry and hash are invalidated, and the anchors of the tour in progress are re-resolved. The browser gets a `stale` event when an anchor can no longer be found.
 - [ ] **Monorepos.** npm, pnpm and yarn workspaces are detected. The user picks the app at setup, and the repo map and tools are scoped to that folder plus the root config files.
 - [ ] **Graph hints.** When the project has a committed Understand-Anything graph (`.ua/knowledge-graph.json`, or the older `.understand-anything/knowledge-graph.json`), the repo map gains a `## Graph hints` section: each visible file's architectural layer and one-line summary, plus domain-flow entry points. The graph is read-only input: Miyagi never runs Understand-Anything and never writes `.ua/`. Summaries are untrusted, redacted and wrapped like tool results. A missing or invalid graph leaves the repo map unchanged and is never fatal. Anchors are still verified, so a stale graph can only cost an extra file read, never a wrong highlight.
 - [ ] **`find_callers` tool.** `find_callers({ name })` lists the call sites of a function or method by name in visible TS/JS files, one line each as `<path>:<line> in <enclosing symbol>: <line text>`, source files before test files, capped at 50. Matching is by name, not by type, and the result says so. It is added to the MCP server and the API providers' tools, with the progress text "Finding callers of <name>".
 
-**Gate:** `npm run check` passes, with recorded-response tests for both API providers and every guard, a test that edits a fixture file mid-tour and gets a re-resolved range or a `stale` event, GitClone tests (URL rules, plus cloning a local bare repo), graph-hints tests over a fixture graph (valid, invalid, and one with a planted instruction in a summary), and `find_callers` tests over the fixture repo.
+**Gate:** `npm run check` passes, with a step-retry test, recorded-response tests for both API providers and every guard, a test that edits a fixture file mid-tour and gets a re-resolved range or a `stale` event, graph-hints tests over a fixture graph (valid, invalid, and one with a planted instruction in a summary), and `find_callers` tests over the fixture repo.
 
-## Phase 7: Voice
+## Phase 9: Local voice and speech input
 
-- [ ] **Local voice.** Narration plays through a free local voice model in a Web Worker (Kokoro by default). Segments play in order. A segment's highlight appears when its audio starts. Clicking a segment replays its audio.
-- [ ] **Streamed speech.** The first segment starts playing before the whole tour has arrived. Steps stream from the server as they are produced.
-- [ ] **Instant acknowledgement.** A templated phrase is spoken within 300 ms of a question, with no LLM. Exploration progress is spoken briefly ("checking the upload service").
+- [ ] **Local voice.** A third `Speaker`, `--voice kokoro`, runs a free local voice model in a Web Worker (Kokoro by default), so a natural voice needs no cloud service.
 - [ ] **Scroll lead.** The viewer scrolls to the next file about 200 ms before that segment's audio starts.
 - [ ] **Push-to-talk.** Holding Space (outside text fields) records the microphone with echo cancellation; releasing it transcribes. A denied microphone shows a clear message, and the text box still works.
 - [ ] **Whisper speech-to-text.** Whisper runs in the browser (WebGPU, with a WASM fallback) in a Web Worker. The model downloads once and is cached. Repo symbol names are passed as hints.
 - [ ] **Transcript cleanup.** Filler words are removed, and words are fuzzy-matched to repo symbol names (for example "upload clip" becomes `uploadClip`).
 - [ ] **Time to first sound** is added to the call log.
 
-**Gate:** `npm run check` and `npm run e2e` pass, with a stubbed audio engine proving segment order, highlight sync, the 200 ms scroll lead and acknowledgement timing. Listening to real voice quality and testing a real microphone needs a person.
+**Gate:** `npm run check` and `npm run e2e` pass, with the stub speaker proving the 200 ms scroll lead and injected transcripts proving cleanup. Listening to the local voice and testing a real microphone needs a person.
 
-## Phase 8: Interaction
+## Phase 10: Interaction
 
 - [ ] **Local commands.** "Go back", "repeat", "skip", "slower", "faster", "pause" and "resume" are recognised from the transcript and run instantly, with no LLM call.
 - [ ] **Interruptions and tour stack.** Speaking during playback pauses it. A side question is answered with the current step, segment and highlighted code as context ("that await" resolves to the visible line). A new topic pushes the current position (tour, step, segment) onto the stack. Resuming starts again at the beginning of the interrupted segment. Nothing is ever dropped.
-- [ ] **Point and ask.** Selecting code or clicking a symbol in the viewer attaches a `Selection` to the next question. A chip shows what is attached and can be removed, and it clears after use. The server re-verifies the selection against the file.
 - [ ] **Hands-free mode.** It is optional and off by default, using Silero voice activity detection and browser echo cancellation. Detected sound lowers the volume. Speech counts as real when it lasts at least 300 ms and has a non-empty transcript; then playback stops and the speech is handled. Otherwise the volume is restored and playback continues. End of speech is detected after 0.5–0.8 s of silence.
 
-**Gate:** `npm run check` and `npm run e2e` pass, using injected transcripts to prove every command, stack push and resume-at-segment-start, and the selection chip. Testing hands-free mode with real speakers needs a person.
+**Gate:** `npm run check` and `npm run e2e` pass, using injected transcripts to prove every command, stack push and resume-at-segment-start. Testing hands-free mode with real speakers needs a person.
 
-## Phase 9: Explain my diff and stack traces
+## Phase 11: Explain my diff and stack traces
 
 - [ ] **Read-only git tool.** `git({ command: "diff" | "show" | "log", args })` allows only those subcommands, with validated arguments; anything else is refused. A diff base can be the last commit, the branch start (merge-base with the default branch), or a snapshot taken with `miyagi snapshot`.
 - [ ] **Diff anchors.** Anchors can carry `side: "old" | "new"`. The resolver verifies old-side anchors against the base version of the file.
@@ -196,7 +222,7 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 
 **Gate:** `npm run check` passes, with tests on a fixture git repo built during test setup, covering every diff base, old/new anchors, the risk flags, and stack traces with and without source maps.
 
-## Phase 10: Teach mode
+## Phase 12: Teach mode
 
 - [ ] **`.tutor/` store.** It is created on first launch with a `.tutor/.gitignore` that shares only `tours/`. At first launch it asks for the profile (experience level, preferences) and the repo goal, one question at a time; the user can edit or skip them. Files are zod-validated, and a corrupt file is reported and replaced, never fatal.
 - [ ] **Learner intent.** Per-question intent (interview prep, onboarding, contributing, debugging) is inferred, shown and can be overridden. It changes the tour's emphasis: why and tradeoffs; architecture and conventions; where to change things and tests; data flow and failure points.
@@ -213,7 +239,7 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 
 **Gate:** `npm run check` passes, with fake-provider tests for every question-policy rule, the explain-back states, learner-record transitions, the answer-mode no-question rule and model routing.
 
-## Phase 11: Saved tours
+## Phase 13: Saved tours
 
 - [ ] **Save.** A tour is saved with author, date, intent, level, base commit and a hash per anchored block to `.tutor/tours/<slug>.json`. Text only; audio is made at play time.
 - [ ] **Replay.**
@@ -226,7 +252,7 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 
 **Gate:** `npm run check` passes, with fixture-repo tests that change code to produce each replay outcome, and a test of `miyagi check-tours` exit codes.
 
-## Phase 12: Interview prep
+## Phase 14: Interview prep
 
 - [ ] **Question generation.** Questions come from dependencies, the repo map, git history, failure points and the learner's weak spots. Follow-ups react to the answers.
 - [ ] **Session rules.** No hints during the session. Vague answers get probed and weak ones pushed back on. Sessions are timeboxed. Difficulty is friendly, realistic or tough. Voice-only mode is optional.
@@ -236,7 +262,7 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 
 **Gate:** `npm run check` passes, with fake-provider tests for generation, the session rules and the debrief, plus a test proving every fixture file's hash is unchanged after a drill.
 
-## Phase 13: PR review
+## Phase 15: PR review
 
 - [ ] **Fetch a PR.** `miyagi review <number|url>` fetches the PR branch with the user's own git credentials (`git fetch origin pull/<n>/head`). The description is read with `gh pr view` when `gh` is installed; otherwise the user pastes it.
 - [ ] **Review tour.** It reuses the diff pipeline, with the PR description as the "why", plus risk flags and a review checklist. Teach mode is off by default.
@@ -249,19 +275,20 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 Each one blocks only the phase named. Answer it before that phase starts.
 
 - **npm name** (release). `miyagi` shows as "unpublished 2020" on npm. Confirm it can be published under that name before the first release, or pick another.
-- **Gemini terms** (Phase 6). Check the free-tier rate limits and data-training terms before any commercial use of `GeminiAPI`.
-- **Code graph features** (Phase 6). Build graph hints and `find_callers` only if the Phase 5 eval results call for them: graph hints when retrieval misses are common, `find_callers` when the flow-order or starting-point checks fail. Otherwise move them out of the plan as unscheduled.
-- **Model IDs** (Phase 6, also Phase 10 routing). Which Claude and Gemini models, `max_tokens`, and whether to keep a price table for cost when the provider doesn't report it.
-- **Local voice engine** (Phase 7). Kokoro (default) vs Piper, and the default voice. Confirm against current browser support and quality.
-- **Whisper** (Phase 7). English-only or multilingual, and which model size (download size vs accuracy).
-- **After an interruption** (Phase 8). When a side answer or new topic finishes, does the interrupted tour resume on its own or wait for "resume"? Is the tour stack visible?
-- **"Last commit" diff base** (Phase 9). The uncommitted changes since HEAD, or the changes inside HEAD?
-- **AI session logs** (Phase 9). Which tools' logs to read for the "why", now or later. They live outside the repo and are private.
-- **First launch** (Phase 10). Where the profile and goal questions are asked (browser, terminal or voice), and which preferences exist.
-- **Default mode** (Phase 10). Teach or answer by default, and whether it's a toggle or a profile preference.
-- **PRIMM details** (Phase 10). What the learner sees and does in predict, investigate and modify, and which steps get them.
-- **Due reviews** (Phase 10). When and where spaced reviews are offered.
-- **Learning path** (Phase 10). What triggers it, what it looks like, where it's saved, and how the user moves through it.
-- **Broken tour** (Phase 11). Fail only on an unresolvable anchor and warn on a changed hash, or fail on both?
-- **Interview format** (Phase 12). Questions per session, default timebox, what friendly, realistic and tough mean, and the probe limit.
-- **Interview scorecard** (Phase 12). Its dimensions and scale.
+- **ElevenLabs terms** (Phase 5). Free-tier credits are limited (about 10k) and, as understood, non-commercial with attribution required. Confirm the current terms and the hackathon's rules before recording the demo.
+- **Gemini terms** (Phase 8). Check the free-tier rate limits and data-training terms before any commercial use of `GeminiAPI`.
+- **Code graph features** (Phase 8). Build graph hints and `find_callers` only if the Phase 7 eval results call for them: graph hints when retrieval misses are common, `find_callers` when the flow-order or starting-point checks fail. Otherwise move them out of the plan as unscheduled.
+- **Model IDs** (Phase 8, also Phase 12 routing). Which Claude and Gemini models, `max_tokens`, and whether to keep a price table for cost when the provider doesn't report it.
+- **Local voice engine** (Phase 9). Kokoro (default) vs Piper, and the default voice. Confirm against current browser support and quality.
+- **Whisper** (Phase 9). English-only or multilingual, and which model size (download size vs accuracy).
+- **After an interruption** (Phase 10). When a side answer or new topic finishes, does the interrupted tour resume on its own or wait for "resume"? Is the tour stack visible?
+- **"Last commit" diff base** (Phase 11). The uncommitted changes since HEAD, or the changes inside HEAD?
+- **AI session logs** (Phase 11). Which tools' logs to read for the "why", now or later. They live outside the repo and are private.
+- **First launch** (Phase 12). Where the profile and goal questions are asked (browser, terminal or voice), and which preferences exist.
+- **Default mode** (Phase 12). Teach or answer by default, and whether it's a toggle or a profile preference.
+- **PRIMM details** (Phase 12). What the learner sees and does in predict, investigate and modify, and which steps get them.
+- **Due reviews** (Phase 12). When and where spaced reviews are offered.
+- **Learning path** (Phase 12). What triggers it, what it looks like, where it's saved, and how the user moves through it.
+- **Broken tour** (Phase 13). Fail only on an unresolvable anchor and warn on a changed hash, or fail on both?
+- **Interview format** (Phase 14). Questions per session, default timebox, what friendly, realistic and tough mean, and the probe limit.
+- **Interview scorecard** (Phase 14). Its dimensions and scale.

@@ -29,7 +29,7 @@ AI tools write code faster than people can understand it. Reading a codebase alo
 - A hosted version, the `Upload` code source, and private hosted repos.
 - A VS Code extension (after launch, only if users ask; no architecture change needed).
 - `CodexHeadless` provider.
-- Premium or commercial speech engines (upgrade only where evals show it is worth it).
+- Premium or commercial speech engines beyond the opt-in ElevenLabs voice (ADR 0002).
 - `semantic_search` (embeddings): unscheduled until evals show retrieval misses.
 
 ## What stays private
@@ -37,5 +37,5 @@ AI tools write code faster than people can understand it. Reading a codebase alo
 - The original design notes (`voice-tutor-design-notes.md`): interview prep and business notes. Gitignored, never committed.
 - Learner data: profile, intent, learner records, session records and logs under `.tutor/` stay on the user's machine and out of git. Only `.tutor/tours/` is shared.
 - Repo contents never leave the machine except to the LLM provider the user chose, after filtering and secret redaction.
-- Audio never leaves the machine: speech-to-text and text-to-speech run in the browser.
+- Microphone audio never leaves the machine. Narration is spoken locally by default; with the opt-in ElevenLabs voice, only the redacted narration text goes to ElevenLabs.
 - The repo is private for now but kept ready to make public (LICENSE, SECURITY.md, CONTRIBUTING.md, templates are in place).

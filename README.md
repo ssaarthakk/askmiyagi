@@ -2,7 +2,7 @@
 
 A voice tutor for codebases. Ask a question out loud; Miyagi explains by voice while it opens files and highlights the exact code it is talking about, step by step, like a teacher sitting beside you.
 
-Everything runs locally: one command starts a server on `127.0.0.1` and opens the browser. Speech runs in the browser, and the model only gets read-only tools.
+Everything runs locally: one command starts a server on `127.0.0.1` and opens the browser. The voice is local by default (ElevenLabs is opt-in), and the model only gets read-only tools.
 
 > Status: early development. See `docs/PLAN.md` for what is built and what is next.
 

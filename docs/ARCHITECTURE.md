@@ -29,10 +29,11 @@ These may be added when the feature that needs them is built, without asking aga
 - Phase 2: `web-tree-sitter` 0.27.1, `tree-sitter-typescript` 0.23.2 and `tree-sitter-javascript` 0.25.0 (for their `.wasm` grammars), `@vscode/ripgrep`
 - Phase 3: `@modelcontextprotocol/sdk`
 - Phase 4: `codemirror`, `@codemirror/*` packages; dev: `@playwright/test`
-- Phase 6: `@anthropic-ai/sdk`, `@google/genai`
-- Phase 7: `@huggingface/transformers` (Whisper), `kokoro-js` (local voice)
-- Phase 8: `@ricky0123/vad-web` (Silero voice activity detection)
-- Phase 9: `@codemirror/merge`
+- Phase 5: none (ElevenLabs is called with built-in `fetch`, no SDK)
+- Phase 8: `@anthropic-ai/sdk`, `@google/genai`
+- Phase 9: `@huggingface/transformers` (Whisper), `kokoro-js` (local voice)
+- Phase 10: `@ricky0123/vad-web` (Silero voice activity detection)
+- Phase 11: `@codemirror/merge`
 
 ## Folder layout (default)
 
@@ -86,7 +87,7 @@ Browser (Svelte)                         Node server (one process)
 
 - **Browser to server:** JSON over HTTP; `POST /api/ask` answers with a server-sent event stream. The server injects a random per-session token into `index.html` as `<meta name="miyagi-token" content="<64 hex chars>">`; every `/api/*` request sends it as `x-miyagi-token`. API errors are `{ "error": "<reason>" }`.
 - **Server to Claude Code:** `ClaudeHeadless` spawns `claude -p` with stream JSON output, all built-in tools off, `--strict-mcp-config` with only Miyagi's MCP server, `--allowedTools` limited to `mcp__miyagi__*`, user settings and plugins not loaded, and an empty temp working folder. The MCP server is the same binary: `miyagi mcp <root>`.
-- **Speech stays in the browser.** Audio never reaches the server.
+- **Voice is swappable.** The browser speaks through one `Speaker` interface: `browser` (local `speechSynthesis`, default), `elevenlabs` (opt-in; the server calls ElevenLabs through `POST /api/speech` with redacted text, so the key never reaches the page), and later `kokoro`. Microphone audio never leaves the browser. See [ADR 0002](adr/0002-swappable-voice-with-elevenlabs.md).
 - **Tour stack is browser state** (playback position), so pause and resume are instant.
 
 ### Routes (grow per phase)
@@ -96,9 +97,10 @@ Browser (Svelte)                         Node server (one process)
 | `GET /` and static assets | 1 | built Svelte page, token injected; no token needed |
 | `GET /api/file?path=` | 4 | 200 `{ path, content }` (guarded, filtered, redacted), 400 `{ error }` on refusal |
 | `POST /api/ask` | 3 | question (+ selection) to SSE stream of `AskEvent` |
-| `POST /api/interrupt` | 8 | abort the running ask |
-| `/api/tours*` | 11 | list, save, load saved tours |
-| `/api/tutor/*` | 10 | profile, intent, learner record |
+| `POST /api/speech` | 5 | `{ text }` to `audio/mpeg` from ElevenLabs (only with `--voice elevenlabs`) |
+| `POST /api/interrupt` | 10 | abort the running ask |
+| `/api/tours*` | 13 | list, save, load saved tours |
+| `/api/tutor/*` | 12 | profile, intent, learner record |
 
 ## Security model
 
@@ -106,7 +108,7 @@ Browser (Svelte)                         Node server (one process)
 - Never execute anything from a repo. Read only. Git is used only for `clone --depth 1` (no submodules, no LFS smudge) and the read-only `diff`, `show`, `log`, `fetch`.
 - Every path goes through the path guard: resolve, `realpath` (follows symlinks), refuse anything outside the project root, then the shared file filter.
 - The shared file filter exposes `isVisible(root, relPath): Promise<boolean>` and `listVisibleFiles(root): Promise<string[]>`. The list contains sorted root-relative paths, and traversal prunes excluded directories before descending. Filtering applies nested `.gitignore` files and root `.gitattributes` generated markers, and excludes the planned lockfiles, secrets, binaries and oversized files.
-- Every byte leaving the machine (tool results, brute-force content) passes secret redaction.
+- Every byte leaving the machine (tool results, brute-force content, ElevenLabs narration text) passes secret redaction.
 - No network tools for the model, ever ("lethal trifecta": remove external communication). File contents are data, never instructions; tool results are wrapped in labelled untrusted blocks.
 - PR review drafts comments; it never posts them.
 
@@ -124,7 +126,7 @@ Usage { inputTokens: number; outputTokens: number; cacheReadTokens: number; cach
 LLMRequest {
   system: string
   context: string               // repo map, or the brute-force repo text
-  conversation: string          // earlier turns, from Phase 6
+  conversation: string          // earlier turns, from Phase 8
   question: string              // plus selection, current position and intent as they arrive
   root: string                  // project root, for the tools
   tools: boolean                // false for plain completions (judge, rubrics, summaries)
@@ -191,10 +193,11 @@ EvalCase { question, intent, mustHighlight: string[], expectedOrder: string[], k
 | Service | Used for | Auth |
 |---|---|---|
 | Claude Code CLI (`claude -p`) | default provider | the user's own Claude Code login |
-| Anthropic API | `ClaudeAPI` provider (Phase 6) | `ANTHROPIC_API_KEY` |
-| Gemini API | `GeminiAPI` free-tier fallback (Phase 6) | `GEMINI_API_KEY`; check limits and training terms before commercial use |
-| GitHub (public) | `GitClone` shallow clones | none |
-| `gh` CLI | read PR descriptions (Phase 13), optional | the user's own `gh` login |
+| Anthropic API | `ClaudeAPI` provider (Phase 8) | `ANTHROPIC_API_KEY` |
+| Gemini API | `GeminiAPI` free-tier fallback (Phase 8) | `GEMINI_API_KEY`; check limits and training terms before commercial use |
+| ElevenLabs | opt-in voice, `--voice elevenlabs` (Phase 5) | `ELEVENLABS_API_KEY`; free tier needs attribution |
+| GitHub (public) | `GitClone` shallow clones (Phase 6) | none |
+| `gh` CLI | read PR descriptions (Phase 15), optional | the user's own `gh` login |
 | Hugging Face model files | Whisper and voice model downloads in the browser, cached | none |
 
 ## Code intelligence

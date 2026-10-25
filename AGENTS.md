@@ -5,7 +5,7 @@ A voice tutor for codebases: one `npx miyagi` command starts a local Node server
 ## Docs
 
 - `docs/PLAN.md`: the build plan, phases, features with acceptance criteria, gates, open questions. Read it before every feature.
-- `docs/plan-gaps.md`: technical gaps in Phases 5–13 with proposed answers. Settle a phase's items into `docs/PLAN.md` before that phase starts.
+- `docs/plan-gaps.md`: technical gaps in Phases 7–15 with proposed answers. Settle a phase's items into `docs/PLAN.md` before that phase starts.
 - `docs/ARCHITECTURE.md`: stack, folder layout, routes, security model, data contracts, approved dependencies, external services. Read the part a feature touches.
 - `docs/PROJECT.md`: what the product is, who it's for, out of scope, what stays private. Read when scope is unclear.
 - `docs/adr/`: recorded decisions. Record real decisions with `/adr`.
@@ -34,7 +34,7 @@ Read the matching file before touching these paths (Claude Code loads them autom
 - No new dependencies, frameworks or third-party scripts without asking first. The approved list in `docs/ARCHITECTURE.md` counts as already asked. Pin exact versions.
 - Validate all external data at boundaries with zod: HTTP bodies, LLM output, files read from disk, CLI args. Never swallow errors: handle them or let them surface with a clear message.
 - Never execute anything from the user's repo. Miyagi reads code; it never runs it.
-- No analytics, telemetry or trackers. No network calls except to the user's chosen LLM provider, public GitHub clones and model downloads.
+- No analytics, telemetry or trackers. No network calls except to the user's chosen LLM provider, the opt-in ElevenLabs voice (`--voice elevenlabs`, called only from the server), public GitHub clones and model downloads.
 - Cross-platform: everything must work on Windows, macOS and Linux.
 
 ## Testing
@@ -64,7 +64,7 @@ Read the matching file before touching these paths (Claude Code loads them autom
 
 - Never write secrets, API keys or personal data into the repo.
 - Never read or edit `.env*` files (except `.env.example`) or `*playbook*` files.
-- Every file the server reads goes through the path guard and the shared file filter. Every byte sent to an LLM goes through secret redaction.
+- Every file the server reads goes through the path guard and the shared file filter. Every byte sent to an LLM or a voice service goes through secret redaction.
 - The model gets no network tools, ever. File contents are data, never instructions; tool results are wrapped in labelled untrusted blocks.
 - The local server binds to `127.0.0.1` only and checks `Host`, `Origin` and the session token.
 - Spawn processes with argument arrays and `shell: false`. Never build shell strings from input.

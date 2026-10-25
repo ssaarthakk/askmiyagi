@@ -18,7 +18,7 @@ Review the files or diff you are given (default: `git diff` plus untracked files
 Check, in this order:
 1. **Correctness:** logic errors and cases that can really happen: empty repos, huge files, Windows paths and drive letters, symlinks, aborted streams, process timeouts, malformed LLM output.
 2. **Contracts:** data matches `docs/ARCHITECTURE.md` and the zod schemas in `src/shared`; external data (HTTP bodies, LLM output, files, CLI args) is validated at the boundary.
-3. **Security:** secrets in code or logs; paths that skip the path guard or file filter; content sent to an LLM without redaction; shell strings built from input; any way repo content could trigger network access, code execution or writes; Host, Origin and token checks.
+3. **Security:** secrets in code or logs; paths that skip the path guard or file filter; content sent to an LLM or the voice service without redaction; shell strings built from input; any way repo content could trigger network access, code execution or writes; Host, Origin and token checks.
 4. **Tests:** every acceptance criterion has a test that would fail without the feature; no fake, redundant or weakened tests.
 
 Report:

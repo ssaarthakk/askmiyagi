@@ -47,7 +47,7 @@ src/
     files/       file filter, path guard, secret redaction, watcher
     code/        parse cache, repo map, anchor resolver
     tools/       read_file, grep, find_symbol, git (plain functions)
-    mcp/         stdio MCP server exposing the tools
+    mcp/         stdio MCP server exposing the tools (`miyagi mcp <root>`, `runMcpCommand`)
     llm/         LLMProvider, providers, agent loop guards, prompt builder, context manager
     teach/       .tutor store, intent, learner record, question policy, explain-back
     evals/       eval runner, code checks, judge
@@ -114,6 +114,8 @@ Browser (Svelte)                         Node server (one process)
 
 ## Data contracts (`src/shared`)
 
+Each contract is a zod schema with its type inferred from it, one file per area (`anchor.ts`, `tour.ts`, `events.ts`, `usage.ts`, `llm-request.ts`, `tool-result.ts`, `result.ts`), and the tool input schemas are in `tool-inputs.ts`. `parseContract(schema, data)` returns a `Result` whose error lists each problem on its own line as `path: message`.
+
 Paths everywhere (tool inputs and results, anchors, selections, routes, events) are relative to the project root with `/` separators. Only the path guard turns them into real paths.
 
 ```ts
@@ -174,6 +176,10 @@ AskEvent =   // what the browser receives over SSE
 EvalCase { question, intent, mustHighlight: string[], expectedOrder: string[], keyFacts: string[] }
 ```
 
+### Providers
+
+`LLMProvider` is `ask(request: LLMRequest, signal: AbortSignal): AsyncIterable<ProviderEvent>` (`src/server/llm/provider.ts`); aborting the signal ends the stream. `loadFakeProvider(file)` (`fake-provider.ts`) returns a `Result` holding a provider that replays a recording: one `ProviderEvent` JSON per line, with an optional `delayMs` waited before that event. The hidden CLI flags `--provider fake --recording <file>` load it at startup and exit 1 with the problems (`line <n>: <path>: <message>`) if the recording is bad.
+
 ### Model output and untrusted content
 
 - The model answers in NDJSON: one `Step` JSON object per line, then optionally one final line `{"checkQuestion": "…"}`. Providers parse each complete line into a `step` event as it streams. The pipeline builds the `Tour` from the request's question, the steps and the check question. `text` events are internal: unparsed lines kept for the retry prompt.
@@ -210,7 +216,7 @@ EvalCase { question, intent, mustHighlight: string[], expectedOrder: string[], k
 
 `grep` never lets ripgrep see the raw files: it streams the redacted text of the selected visible files into `rg --json -` on stdin and maps stdin line numbers back to each file. A pattern can therefore only match text the model is allowed to see.
 
-`resolveAnchor(root, anchor)` returns `Result<ResolvedAnchor>`. A line anchor takes the smallest syntax node spanning the line's trimmed text and climbs to the nearest `*_statement`, `*_declaration`, `*_definition` or `*_signature` node. `Anchor` and `ResolvedAnchor` are plain types in `src/shared/anchor.ts` until the Phase 3 shared contracts replace them with zod schemas.
+`resolveAnchor(root, anchor)` returns `Result<ResolvedAnchor>`. A line anchor takes the smallest syntax node spanning the line's trimmed text and climbs to the nearest `*_statement`, `*_declaration`, `*_definition` or `*_signature` node.
 
 The tools share `runTool` (input validation with zod, errors as results with the root path replaced by `.`) and the `ToolResult` type in `src/shared/tool-result.ts`.
 
@@ -225,6 +231,7 @@ system prompt -> repo map (or whole filtered, numbered repo in brute-force mode)
 - Stable content first, so the prefix stays cacheable. The repo map is deterministic for the same file hashes.
 - `ClaudeAPI` sets the cache markers explicitly; `ClaudeHeadless` relies on Claude Code's own prompt caching with the same stable order.
 - Brute force vs agentic search is chosen by token count at load and re-checked as the conversation grows. The threshold is a setting tuned by evals.
+- `buildRequest(root, question, bruteForceTokens)` in `src/server/llm/prompt.ts` returns `{ mode, request }`: the system prompt, then the whole filtered, redacted, line-numbered repo (`=== <path> ===` headers, `12: code` lines) when it fits under the threshold (estimated as characters divided by 4; default 60,000), otherwise `buildRepoMap`. `renderPrompt(request)` joins system, context, conversation and question in that order.
 
 ## Third-party code
 

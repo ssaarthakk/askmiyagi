@@ -1,0 +1,3 @@
+{"type":"text","text":"thinking out loud"}
+{"type":"step","step":{"title":"Saving a clip","anchors":[{"file":"src/clip-service.ts","symbol":"ClipService.save"}],"narration":[{"text":"Clips are saved here.","anchor":0}]}}
+{"type":"done","usage":{"inputTokens":10,"outputTokens":5,"cacheReadTokens":0,"cacheWriteTokens":0,"costUsd":null}}

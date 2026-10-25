@@ -7,6 +7,8 @@ import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { z } from "zod";
+import { loadFakeProvider } from "./llm/fake-provider.ts";
+import { runMcpCommand } from "./mcp/server.ts";
 import { openLocalFolder } from "./source/local-folder.ts";
 
 const contentTypes: Record<string, string> = {
@@ -127,12 +129,21 @@ const cliArgsSchema = z.object({
     .pipe(z.number().int().min(0).max(65535))
     .optional(),
   noOpen: z.boolean(),
+  provider: z
+    .enum(["fake"], { error: (issue) => `Unknown provider: ${String(issue.input)}` })
+    .optional(),
+  recording: z.string().min(1).optional(),
 });
 
 export function parseCliArgs(args: string[]) {
   const parsed = parseArgs({
     args,
-    options: { port: { type: "string" }, "no-open": { type: "boolean" } },
+    options: {
+      port: { type: "string" },
+      "no-open": { type: "boolean" },
+      provider: { type: "string" },
+      recording: { type: "string" },
+    },
     allowPositionals: true,
     strict: true,
   });
@@ -140,14 +151,25 @@ export function parseCliArgs(args: string[]) {
     positionals: parsed.positionals,
     port: parsed.values.port,
     noOpen: parsed.values["no-open"] ?? false,
+    provider: parsed.values.provider,
+    recording: parsed.values.recording,
   });
   if (!validated.success) {
     throw new Error(validated.error.issues.map((issue) => issue.message).join("\n"));
+  }
+  const { provider, recording } = validated.data;
+  if (provider === "fake" && !recording) {
+    throw new Error("--provider fake needs --recording <file>");
+  }
+  if (recording && provider !== "fake") {
+    throw new Error("--recording only works with --provider fake");
   }
   return {
     path: validated.data.positionals[0] ?? ".",
     port: validated.data.port ?? 0,
     noOpen: validated.data.noOpen,
+    provider,
+    recording,
   };
 }
 
@@ -177,6 +199,12 @@ function openBrowser(url: string) {
 }
 
 async function runCli() {
+  const [subcommand, ...subcommandArgs] = process.argv.slice(2);
+  if (subcommand === "mcp") {
+    await runMcpCommand(subcommandArgs);
+    return;
+  }
+
   let options: ReturnType<typeof parseCliArgs>;
   try {
     options = parseCliArgs(process.argv.slice(2));
@@ -191,6 +219,17 @@ async function runCli() {
     process.stderr.write(`${source.error}\n`);
     process.exitCode = 1;
     return;
+  }
+
+  if (options.provider === "fake" && options.recording) {
+    const fake = await loadFakeProvider(resolve(options.recording));
+    if (!fake.ok) {
+      process.stderr.write(`${fake.error}
+`);
+      await source.value.dispose();
+      process.exitCode = 1;
+      return;
+    }
   }
 
   const webRoot = resolve(import.meta.dirname, "../../dist/web");

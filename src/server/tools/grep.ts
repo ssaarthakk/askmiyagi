@@ -5,25 +5,19 @@ import { pipeline } from "node:stream/promises";
 import { rgPath } from "@vscode/ripgrep";
 import ignore from "ignore";
 import { z } from "zod";
+import { grepInputSchema } from "../../shared/tool-inputs.ts";
 import type { ToolResult } from "../../shared/tool-result.ts";
 import { listVisibleFiles } from "../files/file-filter.ts";
 import { readRedactedFile } from "../files/path-guard.ts";
 import { runTool, toolResult } from "./run-tool.ts";
 
-const inputSchema = z.object({
-  patterns: z.array(z.string().min(1)).min(1),
-  caseInsensitive: z.boolean().optional(),
-  wholeWord: z.boolean().optional(),
-  include: z.array(z.string().min(1)).min(1).optional(),
-  exclude: z.array(z.string().min(1)).optional(),
-});
 const eventSchema = z.object({ type: z.string(), data: z.unknown() });
 const matchSchema = z.object({
   line_number: z.number().int().positive(),
   lines: z.object({ text: z.string() }),
 });
 
-type GrepInput = z.infer<typeof inputSchema>;
+type GrepInput = z.infer<typeof grepInputSchema>;
 type Match = { path: string; line: number; text: string };
 type Segment = { path: string; lastLine: number };
 const timeoutSeconds = 30;
@@ -151,5 +145,5 @@ async function search(root: string, input: GrepInput): Promise<ToolResult> {
 }
 
 export function grepTool(root: string, input: unknown): Promise<ToolResult> {
-  return runTool(root, "grep", inputSchema, input, (parsed) => search(root, parsed));
+  return runTool(root, "grep", grepInputSchema, input, (parsed) => search(root, parsed));
 }

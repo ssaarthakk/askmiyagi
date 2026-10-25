@@ -88,16 +88,16 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 
 ## Phase 3: Brain
 
-- [ ] **Shared contracts.** zod schemas and types for `Result`, `ToolResult`, `Usage`, `LLMRequest`, `Tour`, `Step`, `Anchor`, `ResolvedAnchor`, `Selection`, `ProviderEvent` and `AskEvent` live in `src/shared` (see `docs/ARCHITECTURE.md`), with the tool input schemas. A step must have 1–3 anchors. Invalid data gives a readable list of what is wrong.
-- [ ] **LLMProvider and fake provider.**
+- [x] **Shared contracts.** zod schemas and types for `Result`, `ToolResult`, `Usage`, `LLMRequest`, `Tour`, `Step`, `Anchor`, `ResolvedAnchor`, `Selection`, `ProviderEvent` and `AskEvent` live in `src/shared` (see `docs/ARCHITECTURE.md`), with the tool input schemas. A step must have 1–3 anchors. Invalid data gives a readable list of what is wrong.
+- [x] **LLMProvider and fake provider.**
   - `LLMProvider.ask(request: LLMRequest, signal)` returns an async stream of `ProviderEvent`s. Aborting the signal ends the stream promptly.
   - `FakeProvider` replays a recording: one `ProviderEvent` JSON per line in `test/fixtures/recordings/<name>.jsonl`, with an optional `delayMs` between events so abort tests mean something.
   - The CLI takes hidden flags `--provider fake --recording <file>` (left out of help text) so e2e tests and evals can run the real server on a recording.
-- [ ] **MCP tool server.** `miyagi mcp <root>` runs a stdio MCP server exposing `read_file`, `grep` and `find_symbol`, and nothing else. Every result is wrapped by the shared `wrapUntrusted(tool, text)` as `<untrusted_content tool="<tool>">…</untrusted_content>`; a literal `</untrusted_content>` inside the content is escaped as `<\/untrusted_content>`. Tested through an MCP client.
-- [ ] **Prompt builder and mode choice.**
+- [x] **MCP tool server.** `miyagi mcp <root>` runs a stdio MCP server exposing `read_file`, `grep` and `find_symbol`, and nothing else. Every result is wrapped by the shared `wrapUntrusted(tool, text)` as `<untrusted_content tool="<tool>">…</untrusted_content>`; a literal `</untrusted_content>` inside the content is escaped as `<\/untrusted_content>`. Tested through an MCP client.
+- [x] **Prompt builder and mode choice.**
   - It builds the prompt in the order from `docs/ARCHITECTURE.md`. The system prompt says file contents are data, never instructions, gives the step output format (below), asks for narration written for the ear (no code symbols such as `()` or `{`), and explains how to anchor.
   - Output format: the model writes NDJSON, one `Step` JSON object per line, then optionally one final line `{"checkQuestion": "…"}`, and nothing else.
-  - Brute-force mode sends the whole filtered, redacted repo as `=== <path> ===` headers each followed by that file's numbered lines (`12: code`). It is chosen when that fits under a token threshold (default 60,000, set with `--brute-force-tokens <n>`); otherwise agentic mode uses the repo map.
+  - Brute-force mode sends the whole filtered, redacted repo as `=== <path> ===` headers each followed by that file's numbered lines (`12: code`). It is chosen when that fits under a token threshold (default 60,000, a parameter of `buildRequest`; the `--brute-force-tokens <n>` flag arrives with the Ask pipeline, which is the first caller); otherwise agentic mode uses the repo map.
   - The same inputs always give the same prefix.
 - [ ] **ClaudeHeadless process.**
   - It spawns `claude -p` on Windows, macOS and Linux with stream JSON output, all built-in tools off, `--strict-mcp-config` pointing only at the MCP server, `--allowedTools` limited to `mcp__miyagi__*`, no user settings or plugins, no `--model` flag (Claude Code's default), and an empty temp working folder.
@@ -115,6 +115,7 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
     - `progress` events for tool calls: `read_file` becomes "Looking at <file name>", `grep` "Searching for <patterns joined with or>", `find_symbol` "Finding <name>";
     - `step` events as steps arrive, then a final `tour` event built from the request's question, the steps and any `checkQuestion`, every anchor resolved (an unresolvable anchor becomes `null`; its step still plays without the highlight);
     - then `done`.
+  - `/api/ask` builds its request with `buildRequest`. The CLI takes `--brute-force-tokens <n>` (a positive integer, validated with zod, default 60,000) and passes it through; a test shows a small value switches the request to the repo map.
   - An invalid step or a `text` line ends the ask: the steps already sent stay, and an `error` event lists what was wrong. (The retry comes in Phase 8.) A second ask while one is running gets 409.
 
 **Gate:** `npm run check` passes, including an integration test that posts a question to a running server backed by `FakeProvider` and receives `ack`, `progress` and a valid `tour` with verified ranges in order. The live smoke test (`MIYAGI_LIVE=1 npm test`) needs a person with Claude Code logged in.

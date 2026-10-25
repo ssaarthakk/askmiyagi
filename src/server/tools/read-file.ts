@@ -1,4 +1,5 @@
-import { z } from "zod";
+import type { z } from "zod";
+import { readFileInputSchema } from "../../shared/tool-inputs.ts";
 import type { ToolResult } from "../../shared/tool-result.ts";
 import { parseFile } from "../code/parse-cache.ts";
 import {
@@ -10,18 +11,7 @@ import {
 import { readRedactedFile } from "../files/path-guard.ts";
 import { runTool, toolResult } from "./run-tool.ts";
 
-const inputSchema = z
-  .object({
-    path: z.string().min(1),
-    start: z.number().int().positive().optional(),
-    end: z.number().int().positive().optional(),
-    symbol: z.string().min(1).optional(),
-  })
-  .refine((input) => !(input.symbol && (input.start !== undefined || input.end !== undefined)), {
-    message: "symbol cannot be combined with a line range",
-  });
-
-type ReadFileInput = z.infer<typeof inputSchema>;
+type ReadFileInput = z.infer<typeof readFileInputSchema>;
 
 function boundedLines(lines: string[], start: number, end: number) {
   const shownEnd = Math.min(end, start + 249);
@@ -76,5 +66,5 @@ async function read(root: string, input: ReadFileInput): Promise<ToolResult> {
 }
 
 export function readFileTool(root: string, input: unknown): Promise<ToolResult> {
-  return runTool(root, "read_file", inputSchema, input, (parsed) => read(root, parsed));
+  return runTool(root, "read_file", readFileInputSchema, input, (parsed) => read(root, parsed));
 }

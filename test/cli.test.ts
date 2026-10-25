@@ -55,3 +55,52 @@ describe("CLI entry", () => {
     expect(await response.text()).toMatch(/<meta name="miyagi-token" content="[a-f0-9]{64}">/);
   });
 });
+
+describe("hidden fake provider flags", () => {
+  const recording = "test/fixtures/recordings/tour.jsonl";
+
+  it("starts with a valid recording", async () => {
+    const childProcess = startCli(sourceCli, [
+      "--no-open",
+      "--port",
+      "0",
+      "--provider",
+      "fake",
+      "--recording",
+      recording,
+    ]);
+    const line = await waitForLine(childProcess);
+    expect(line).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+    expect(childProcess.stderr).toBe("");
+  });
+
+  it("needs a recording for the fake provider", async () => {
+    const childProcess = startCli(sourceCli, ["--no-open", "--provider", "fake"]);
+    await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
+    expect(childProcess.stderr.trim()).toBe("--provider fake needs --recording <file>");
+  });
+
+  it("rejects a recording without the fake provider", async () => {
+    const childProcess = startCli(sourceCli, ["--no-open", "--recording", recording]);
+    await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
+    expect(childProcess.stderr.trim()).toBe("--recording only works with --provider fake");
+  });
+
+  it("rejects an unknown provider", async () => {
+    const childProcess = startCli(sourceCli, ["--no-open", "--provider", "nope"]);
+    await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
+    expect(childProcess.stderr.trim()).toBe("Unknown provider: nope");
+  });
+
+  it("reports an invalid recording and exits with status 1", async () => {
+    const childProcess = startCli(sourceCli, [
+      "--no-open",
+      "--provider",
+      "fake",
+      "--recording",
+      "test/fixtures/recordings/invalid.jsonl",
+    ]);
+    await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
+    expect(childProcess.stderr).toContain("line 2");
+  });
+});

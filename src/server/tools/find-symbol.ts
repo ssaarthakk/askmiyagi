@@ -1,19 +1,15 @@
-import { z } from "zod";
+import type { z } from "zod";
+import { findSymbolInputSchema } from "../../shared/tool-inputs.ts";
 import type { ToolResult } from "../../shared/tool-result.ts";
 import { hasParser, parseFile } from "../code/parse-cache.ts";
-import { findDefinitions, lineRange, matchesName, symbolKinds } from "../code/symbols.ts";
+import { findDefinitions, lineRange, matchesName } from "../code/symbols.ts";
 import { listVisibleFiles } from "../files/file-filter.ts";
 import { readRedactedFile } from "../files/path-guard.ts";
 import { runTool, toolResult } from "./run-tool.ts";
 
-const inputSchema = z.object({
-  name: z.string().trim().min(1),
-  kind: z.enum(symbolKinds).optional(),
-});
-
 async function find(
   root: string,
-  { name, kind }: z.infer<typeof inputSchema>,
+  { name, kind }: z.infer<typeof findSymbolInputSchema>,
 ): Promise<ToolResult> {
   const matches: string[] = [];
   for (const path of (await listVisibleFiles(root)).filter(hasParser)) {
@@ -38,5 +34,5 @@ async function find(
 }
 
 export function findSymbolTool(root: string, input: unknown): Promise<ToolResult> {
-  return runTool(root, "find_symbol", inputSchema, input, (parsed) => find(root, parsed));
+  return runTool(root, "find_symbol", findSymbolInputSchema, input, (parsed) => find(root, parsed));
 }

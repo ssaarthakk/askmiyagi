@@ -1,14 +1,7 @@
 import type { Node } from "web-tree-sitter";
 import type { Result } from "../../shared/result.ts";
+import type { symbolKinds } from "../../shared/tool-inputs.ts";
 
-export const symbolKinds = [
-  "function",
-  "class",
-  "method",
-  "variable",
-  "interface",
-  "type",
-] as const;
 type SymbolKind = (typeof symbolKinds)[number];
 export type SymbolDefinition = {
   kind: SymbolKind;

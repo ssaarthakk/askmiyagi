@@ -1,6 +1,6 @@
 ---
 name: correctness-reviewer
-description: Read-only reviewer for correctness, contracts, security and test quality in given files or the uncommitted diff. Reports Must fix and Consider items. Use once per phase, before shipping it.
+description: Read-only reviewer for correctness, contracts, security and test quality in given files or the uncommitted diff. Reports Must fix and Consider items. Use once per part, before shipping it.
 tools: Read, Grep, Glob, Bash
 hooks:
   PreToolUse:

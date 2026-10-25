@@ -1,6 +1,6 @@
 ---
 name: autopilot
-description: Build and commit whole phases of docs/PLAN.md unattended, one commit per phase. Never pushes.
+description: Build and commit whole phases of docs/PLAN.md unattended, one commit per part of related features. Never pushes.
 argument-hint: "[number of phases]"
 disable-model-invocation: true
 ---

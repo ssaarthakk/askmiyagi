@@ -18,6 +18,6 @@ Feature requested: $ARGUMENTS
 6. Write the tests first and nothing else: one or more per behaviour the feature's text describes. Run them and confirm each fails for the right reason.
 7. Write the least code that makes them pass, following `AGENTS.md`. Never edit a test to make it pass.
 8. Test audit: delete any test that wouldn't fail if its behaviour broke, duplicates another test, or tests trivial code.
-9. Run `npm run check` and fix every failure. The reviewer agents run once per phase in `/ship`, not here.
+9. Run `npm run check` and fix every failure. The reviewer agents run once per part in `/ship`, not here.
 10. If the feature changed the structure, contracts or services, update `docs/ARCHITECTURE.md`. If it made a real decision, record it with `/adr`. Tick the feature in `docs/PLAN.md`.
 11. Give a short summary: what changed, which files, which tests. If that was the last feature of the phase, tell the user to run `/ship`. Otherwise tell them to start a fresh session and run `/feature`. Do not commit.

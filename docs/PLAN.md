@@ -86,7 +86,7 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 
 **Gate:** `npm run check` passes, with tests for every tool and the resolver over the fixture repos in `test/fixtures/` (a TS/JS repo plus a non-JS file).
 
-## Phase 3: Brain
+## Phase 3: Brain (shipped)
 
 - [x] **Shared contracts.** zod schemas and types for `Result`, `ToolResult`, `Usage`, `LLMRequest`, `Tour`, `Step`, `Anchor`, `ResolvedAnchor`, `Selection`, `ProviderEvent` and `AskEvent` live in `src/shared` (see `docs/ARCHITECTURE.md`), with the tool input schemas. A step must have 1–3 anchors. Invalid data gives a readable list of what is wrong.
 - [x] **LLMProvider and fake provider.**
@@ -99,17 +99,18 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
   - Output format: the model writes NDJSON, one `Step` JSON object per line, then optionally one final line `{"checkQuestion": "…"}`, and nothing else.
   - Brute-force mode sends the whole filtered, redacted repo as `=== <path> ===` headers each followed by that file's numbered lines (`12: code`). It is chosen when that fits under a token threshold (default 60,000, a parameter of `buildRequest`; the `--brute-force-tokens <n>` flag arrives with the Ask pipeline, which is the first caller); otherwise agentic mode uses the repo map.
   - The same inputs always give the same prefix.
-- [ ] **ClaudeHeadless process.**
+- [x] **ClaudeHeadless process.**
   - It spawns `claude -p` on Windows, macOS and Linux with stream JSON output, all built-in tools off, `--strict-mcp-config` pointing only at the MCP server, `--allowedTools` limited to `mcp__miyagi__*`, no user settings or plugins, no `--model` flag (Claude Code's default), and an empty temp working folder.
   - The MCP server is started as `process.execPath` with `process.argv[1]` (the running CLI: `src/server/cli.ts` in dev, `dist/server/cli.js` when installed) and `mcp <root>`.
   - A timeout (default 120 s) or abort kills the whole process tree. Claude Code missing or logged out gives a clear `error` event.
   - Spawn, argument and process-tree code is adapted from `claude-loopback` (github.com/ssaarthakk/claude-loopback, MIT). Create `THIRD_PARTY_NOTICES.md` with its license.
   - Unit tests cover the arguments, the spawn command per platform, timeout and abort.
-- [ ] **ClaudeHeadless stream parser.**
+- [x] **ClaudeHeadless stream parser.**
   - It turns Claude Code's stream JSON into `ProviderEvent`s: assistant text is buffered and split on newlines, and each complete line is parsed as a `Step` (a `step` event) or the final `checkQuestion` line; `tool_use` blocks become `tool_call` events; the final result becomes `done` with `Usage` (cost from the reported total cost, else `null`). A line that isn't valid JSON is passed on as a `text` event.
+  - The `checkQuestion` line becomes a new `ProviderEvent` variant `{ type: "checkQuestion", text }` (zod schema, its test and the `docs/ARCHITECTURE.md` copy updated). A line that is valid JSON but neither a valid `Step` nor a `checkQuestion` becomes `{ type: "error", message: <readable zod problems>, retryable: false }`, and parsing continues; the Ask pipeline ends the ask on it.
   - Stream-parsing code is adapted from `claude-loopback` too.
   - Unit tests parse recorded streams in `test/fixtures/recordings/claude-stream-*.jsonl`. A live smoke test runs only when `MIYAGI_LIVE=1`.
-- [ ] **Ask pipeline.**
+- [x] **Ask pipeline.**
   - `POST /api/ask` with `{ question, selection? }` (validated with zod; a bad body gets 400) answers with an SSE stream:
     - an `ack` event before anything else, with no LLM: the next phrase, in rotation, from the fixed list in `src/shared/phrases.ts` ("Good question, let me look.", "Let me find that.", "One moment, checking the code.");
     - `progress` events for tool calls: `read_file` becomes "Looking at <file name>", `grep` "Searching for <patterns joined with or>", `find_symbol` "Finding <name>";

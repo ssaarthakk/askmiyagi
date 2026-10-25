@@ -13,9 +13,10 @@ export const nonLoopbackIPv4 = Object.values(networkInterfaces())
 
 const children: ReturnType<typeof spawn>[] = [];
 
-export function startCli(cli: string, args: string[], cwd = root) {
+export function startCli(cli: string, args: string[], cwd = root, env?: NodeJS.ProcessEnv) {
   const child = spawn(process.execPath, [cli, ...args], {
     cwd,
+    env,
     stdio: ["ignore", "pipe", "pipe"],
   });
   children.push(child);
@@ -55,6 +56,10 @@ export function waitForLine(childProcess: ReturnType<typeof startCli>) {
       clearTimeout(timeout);
       reject(error);
     });
+    childProcess.child.once("close", (code) => {
+      clearTimeout(timeout);
+      reject(new Error(`CLI exited with code ${code}: ${childProcess.stderr.trim()}`));
+    });
     check();
   });
 }
@@ -69,11 +74,16 @@ export function waitForExit(child: ReturnType<typeof spawn>) {
   });
 }
 
-export function requestPath(url: string, path: string, headers: Record<string, string> = {}) {
+export function requestPath(
+  url: string,
+  path: string,
+  headers: Record<string, string> = {},
+  method = "GET",
+) {
   const address = new URL(url);
   return new Promise<{ status: number; body: string }>((resolveResponse, reject) => {
     const outgoing = request(
-      { hostname: address.hostname, port: address.port, path, method: "GET", headers },
+      { hostname: address.hostname, port: address.port, path, method, headers },
       (response) => {
         let body = "";
         response.setEncoding("utf8");

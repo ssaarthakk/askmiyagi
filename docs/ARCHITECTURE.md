@@ -42,13 +42,13 @@ src/
   shared/        contracts (zod schemas + types) used by server and browser
   server/
     cli.ts       `miyagi` entry: args, start server, open browser, `mcp` subcommand
-    http/        route table, security checks, SSE, static files
+    http/        security checks and static files (`serve.ts`), the `/api/ask` SSE route (`ask-route.ts`)
     source/      CodeSource: LocalFolder, GitClone
     files/       file filter, path guard, secret redaction, watcher
     code/        parse cache, repo map, anchor resolver
     tools/       read_file, grep, find_symbol, git (plain functions)
     mcp/         stdio MCP server exposing the tools (`miyagi mcp <root>`, `runMcpCommand`)
-    llm/         LLMProvider, providers, agent loop guards, prompt builder, context manager
+    llm/         LLMProvider, providers, claude-process (spawns `claude -p`, yields stdout lines), agent loop guards, prompt builder, context manager
     teach/       .tutor store, intent, learner record, question policy, explain-back
     evals/       eval runner, code checks, judge
   web/           Svelte app: viewer, tour player, tour stack, voice
@@ -161,6 +161,7 @@ SavedTour = Tour & { author, date, intent, level, baseCommit, blockHashes: strin
 ProviderEvent =
   | { type: "text"; text: string }
   | { type: "step"; step: Step }
+  | { type: "checkQuestion"; text: string }
   | { type: "tool_call"; name: string; input: unknown }
   | { type: "done"; usage: Usage }
   | { type: "error"; message: string; retryable: boolean }
@@ -180,9 +181,13 @@ EvalCase { question, intent, mustHighlight: string[], expectedOrder: string[], k
 
 `LLMProvider` is `ask(request: LLMRequest, signal: AbortSignal): AsyncIterable<ProviderEvent>` (`src/server/llm/provider.ts`); aborting the signal ends the stream. `loadFakeProvider(file)` (`fake-provider.ts`) returns a `Result` holding a provider that replays a recording: one `ProviderEvent` JSON per line, with an optional `delayMs` waited before that event. The hidden CLI flags `--provider fake --recording <file>` load it at startup and exit 1 with the problems (`line <n>: <path>: <message>`) if the recording is bad.
 
+### Ask pipeline
+
+`POST /api/ask` (`src/server/http/ask-route.ts`) validates `{ question, selection? }` (a question of at most 2,000 characters; 400 on a bad body or one over 100 KB), answers 409 while another ask runs, and streams `AskEvent`s as `data: <json>` SSE blocks; a closed connection aborts the provider. `askEvents` (`src/server/llm/ask.ts`) yields the `ack` phrase (rotating through `ackPhrases` in `src/shared/phrases.ts`) before anything else, builds the request with `buildRequest`, turns `tool_call` events into `progress` lines, resolves every step's anchors (`null` when unresolvable), then sends `tour` and `done`. A `text` or `error` provider event, or a thrown provider failure, ends the ask with an `error` event and no `tour`. `claudeHeadless` (`claude-headless.ts`) is the default provider; `--brute-force-tokens <n>` sets the brute-force threshold. On SIGINT or SIGTERM the server closes all connections, which aborts a running ask and kills Claude Code's process tree.
+
 ### Model output and untrusted content
 
-- The model answers in NDJSON: one `Step` JSON object per line, then optionally one final line `{"checkQuestion": "…"}`. Providers parse each complete line into a `step` event as it streams. The pipeline builds the `Tour` from the request's question, the steps and the check question. `text` events are internal: unparsed lines kept for the retry prompt.
+- The model answers in NDJSON: one `Step` JSON object per line, then optionally one final line `{"checkQuestion": "…"}`. Providers parse each complete line into a `step` event (or a `checkQuestion` event for the final line) as it streams; a line that is valid JSON but neither becomes a non-retryable `error` event. The pipeline builds the `Tour` from the request's question, the steps and the check question. `text` events are internal: unparsed lines kept for the retry prompt. `ClaudeHeadless` (`claude-stream.ts`) reports tool calls by their plain name (`read_file`, without the `mcp__miyagi__` prefix).
 - Every tool result shown to a model is wrapped by `wrapUntrusted(tool, text)` as `<untrusted_content tool="<tool>">…</untrusted_content>`, with a literal closing tag inside escaped as `<\/untrusted_content>`.
 
 ## The `.tutor/` folder (in the user's repo)

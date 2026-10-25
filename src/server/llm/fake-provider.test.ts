@@ -1,31 +1,15 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { collect, request } from "../../../test/fake-claude.ts";
 import type { ProviderEvent } from "../../shared/events.ts";
-import type { LLMRequest } from "../../shared/llm-request.ts";
 import { loadFakeProvider } from "./fake-provider.ts";
 
 const recordings = resolve(import.meta.dirname, "../../../test/fixtures/recordings");
-
-const request: LLMRequest = {
-  system: "",
-  context: "",
-  conversation: "",
-  question: "How are clips saved?",
-  root: ".",
-  tools: true,
-  model: "strong",
-};
 
 async function load(name: string) {
   const loaded = await loadFakeProvider(resolve(recordings, name));
   if (!loaded.ok) throw new Error(loaded.error);
   return loaded.value;
-}
-
-async function collect(stream: AsyncIterable<ProviderEvent>) {
-  const events: ProviderEvent[] = [];
-  for await (const event of stream) events.push(event);
-  return events;
 }
 
 describe("FakeProvider", () => {

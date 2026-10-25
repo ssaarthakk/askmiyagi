@@ -76,6 +76,7 @@ describe("ProviderEvent", () => {
     const events: ProviderEvent[] = [
       { type: "text", text: "hi" },
       { type: "step", step },
+      { type: "checkQuestion", text: "What does save return?" },
       { type: "tool_call", name: "grep", input: { patterns: ["a"] } },
       { type: "done", usage },
       { type: "error", message: "boom", retryable: true },

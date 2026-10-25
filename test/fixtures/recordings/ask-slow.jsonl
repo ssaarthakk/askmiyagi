@@ -1,0 +1,2 @@
+{"type":"tool_call","name":"read_file","input":{"path":"src/upload.ts"}}
+{"type":"done","usage":{"inputTokens":1,"outputTokens":1,"cacheReadTokens":0,"cacheWriteTokens":0,"costUsd":null},"delayMs":20000}

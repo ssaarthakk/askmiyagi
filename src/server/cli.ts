@@ -1,124 +1,19 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { readFile, realpath } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { z } from "zod";
+import { createAskHandler } from "./http/ask-route.ts";
+import { serveRequest } from "./http/serve.ts";
+import { claudeHeadless } from "./llm/claude-headless.ts";
 import { loadFakeProvider } from "./llm/fake-provider.ts";
+import type { LLMProvider } from "./llm/provider.ts";
 import { runMcpCommand } from "./mcp/server.ts";
 import { openLocalFolder } from "./source/local-folder.ts";
-
-const contentTypes: Record<string, string> = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript",
-  ".css": "text/css",
-  ".svg": "image/svg+xml",
-  ".json": "application/json",
-  ".wasm": "application/wasm",
-  ".woff2": "font/woff2",
-};
-
-function sendNotFound(response: import("node:http").ServerResponse) {
-  response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-  response.end("Not found");
-}
-
-function sendSecurityError(
-  response: import("node:http").ServerResponse,
-  status: number,
-  reason: string,
-) {
-  response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
-  response.end(JSON.stringify({ error: reason }));
-}
-
-async function serveRequest(
-  request: import("node:http").IncomingMessage,
-  response: import("node:http").ServerResponse,
-  webRoot: string,
-  page: string,
-  token: string,
-  port: number,
-) {
-  const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`];
-  if (!allowedHosts.includes(request.headers.host?.toLowerCase() ?? "")) {
-    sendSecurityError(response, 403, "Forbidden host");
-    return;
-  }
-  const origin = request.headers.origin;
-  if (origin && !allowedHosts.some((host) => `http://${host}` === origin)) {
-    sendSecurityError(response, 403, "Forbidden origin");
-    return;
-  }
-
-  let pathname: string;
-  try {
-    pathname = decodeURIComponent((request.url ?? "/").split("?", 1)[0] || "/");
-  } catch {
-    sendNotFound(response);
-    return;
-  }
-  if (
-    (pathname === "/api" || pathname.startsWith("/api/")) &&
-    request.headers["x-miyagi-token"] !== token
-  ) {
-    sendSecurityError(response, 401, "Unauthorized");
-    return;
-  }
-  if (request.method !== "GET") {
-    sendNotFound(response);
-    return;
-  }
-  if (pathname === "/") {
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    response.end(page);
-    return;
-  }
-
-  const filePath = resolve(webRoot, `.${pathname}`);
-  const relativePath = relative(webRoot, filePath);
-  if (relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
-    sendNotFound(response);
-    return;
-  }
-
-  try {
-    const resolvedPath = await realpath(filePath);
-    const resolvedRelativePath = relative(webRoot, resolvedPath);
-    if (
-      resolvedRelativePath === ".." ||
-      resolvedRelativePath.startsWith(`..${sep}`) ||
-      isAbsolute(resolvedRelativePath)
-    ) {
-      sendNotFound(response);
-      return;
-    }
-    const content = await readFile(resolvedPath);
-    response.writeHead(200, {
-      "content-type":
-        contentTypes[extname(resolvedPath).toLowerCase()] ?? "application/octet-stream",
-    });
-    response.end(content);
-  } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error.code === "ENOENT" ||
-        error.code === "ENOTDIR" ||
-        error.code === "EISDIR" ||
-        error.code === "EINVAL" ||
-        error.code === "ERR_INVALID_ARG_VALUE")
-    ) {
-      sendNotFound(response);
-      return;
-    }
-    throw error;
-  }
-}
 
 const cliArgsSchema = z.object({
   positionals: z.array(z.string()).max(1, "Only one project path can be provided"),
@@ -133,6 +28,11 @@ const cliArgsSchema = z.object({
     .enum(["fake"], { error: (issue) => `Unknown provider: ${String(issue.input)}` })
     .optional(),
   recording: z.string().min(1).optional(),
+  bruteForceTokens: z
+    .string()
+    .regex(/^[1-9]\d*$/, "--brute-force-tokens must be a positive integer")
+    .transform(Number)
+    .optional(),
 });
 
 export function parseCliArgs(args: string[]) {
@@ -143,6 +43,7 @@ export function parseCliArgs(args: string[]) {
       "no-open": { type: "boolean" },
       provider: { type: "string" },
       recording: { type: "string" },
+      "brute-force-tokens": { type: "string" },
     },
     allowPositionals: true,
     strict: true,
@@ -153,6 +54,7 @@ export function parseCliArgs(args: string[]) {
     noOpen: parsed.values["no-open"] ?? false,
     provider: parsed.values.provider,
     recording: parsed.values.recording,
+    bruteForceTokens: parsed.values["brute-force-tokens"],
   });
   if (!validated.success) {
     throw new Error(validated.error.issues.map((issue) => issue.message).join("\n"));
@@ -170,6 +72,7 @@ export function parseCliArgs(args: string[]) {
     noOpen: validated.data.noOpen,
     provider,
     recording,
+    bruteForceTokens: validated.data.bruteForceTokens,
   };
 }
 
@@ -221,6 +124,7 @@ async function runCli() {
     return;
   }
 
+  let provider: LLMProvider = claudeHeadless;
   if (options.provider === "fake" && options.recording) {
     const fake = await loadFakeProvider(resolve(options.recording));
     if (!fake.ok) {
@@ -230,7 +134,13 @@ async function runCli() {
       process.exitCode = 1;
       return;
     }
+    provider = fake.value;
   }
+  const handleAsk = createAskHandler({
+    root: source.value.root,
+    provider,
+    bruteForceTokens: options.bruteForceTokens,
+  });
 
   const webRoot = resolve(import.meta.dirname, "../../dist/web");
   let page: string;
@@ -261,7 +171,7 @@ async function runCli() {
 
   let serverPort: number;
   const server = createServer((request, response) => {
-    void serveRequest(request, response, webRoot, page, sessionToken, serverPort).catch(
+    void serveRequest(request, response, webRoot, page, sessionToken, serverPort, handleAsk).catch(
       (error: unknown) => {
         process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
         if (!response.headersSent) response.writeHead(500);
@@ -310,6 +220,7 @@ async function runCli() {
         },
       );
     });
+    server.closeAllConnections();
   };
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);

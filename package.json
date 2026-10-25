@@ -18,6 +18,7 @@
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
     "format": "biome check --write .",
+    "test": "vitest run --passWithNoTests",
     "check": "biome check . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings && knip && vitest run --passWithNoTests",
     "check:fast": "biome lint . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings"
   },

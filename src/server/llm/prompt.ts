@@ -2,6 +2,7 @@ import type { LLMRequest } from "../../shared/llm-request.ts";
 import { buildRepoMap } from "../code/repo-map.ts";
 import { listVisibleFiles } from "../files/file-filter.ts";
 import { readRedactedFile } from "../files/path-guard.ts";
+import { redact } from "../files/redact.ts";
 
 const defaultBruteForceTokens = 60_000;
 
@@ -61,7 +62,7 @@ export async function buildRequest(
     system: systemPrompt,
     context: wholeRepo ?? (await buildRepoMap(root)),
     conversation: "",
-    question,
+    question: redact(question),
     root,
     tools: true,
     model: "strong",

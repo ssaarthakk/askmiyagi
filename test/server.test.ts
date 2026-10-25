@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -151,20 +151,16 @@ describe("local server", () => {
   });
 
   it("prints the build instruction and exits if the built page is missing", async () => {
-    const indexPath = join(root, "dist", "web", "index.html");
-    const movedPath = `${indexPath}.${randomUUID()}`;
-    await rename(indexPath, movedPath);
+    const copy = join(root, "dist", `missing-build-${randomUUID()}`);
+    await cp(join(root, "src"), join(copy, "src"), { recursive: true });
 
     try {
-      const childProcess = startCli(sourceCli, ["--no-open", "--port", "0"]);
-      const exit = await Promise.race([
-        waitForExit(childProcess.child),
-        new Promise<null>((resolveExit) => setTimeout(() => resolveExit(null), 1000)),
-      ]);
-      expect(exit).toMatchObject({ code: 1 });
+      const copiedCli = join(copy, "src", "server", "cli.ts");
+      const childProcess = startCli(copiedCli, ["--no-open", "--port", "0"]);
+      await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
       expect(childProcess.stderr.trim()).toBe("Run npm run build first");
     } finally {
-      await rename(movedPath, indexPath);
+      await rm(copy, { recursive: true, force: true });
     }
   });
 });

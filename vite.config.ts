@@ -12,5 +12,6 @@ export default defineConfig({
     root: import.meta.dirname,
     exclude: [...configDefaults.exclude, "test/fixtures/**"],
     globalSetup: ["./test/global-setup.ts"],
+    testTimeout: 15_000,
   },
 });

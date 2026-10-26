@@ -3,9 +3,20 @@ import { ask } from "./ask.ts";
 import { type Highlight, moveHighlight } from "./highlight.ts";
 import Player from "./Player.svelte";
 import { anchorTarget, firstPosition, neighbour, type PlayerStep, type Position } from "./player.ts";
+import { localVoices, noLocalVoice } from "./speaker.ts";
 import Viewer from "./Viewer.svelte";
 
 const token = document.querySelector<HTMLMetaElement>('meta[name="miyagi-token"]')?.content ?? "";
+
+const voice = document.querySelector<HTMLMetaElement>('meta[name="miyagi-voice"]')?.content ?? "browser";
+let voiceNotice = $state("");
+if (voice === "browser" && typeof speechSynthesis === "undefined") {
+  voiceNotice = noLocalVoice;
+} else if (voice === "browser") {
+  void localVoices(speechSynthesis).then((voices) => {
+    if (voices.length === 0) voiceNotice = noLocalVoice;
+  });
+}
 
 let question = $state("");
 let asking = $state(false);
@@ -74,6 +85,10 @@ async function submit(event: SubmitEvent) {
     </label>
     <button type="submit" disabled={asking}>Ask</button>
   </form>
+  {#if voice === "elevenlabs"}
+    <p>Voice by ElevenLabs</p>
+  {/if}
+  <p role="status">{voiceNotice}</p>
   <ul aria-live="polite">
     {#each messages as message}
       <li class={message.kind}>{message.text}</li>

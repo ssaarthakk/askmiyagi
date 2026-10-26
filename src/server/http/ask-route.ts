@@ -28,6 +28,31 @@ async function readBody(request: IncomingMessage) {
   return length > maxBodyBytes ? undefined : Buffer.concat(chunks).toString("utf8");
 }
 
+export async function readJsonBody<T>(
+  request: IncomingMessage,
+  response: ServerResponse,
+  schema: z.ZodType<T>,
+) {
+  const text = await readBody(request);
+  if (text === undefined) {
+    sendError(response, 400, "Request body is too large");
+    return undefined;
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    sendError(response, 400, "Request body is not valid JSON");
+    return undefined;
+  }
+  const body = parseContract(schema, json);
+  if (!body.ok) {
+    sendError(response, 400, body.error);
+    return undefined;
+  }
+  return body.value;
+}
+
 export function createAskHandler(options: {
   root: string;
   provider: LLMProvider;
@@ -37,23 +62,8 @@ export function createAskHandler(options: {
   let asked = 0;
 
   return async function handleAsk(request: IncomingMessage, response: ServerResponse) {
-    const text = await readBody(request);
-    if (text === undefined) {
-      sendError(response, 400, "Request body is too large");
-      return;
-    }
-    let json: unknown;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      sendError(response, 400, "Request body is not valid JSON");
-      return;
-    }
-    const body = parseContract(askBodySchema, json);
-    if (!body.ok) {
-      sendError(response, 400, body.error);
-      return;
-    }
+    const body = await readJsonBody(request, response, askBodySchema);
+    if (!body) return;
     if (running) {
       sendError(response, 409, "An ask is already running");
       return;
@@ -68,7 +78,7 @@ export function createAskHandler(options: {
       for await (const event of askEvents({
         root: options.root,
         provider: options.provider,
-        question: body.value.question,
+        question: body.question,
         ack,
         signal: controller.signal,
         bruteForceTokens: options.bruteForceTokens,

@@ -136,15 +136,15 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 
 Two swappable voices behind one interface: the browser's own local voice (default, nothing leaves the machine) and ElevenLabs (opt-in, used for the demo). See [ADR 0002](adr/0002-swappable-voice-with-elevenlabs.md).
 
-- [ ] **Voice choice.**
+- [x] **Voice choice.**
   - `--voice browser|elevenlabs` (default `browser`), validated with zod. `elevenlabs` reads `ELEVENLABS_API_KEY` from the environment; without it, startup prints `Set ELEVENLABS_API_KEY to use --voice elevenlabs` and exits 1. `--voice-id <id>` picks the ElevenLabs voice; its default is one premade voice id kept as a constant and named in `docs/ARCHITECTURE.md`.
   - The server injects `<meta name="miyagi-voice" content="browser|elevenlabs">` next to the token tag.
   - The browser has one `Speaker` shape, `speak(text, signal): Promise<void>` (resolves when the audio ends; aborting stops it at once), with two implementations chosen from the meta tag. The tour player never knows which one it has.
   - `browserSpeaker` uses `speechSynthesis` with voices where `localService` is true only (some Chrome voices are cloud voices). With no local voice the page says "No local voice found; showing text" and stays in text mode.
   - `elevenLabsSpeaker` posts each segment's text to `/api/speech` and plays the returned audio. If that request fails, the segment plays with `browserSpeaker` instead and the page shows "ElevenLabs failed, using the browser voice".
   - With `elevenlabs`, the page shows "Voice by ElevenLabs".
-- [ ] **ElevenLabs speech route.**
-  - `POST /api/speech` with `{ text }` (zod, 1–2,000 characters; 400 otherwise; 404 when the voice isn't `elevenlabs`). The text goes through `redact`, then `fetch` posts it to `https://api.elevenlabs.io/v1/text-to-speech/<voiceId>?output_format=mp3_44100_128` with the `xi-api-key` header and `{ text, model_id: "eleven_flash_v2_5" }`. Success returns 200 `audio/mpeg`. An ElevenLabs error returns 502 `{ "error": "Voice service failed: <status>" }`. The key never appears in a response, error or log.
+- [x] **ElevenLabs speech route.**
+  - `POST /api/speech` with `{ text }` (zod, 1–2,000 characters; 400 otherwise; 404 when the voice isn't `elevenlabs`). The text goes through `redact`, then `fetch` posts it to `https://api.elevenlabs.io/v1/text-to-speech/<voiceId>?output_format=mp3_44100_128` with the `xi-api-key` header and `{ text, model_id: "eleven_flash_v2_5" }`. Success returns 200 `audio/mpeg`. An ElevenLabs error returns 502 `{ "error": "Voice service failed: <status>" }`; an unreachable service or no answer within 15 s returns 502 `{ "error": "Voice service failed: unreachable" }`. The key never appears in a response, error or log.
   - Audio is cached in memory by SHA-256 of voice id and text, so replays and repeated demo takes spend no credits.
   - Check the endpoint and model id against the current ElevenLabs docs before building.
   - Unit tests stub `fetch`; nothing calls ElevenLabs in the normal test run. A live smoke test runs only when `MIYAGI_LIVE=1` and the key is set.

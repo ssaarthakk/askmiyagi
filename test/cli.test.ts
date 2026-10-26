@@ -3,7 +3,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { builtCli, sourceCli, startCli, waitForExit, waitForLine } from "./cli-harness.ts";
+import { parseCliArgs, speechOptions } from "../src/server/cli.ts";
+import { builtCli, root, sourceCli, startCli, waitForExit, waitForLine } from "./cli-harness.ts";
 
 describe("CLI entry", () => {
   it("defaults to the current folder and prints one URL on a free port", async () => {
@@ -102,5 +103,71 @@ describe("hidden fake provider flags", () => {
     ]);
     await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
     expect(childProcess.stderr).toContain("line 2");
+  });
+});
+
+describe("voice flags", () => {
+  const withoutKey = Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => name !== "ELEVENLABS_API_KEY"),
+  );
+
+  it("serves the browser voice by default", async () => {
+    const childProcess = startCli(sourceCli, ["--no-open", "--port", "0"], root, withoutKey);
+    const page = await (await fetch(await waitForLine(childProcess))).text();
+    expect(page).toContain('<meta name="miyagi-voice" content="browser">');
+  });
+
+  it("refuses elevenlabs without the key", async () => {
+    const childProcess = startCli(
+      sourceCli,
+      ["--no-open", "--voice", "elevenlabs"],
+      root,
+      withoutKey,
+    );
+    await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
+    expect(childProcess.stderr.trim()).toBe("Set ELEVENLABS_API_KEY to use --voice elevenlabs");
+  });
+
+  it("rejects an unknown voice", async () => {
+    const childProcess = startCli(sourceCli, ["--no-open", "--voice", "nope"], root, withoutKey);
+    await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
+    expect(childProcess.stderr.trim()).toBe("Unknown voice: nope");
+  });
+
+  it("rejects an empty voice id", async () => {
+    const childProcess = startCli(sourceCli, ["--no-open", "--voice-id", ""], root, withoutKey);
+    await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
+    expect(childProcess.stderr.trim()).toBe("--voice-id must not be empty");
+  });
+});
+
+describe("voice options", () => {
+  it("defaults to the browser voice with a premade ElevenLabs voice id", () => {
+    const options = parseCliArgs([]);
+    expect(options.voice).toBe("browser");
+    expect(options.voiceId).toMatch(/^\w{10,}$/);
+  });
+
+  it("takes the voice and voice id from the flags", () => {
+    expect(parseCliArgs(["--voice", "elevenlabs", "--voice-id", "abc123"])).toMatchObject({
+      voice: "elevenlabs",
+      voiceId: "abc123",
+    });
+  });
+
+  it("hands the chosen voice id and the key to the speech route with the elevenlabs voice", () => {
+    const options = parseCliArgs(["--voice", "elevenlabs", "--voice-id", "abc123"]);
+    expect(speechOptions(options, { ELEVENLABS_API_KEY: "test-key" })).toEqual({
+      apiKey: "test-key",
+      voiceId: "abc123",
+    });
+  });
+
+  it("keeps the key from the speech route with the browser voice", () => {
+    const options = parseCliArgs(["--voice-id", "abc123"]);
+    expect(speechOptions(options, { ELEVENLABS_API_KEY: "test-key" })).toEqual({
+      apiKey: undefined,
+      voiceId: "abc123",
+    });
   });
 });

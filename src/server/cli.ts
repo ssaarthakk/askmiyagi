@@ -10,11 +10,14 @@ import { z } from "zod";
 import { createAskHandler } from "./http/ask-route.ts";
 import { createFileHandler } from "./http/file-route.ts";
 import { serveRequest } from "./http/serve.ts";
+import { createSpeechHandler } from "./http/speech-route.ts";
 import { claudeHeadless } from "./llm/claude-headless.ts";
 import { loadFakeProvider } from "./llm/fake-provider.ts";
 import type { LLMProvider } from "./llm/provider.ts";
 import { runMcpCommand } from "./mcp/server.ts";
 import { openLocalFolder } from "./source/local-folder.ts";
+
+const defaultVoiceId = "JBFqnCBsd6RMkjVDRZzb";
 
 const cliArgsSchema = z.object({
   positionals: z.array(z.string()).max(1, "Only one project path can be provided"),
@@ -29,6 +32,10 @@ const cliArgsSchema = z.object({
     .enum(["fake"], { error: (issue) => `Unknown provider: ${String(issue.input)}` })
     .optional(),
   recording: z.string().min(1).optional(),
+  voice: z
+    .enum(["browser", "elevenlabs"], { error: (issue) => `Unknown voice: ${String(issue.input)}` })
+    .optional(),
+  voiceId: z.string().min(1, "--voice-id must not be empty").optional(),
   bruteForceTokens: z
     .string()
     .regex(/^[1-9]\d*$/, "--brute-force-tokens must be a positive integer")
@@ -44,6 +51,8 @@ export function parseCliArgs(args: string[]) {
       "no-open": { type: "boolean" },
       provider: { type: "string" },
       recording: { type: "string" },
+      voice: { type: "string" },
+      "voice-id": { type: "string" },
       "brute-force-tokens": { type: "string" },
     },
     allowPositionals: true,
@@ -55,6 +64,8 @@ export function parseCliArgs(args: string[]) {
     noOpen: parsed.values["no-open"] ?? false,
     provider: parsed.values.provider,
     recording: parsed.values.recording,
+    voice: parsed.values.voice,
+    voiceId: parsed.values["voice-id"],
     bruteForceTokens: parsed.values["brute-force-tokens"],
   });
   if (!validated.success) {
@@ -73,7 +84,16 @@ export function parseCliArgs(args: string[]) {
     noOpen: validated.data.noOpen,
     provider,
     recording,
+    voice: validated.data.voice ?? "browser",
+    voiceId: validated.data.voiceId ?? defaultVoiceId,
     bruteForceTokens: validated.data.bruteForceTokens,
+  };
+}
+
+export function speechOptions(options: ReturnType<typeof parseCliArgs>, env: NodeJS.ProcessEnv) {
+  return {
+    apiKey: options.voice === "elevenlabs" ? env.ELEVENLABS_API_KEY : undefined,
+    voiceId: options.voiceId,
   };
 }
 
@@ -118,6 +138,12 @@ async function runCli() {
     return;
   }
 
+  if (options.voice === "elevenlabs" && !process.env.ELEVENLABS_API_KEY) {
+    process.stderr.write("Set ELEVENLABS_API_KEY to use --voice elevenlabs\n");
+    process.exitCode = 1;
+    return;
+  }
+
   const source = await openLocalFolder(options.path);
   if (!source.ok) {
     process.stderr.write(`${source.error}\n`);
@@ -144,6 +170,7 @@ async function runCli() {
   });
 
   const handleFile = createFileHandler(source.value.root);
+  const handleSpeech = createSpeechHandler(speechOptions(options, process.env));
 
   const webRoot = resolve(import.meta.dirname, "../../dist/web");
   let page: string;
@@ -152,7 +179,7 @@ async function runCli() {
     const template = await readFile(resolve(webRoot, "index.html"), "utf8");
     page = template.replace(
       "</head>",
-      `<meta name="miyagi-token" content="${sessionToken}"></head>`,
+      `<meta name="miyagi-token" content="${sessionToken}"><meta name="miyagi-voice" content="${options.voice}"></head>`,
     );
   } catch (error) {
     if (
@@ -183,6 +210,7 @@ async function runCli() {
       serverPort,
       handleAsk,
       handleFile,
+      handleSpeech,
     ).catch((error: unknown) => {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       if (!response.headersSent) response.writeHead(500);

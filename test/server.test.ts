@@ -8,6 +8,7 @@ import {
   root,
   sourceCli,
   startCli,
+  startServer,
   waitForExit,
   waitForLine,
 } from "./cli-harness.ts";
@@ -140,6 +141,35 @@ describe("local server", () => {
     await expect(
       requestPath(url, "/api/example", { "x-miyagi-token": token ?? "" }),
     ).resolves.toEqual({ status: 404, body: "Not found" });
+  });
+
+  it("answers 404 for /api/speech with the browser voice and 401 without the token", async () => {
+    const { url, token } = await startServer("test/fixtures/basic", [], {
+      ...process.env,
+      ELEVENLABS_API_KEY: "test-key",
+    });
+
+    await expect(requestPath(url, "/api/speech", {}, "POST")).resolves.toEqual({
+      status: 401,
+      body: '{"error":"Unauthorized"}',
+    });
+    await expect(
+      requestPath(url, "/api/speech", { "x-miyagi-token": token }, "POST"),
+    ).resolves.toEqual({ status: 404, body: '{"error":"Not found"}' });
+  });
+
+  it("serves the elevenlabs voice and /api/speech when started with the elevenlabs voice and a key", async () => {
+    const { url, token } = await startServer("test/fixtures/basic", ["--voice", "elevenlabs"], {
+      ...process.env,
+      ELEVENLABS_API_KEY: "test-key",
+    });
+
+    expect(await (await fetch(url)).text()).toContain(
+      '<meta name="miyagi-voice" content="elevenlabs">',
+    );
+    await expect(
+      requestPath(url, "/api/speech", { "x-miyagi-token": token }, "POST"),
+    ).resolves.toEqual({ status: 400, body: '{"error":"Request body is not valid JSON"}' });
   });
 
   it("prints the build instruction and exits if the built page is missing", async () => {

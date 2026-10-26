@@ -17,3 +17,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `--brute-force-tokens <n>` sets how small a repo must be to send it whole instead of the repo map.
 - A browser page to ask questions: it shows the acknowledgement, progress and errors, and a read-only code viewer with JS/TS colours loads the current file through `GET /api/file`.
 - Tours play as text: steps and their narration are listed as they stream in, Previous, Next or a click moves between segments, and the code viewer highlights each segment's lines, dimming the previous highlight.
+- `--voice browser|elevenlabs` and `--voice-id <id>` choose how tours are spoken; the browser voice uses only local voices and ElevenLabs is opt-in with `ELEVENLABS_API_KEY`.
+- `POST /api/speech`: with `--voice elevenlabs`, the server turns redacted narration text into spoken audio through ElevenLabs and caches it in memory, so the key never reaches the page.

@@ -6,13 +6,25 @@ let {
   position,
   previous,
   next,
+  voiceOn,
+  playing,
+  canSpeak,
   onselect,
+  onpause,
+  onresume,
+  onvoice,
 }: {
   steps: PlayerStep[];
   position: Position | undefined;
   previous: Position | undefined;
   next: Position | undefined;
+  voiceOn: boolean;
+  playing: boolean;
+  canSpeak: boolean;
   onselect: (position: Position) => void;
+  onpause: () => void;
+  onresume: () => void;
+  onvoice: () => void;
 } = $props();
 </script>
 
@@ -22,6 +34,14 @@ let {
       Previous
     </button>
     <button type="button" disabled={!next} onclick={() => next && onselect(next)}>Next</button>
+    <button type="button" aria-pressed={voiceOn} disabled={!canSpeak} onclick={onvoice}>
+      Voice
+    </button>
+    {#if voiceOn}
+      <button type="button" onclick={playing ? onpause : onresume}>
+        {playing ? "Pause" : "Resume"}
+      </button>
+    {/if}
   </div>
   <ol>
     {#each steps as { step }, stepIndex}
@@ -37,7 +57,7 @@ let {
                 aria-current={current ? "true" : undefined}
                 onclick={() => onselect({ step: stepIndex, segment: segmentIndex })}
               >
-                {segment.text}
+                {playing && current ? `Segment ${segmentIndex + 1}` : segment.text}
               </button>
             </li>
           {/each}
@@ -48,6 +68,7 @@ let {
 </section>
 
 <style>
+  [aria-pressed="true"],
   .current {
     font-weight: bold;
     background: rgba(255, 213, 0, 0.35);

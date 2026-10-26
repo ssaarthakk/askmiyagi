@@ -132,14 +132,14 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 
 **Gate:** `npm run check` and `npm run e2e` pass. The e2e test asks a question, sees the tour render, clicks segment 2, and finds the expected fixture lines highlighted with the segment 1 range dimmed.
 
-## Phase 5: Spoken tours
+## Phase 5: Spoken tours (shipped)
 
 Two swappable voices behind one interface: the browser's own local voice (default, nothing leaves the machine) and ElevenLabs (opt-in, used for the demo). See [ADR 0002](adr/0002-swappable-voice-with-elevenlabs.md).
 
 - [x] **Voice choice.**
   - `--voice browser|elevenlabs` (default `browser`), validated with zod. `elevenlabs` reads `ELEVENLABS_API_KEY` from the environment; without it, startup prints `Set ELEVENLABS_API_KEY to use --voice elevenlabs` and exits 1. `--voice-id <id>` picks the ElevenLabs voice; its default is one premade voice id kept as a constant and named in `docs/ARCHITECTURE.md`.
   - The server injects `<meta name="miyagi-voice" content="browser|elevenlabs">` next to the token tag.
-  - The browser has one `Speaker` shape, `speak(text, signal): Promise<void>` (resolves when the audio ends; aborting stops it at once), with two implementations chosen from the meta tag. The tour player never knows which one it has.
+  - The browser has one `Speaker` shape, `speak(text, signal, onStart?): Promise<void>` (calls `onStart` once when the audio actually starts; resolves when the audio ends; aborting stops it at once), with two implementations chosen from the meta tag. The tour player never knows which one it has.
   - `browserSpeaker` uses `speechSynthesis` with voices where `localService` is true only (some Chrome voices are cloud voices). With no local voice the page says "No local voice found; showing text" and stays in text mode.
   - `elevenLabsSpeaker` posts each segment's text to `/api/speech` and plays the returned audio. If that request fails, the segment plays with `browserSpeaker` instead and the page shows "ElevenLabs failed, using the browser voice".
   - With `elevenlabs`, the page shows "Voice by ElevenLabs".
@@ -148,9 +148,9 @@ Two swappable voices behind one interface: the browser's own local voice (defaul
   - Audio is cached in memory by SHA-256 of voice id and text, so replays and repeated demo takes spend no credits.
   - Check the endpoint and model id against the current ElevenLabs docs before building.
   - Unit tests stub `fetch`; nothing calls ElevenLabs in the normal test run. A live smoke test runs only when `MIYAGI_LIVE=1` and the key is set.
-- [ ] **Spoken tour.** Segments play in order. A segment's highlight appears when its audio starts. Clicking a segment plays from there onward. A Pause/Resume button resumes at the start of the interrupted segment. A Voice on/off toggle switches to the Phase 4 text player. The narration text is hidden while it is spoken and shown when paused or with voice off.
-- [ ] **Streamed speech.** The first segment starts playing as soon as its step arrives, before the tour has finished.
-- [ ] **Spoken acknowledgement and progress.** The `ack` phrase starts within 300 ms of submitting. With ElevenLabs, the phrases in `src/shared/phrases.ts` are fetched once at page load so they play from memory. Progress lines are spoken briefly without file extensions ("looking at upload"); a progress line still waiting when a step arrives is dropped.
+- [x] **Spoken tour.** Segments play in order. A segment's highlight appears when its audio starts. Clicking a segment plays from there onward. A Pause/Resume button resumes at the start of the interrupted segment. A Voice on/off toggle switches to the Phase 4 text player. The narration text is hidden while it is spoken and shown when paused or with voice off.
+- [x] **Streamed speech.** The first segment starts playing as soon as its step arrives, before the tour has finished.
+- [x] **Spoken acknowledgement and progress.** The `ack` phrase starts within 300 ms of submitting. With ElevenLabs, the phrases in `src/shared/phrases.ts` are fetched once at page load so they play from memory. Progress lines are spoken briefly without file extensions ("looking at upload"); a progress line still waiting when a step arrives is dropped.
 
 **Gate:** `npm run check` and `npm run e2e` pass. The e2e tests inject a stub speaker with `page.addInitScript` setting `window.__MIYAGI_SPEAKER__`, and prove segment order, highlight at audio start, pause and resume at segment start, streamed first segment and acknowledgement timing. `/api/speech` is tested with a stubbed `fetch` (key check, redaction, cache, 400, 404, 502). Listening to both voices needs a person.
 

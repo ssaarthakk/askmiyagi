@@ -4,12 +4,13 @@ import { ask } from "./ask.ts";
 test("the viewer shows the current file's name and its code", async ({ page }) => {
   await ask(page);
 
-  await expect(page.getByText("src/upload.ts", { exact: true })).toBeVisible();
-  await expect(page.locator(".cm-content")).toContainText("uploadClip");
+  await expect(page.getByText("package.json", { exact: true })).toBeVisible();
+  await expect(page.locator(".cm-content")).toContainText("dependencies");
 });
 
 test("the code has JS/TS syntax colours and cannot be edited", async ({ page }) => {
   await ask(page);
+  await page.getByRole("button", { name: "Then the clip is uploaded." }).click();
 
   const content = page.locator(".cm-content");
   await expect(content).toContainText("uploadClip");
@@ -31,6 +32,27 @@ test("a refused path shows the server's error in place of the code", async ({ pa
 
   await expect(page.getByRole("alert")).toHaveText("Path is not a visible file");
   await expect(page.locator(".cm-content")).toBeHidden();
+});
+
+test("returning to a file after a failed load keeps its highlight", async ({ page }) => {
+  await page.route("**/api/file*", (route) =>
+    route.request().url().includes("clip-service")
+      ? route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: '{"error":"Path is not a visible file"}',
+        })
+      : route.continue(),
+  );
+  await ask(page);
+  await expect(page.locator(".cm-line").nth(1)).toHaveClass(/cm-highlight-current/);
+
+  await page.getByRole("button", { name: "Clips are saved here." }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await page.getByRole("button", { name: "It depends on zod." }).click();
+
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator(".cm-line").nth(7)).toHaveClass(/cm-highlight-current/);
 });
 
 test("the file request carries the session token", async ({ page }) => {

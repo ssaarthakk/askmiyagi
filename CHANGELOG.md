@@ -16,3 +16,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `POST /api/ask`: ask a question about the code and get a streamed tour (acknowledgement, progress lines, steps with verified highlights, then the full tour), answered by your logged-in Claude Code through `claude -p` with only Miyagi's read-only tools.
 - `--brute-force-tokens <n>` sets how small a repo must be to send it whole instead of the repo map.
 - A browser page to ask questions: it shows the acknowledgement, progress and errors, and a read-only code viewer with JS/TS colours loads the current file through `GET /api/file`.
+- Tours play as text: steps and their narration are listed as they stream in, Previous, Next or a click moves between segments, and the code viewer highlights each segment's lines, dimming the previous highlight.

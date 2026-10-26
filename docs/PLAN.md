@@ -121,14 +121,14 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 
 **Gate:** `npm run check` passes, including an integration test that posts a question to a running server backed by `FakeProvider` and receives `ack`, `progress` and a valid `tour` with verified ranges in order. The live smoke test (`MIYAGI_LIVE=1 npm test`) needs a person with Claude Code logged in.
 
-## Phase 4: Viewer (Milestone 1 complete)
+## Phase 4: Viewer (Milestone 1 complete) (shipped)
 
 - [x] **App shell.**
   - The Svelte page reads the token from the `miyagi-token` meta tag, has a question box (Enter submits), and shows the `ack`, `progress` and `error` messages. While an ask runs, the box is disabled.
   - e2e setup: `@playwright/test` (Chromium only), `playwright.config.ts` whose `webServer` runs `npm run build && node dist/server/cli.js --no-open --port 4173 --provider fake --recording test/fixtures/recordings/basic-tour.jsonl test/fixtures/basic`, the script `"e2e": "playwright test"`, `e2e/` added to `tsconfig.node.json`, and a CI step that runs `npx playwright install --with-deps chromium` and `npm run e2e`.
 - [x] **Code viewer.** A read-only CodeMirror 6 viewer with JS/TS syntax colours shows the current file and its name. File content comes from `GET /api/file?path=`: 200 `{ path, content }` (guarded, filtered, redacted), or 400 `{ error }` when the path guard refuses, which the viewer shows in place of the code.
-- [ ] **Highlights.** The current anchor's lines are highlighted and scrolled into view. The previous highlight is dimmed, not removed. A `null` range shows no highlight and no error.
-- [ ] **Text tour player.** It lists steps and their narration segments and marks the current segment. Steps render as their `step` events arrive; the final `tour` event replaces the list. Next and Previous buttons and clicking a segment move to it, and the highlight switches to that segment's anchor (or the step's first anchor). Every control works by keyboard and has an accessible name.
+- [x] **Highlights.** The current anchor's lines are highlighted and scrolled into view. The previous highlight is dimmed, not removed. A `null` range shows no highlight and no error.
+- [x] **Text tour player.** It lists steps and their narration segments and marks the current segment. Steps render as their `step` events arrive; the final `tour` event replaces the list. Next and Previous buttons and clicking a segment move to it, and the highlight switches to that segment's anchor (or the step's first anchor). Every control works by keyboard and has an accessible name.
 
 **Gate:** `npm run check` and `npm run e2e` pass. The e2e test asks a question, sees the tour render, clicks segment 2, and finds the expected fixture lines highlighted with the segment 1 range dimmed.
 

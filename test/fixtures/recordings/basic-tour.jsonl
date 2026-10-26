@@ -1,0 +1,5 @@
+{"type":"tool_call","name":"read_file","input":{"path":"src/clip-service.ts"}}
+{"type":"step","step":{"title":"Project setup","anchors":[{"file":"package.json","line":2,"text":"\"name\": \"basic\","},{"file":"package.json","line":8,"text":"\"zod\": \"4.6.7\""}],"narration":[{"text":"The project is called basic.","anchor":0},{"text":"It depends on zod.","anchor":1}]}}
+{"type":"step","step":{"title":"Saving a clip","anchors":[{"file":"src/clip-service.ts","symbol":"ClipService.save"}],"narration":[{"text":"Clips are saved here.","anchor":0}]}}
+{"type":"step","step":{"title":"Uploading","anchors":[{"file":"src/upload.ts","symbol":"uploadClip"},{"file":"src/missing.ts","symbol":"nothing"}],"narration":[{"text":"Then the clip is uploaded."}]}}
+{"type":"done","usage":{"inputTokens":10,"outputTokens":5,"cacheReadTokens":0,"cacheWriteTokens":0,"costUsd":null}}

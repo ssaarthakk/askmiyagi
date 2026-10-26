@@ -2,6 +2,7 @@ import { readFile, realpath } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { type createAskHandler, sendError } from "./ask-route.ts";
+import type { createFileHandler } from "./file-route.ts";
 
 const contentTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -26,6 +27,7 @@ export async function serveRequest(
   token: string,
   port: number,
   handleAsk: ReturnType<typeof createAskHandler>,
+  handleFile: ReturnType<typeof createFileHandler>,
 ) {
   const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`];
   if (!allowedHosts.includes(request.headers.host?.toLowerCase() ?? "")) {
@@ -54,6 +56,10 @@ export async function serveRequest(
   }
   if (pathname === "/api/ask" && request.method === "POST") {
     await handleAsk(request, response);
+    return;
+  }
+  if (pathname === "/api/file" && request.method === "GET") {
+    await handleFile(request, response);
     return;
   }
   if (request.method !== "GET") {

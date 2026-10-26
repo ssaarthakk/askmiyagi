@@ -42,7 +42,7 @@ src/
   shared/        contracts (zod schemas + types) used by server and browser
   server/
     cli.ts       `miyagi` entry: args, start server, open browser, `mcp` subcommand
-    http/        security checks and static files (`serve.ts`), the `/api/ask` SSE route (`ask-route.ts`)
+    http/        security checks and static files (`serve.ts`), the `/api/ask` SSE route (`ask-route.ts`), the `/api/file` route (`file-route.ts`)
     source/      CodeSource: LocalFolder, GitClone
     files/       file filter, path guard, secret redaction, watcher
     code/        parse cache, repo map, anchor resolver
@@ -114,7 +114,7 @@ Browser (Svelte)                         Node server (one process)
 
 ## Data contracts (`src/shared`)
 
-Each contract is a zod schema with its type inferred from it, one file per area (`anchor.ts`, `tour.ts`, `events.ts`, `usage.ts`, `llm-request.ts`, `tool-result.ts`, `result.ts`), and the tool input schemas are in `tool-inputs.ts`. `parseContract(schema, data)` returns a `Result` whose error lists each problem on its own line as `path: message`.
+Each contract is a zod schema with its type inferred from it, one file per area (`anchor.ts`, `tour.ts`, `events.ts`, `usage.ts`, `llm-request.ts`, `tool-result.ts`, `result.ts`, `file.ts`), and the tool input schemas are in `tool-inputs.ts`. `parseContract(schema, data)` returns a `Result` whose error lists each problem on its own line as `path: message`.
 
 Paths everywhere (tool inputs and results, anchors, selections, routes, events) are relative to the project root with `/` separators. Only the path guard turns them into real paths.
 

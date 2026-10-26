@@ -64,6 +64,14 @@ export function waitForLine(childProcess: ReturnType<typeof startCli>) {
   });
 }
 
+export async function startServer(folder: string, args: string[] = [], env?: NodeJS.ProcessEnv) {
+  const server = startCli(sourceCli, ["--no-open", "--port", "0", ...args, folder], undefined, env);
+  const url = await waitForLine(server);
+  const page = await (await fetch(url)).text();
+  const token = page.match(/<meta name="miyagi-token" content="([a-f0-9]{64})">/)?.[1] ?? "";
+  return { server, url, token };
+}
+
 export function waitForExit(child: ReturnType<typeof spawn>) {
   return new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolveExit) => {
     if (child.exitCode !== null || child.signalCode !== null) {

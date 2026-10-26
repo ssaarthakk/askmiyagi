@@ -17,6 +17,6 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/server", "src/shared", "test", "*.ts"],
+  "include": ["src/server", "src/shared", "test", "e2e", "*.ts"],
   "exclude": ["test/fixtures"]
 }

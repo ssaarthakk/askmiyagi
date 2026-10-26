@@ -20,13 +20,19 @@
     "format": "biome check --write .",
     "test": "vitest run --passWithNoTests",
     "check": "biome check . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings && knip && vitest run --passWithNoTests",
-    "check:fast": "biome lint . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings"
+    "check:fast": "biome lint . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings",
+    "e2e": "playwright test"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
+    "@codemirror/lang-javascript": "6.2.5",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@playwright/test": "1.64.1",
     "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@tsconfig/svelte": "5.0.8",
     "@types/node": "24.19.2",
+    "codemirror": "6.0.2",
     "knip": "6.42.1",
     "svelte": "5.57.2",
     "svelte-check": "4.7.7",

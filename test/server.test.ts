@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -30,14 +30,6 @@ describe("local server", () => {
     expect(firstHtml.indexOf(firstToken?.[0] ?? "")).toBeLessThan(firstHtml.indexOf("</head>"));
     expect(secondToken).not.toBeNull();
     expect(secondToken?.[1]).not.toBe(firstToken?.[1]);
-  });
-
-  it("keeps the placeholder page to the product name", async () => {
-    const page = (await readFile(join(root, "src", "web", "App.svelte"), "utf8")).replaceAll(
-      "\r\n",
-      "\n",
-    );
-    expect(page.trim()).toBe("<main>\n  <h1>Miyagi</h1>\n</main>");
   });
 
   it("serves static assets with the content type for each supported extension", async () => {

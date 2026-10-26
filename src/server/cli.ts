@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { createAskHandler } from "./http/ask-route.ts";
+import { createFileHandler } from "./http/file-route.ts";
 import { serveRequest } from "./http/serve.ts";
 import { claudeHeadless } from "./llm/claude-headless.ts";
 import { loadFakeProvider } from "./llm/fake-provider.ts";
@@ -142,6 +143,8 @@ async function runCli() {
     bruteForceTokens: options.bruteForceTokens,
   });
 
+  const handleFile = createFileHandler(source.value.root);
+
   const webRoot = resolve(import.meta.dirname, "../../dist/web");
   let page: string;
   const sessionToken = randomBytes(32).toString("hex");
@@ -171,13 +174,20 @@ async function runCli() {
 
   let serverPort: number;
   const server = createServer((request, response) => {
-    void serveRequest(request, response, webRoot, page, sessionToken, serverPort, handleAsk).catch(
-      (error: unknown) => {
-        process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-        if (!response.headersSent) response.writeHead(500);
-        response.end();
-      },
-    );
+    void serveRequest(
+      request,
+      response,
+      webRoot,
+      page,
+      sessionToken,
+      serverPort,
+      handleAsk,
+      handleFile,
+    ).catch((error: unknown) => {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      if (!response.headersSent) response.writeHead(500);
+      response.end();
+    });
   });
 
   try {

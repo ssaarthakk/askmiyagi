@@ -34,7 +34,7 @@ Read the matching file before touching these paths (Claude Code loads them autom
 - No new dependencies, frameworks or third-party scripts without asking first. The approved list in `docs/ARCHITECTURE.md` counts as already asked. Pin exact versions.
 - Validate all external data at boundaries with zod: HTTP bodies, LLM output, files read from disk, CLI args. Never swallow errors: handle them or let them surface with a clear message.
 - Never execute anything from the user's repo. Miyagi reads code; it never runs it.
-- No analytics, telemetry or trackers. No network calls except to the user's chosen LLM provider, the opt-in ElevenLabs voice (`--voice elevenlabs`, called only from the server), public GitHub clones and model downloads.
+- No analytics, telemetry or trackers. No network calls except to the user's chosen LLM provider, the opt-in ElevenLabs voice and speech-to-text (`--voice elevenlabs`, called only from the server), public GitHub clones and model downloads.
 - Cross-platform: everything must work on Windows, macOS and Linux.
 
 ## Testing

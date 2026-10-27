@@ -1,6 +1,6 @@
 # Build plan
 
-Every Gate includes `npm run check` passing. Phases 1–4 are the usable text-only core (Milestone 1). Phases 5–6 add the spoken tours and demo features for the hackathon submission (Milestone 2).
+Every Gate includes `npm run check` passing. Phases 1–4 are the usable text-only core (Milestone 1). Phases 5–6.5 add the spoken tours, demo features and demo polish for the hackathon submission (Milestone 2).
 
 **Personal target:** Phases 1–4 done by Sunday 25 October 2026, 23:59. A goal, not a hard limit.
 
@@ -161,6 +161,31 @@ Two swappable voices behind one interface: the browser's own local voice (defaul
 
 **Gate:** `npm run check` and `npm run e2e` pass, with an e2e test that selects fixture lines, sees the chip, asks, and finds the selection in the request, plus GitClone tests (URL rules, and cloning a local bare repo). Recording the demo video needs a person.
 
+## Phase 6.5: Demo polish (Milestone 2b: hackathon demo)
+
+Added on 27 October 2026 after a first demo run: answers were too long, there was no way to ask by voice, and the page looked unfinished. Visual references from Mobbin: Codecademy's AI Learning Assistant, Snowflake CoCo and Graphite (code as the main pane, conversation in a side panel), and Grok, Copilot and ChatGPT voice mode (a small floating voice pill with an obvious control).
+
+- [x] **Short answers.** The system prompt makes the length fit the question. A simple or factual question ("what does X return", "where is Y") gets one step with one to three narration parts. "How does X work" or "walk me through Y" gets a tour of at most 5 steps. Every narration part stays at most two short sentences. Prompt tests check the rule is in the system prompt; a person checks real answers in the demo run.
+- [x] **Follow-ups and tutor questions.** The server keeps the conversation in memory for the session. After each finished ask it stores the redacted question and a one-line record of the tour (its step titles and its `checkQuestion`, if any). The next request's `conversation` holds the last 3 turns under an "Earlier in this conversation" heading; older turns are dropped. The system prompt tells the model that when the last turn ended with a check question, the new message may be the learner's answer: first say in one or two sentences whether it is right and fix it gently if not, then continue. In the browser, the tour's `checkQuestion` appears in the conversation as the tutor's message after the last step and is spoken after the last segment; playback then stops and waits, it never continues on its own. Phase 8's context manager later replaces this simple memory.
+- [ ] **Push-to-talk with ElevenLabs.** Only with `--voice elevenlabs` (ADR 0003). The composer has a microphone button: press and hold it, or hold Space outside text fields, to record with `getUserMedia` (echo cancellation and noise suppression on) and `MediaRecorder`; release to send. Recording pauses any narration. `POST /api/transcribe` takes the raw recording (`audio/webm` or `audio/ogg`, at most 10 MB, token checked, 404 unless the voice is `elevenlabs`), sends it to ElevenLabs speech-to-text with the key from the environment using built-in `fetch` and `FormData` (no SDK; check the current endpoint and model id in the ElevenLabs docs), and returns `{ text }`. ElevenLabs errors become 502 `Speech-to-text failed: <status>`, and no answer within 30 s becomes 502 `Speech-to-text failed: unreachable`. The page puts the text in the question box and sends it at once, with any attached selection. An empty transcript shows "Didn't catch that" and sends nothing. A denied or missing microphone shows a clear message and typing still works. With the browser voice the microphone button is not shown.
+- [ ] **Demo layout.** The page is redesigned as a two-pane app:
+  - The code viewer is the main pane on the left and fills the window height. A header shows the current file path.
+  - Before the first question, the main pane shows the project name, one line about Miyagi and three suggested question buttons ("Where does this app start?", "What are the main parts of this project?", "Walk me through the most important flow"). Clicking one asks it.
+  - A conversation panel on the right (about 400 px wide) has a header with "Miyagi" and the ElevenLabs credit when that voice is on. The message list shows learner questions as right-aligned bubbles and tutor turns on the left: the acknowledgement and progress lines as small muted lines, then the tour as a card with its step titles and narration (the narration text stays hidden while it is spoken, as before), then the check question as a tutor bubble. Clicking a segment plays from there. The list scrolls to the newest message.
+  - The composer is pinned to the bottom of the panel: a multi-line question box (Enter sends, Shift+Enter adds a line), the selection chip above it, the microphone button and a Send button.
+  - While a tour is on screen with voice on, a floating voice pill sits at the bottom centre of the code pane. It shows animated level bars while speaking (still when paused or with reduced motion), the current step title, and Previous, Pause or Resume (the main, largest control), Next and Voice buttons. Pausing gives the learner time to think and never loses the position.
+  - Styling: one global stylesheet with colour and spacing tokens as CSS custom properties. Dark theme: background `#0f1115`, panels `#161a21`, borders `#262c36`, text `#e6e8eb`, muted text `#8b93a1`, accent `#f5b83d` (also the code highlight), error `#ff6b6b`. 8 px spacing grid, 10 px corner radius, the system UI font stack for text and the system monospace stack for code, no external fonts. CodeMirror uses a matching dark theme.
+  - Every control keeps its accessible name and works by keyboard with a visible focus style. Below 900 px wide the panels stack, conversation first.
+
+**Gate:** `npm run check` and `npm run e2e` pass:
+- conversation tests: a second ask's request carries the first question and tour record, and only the last 3 turns are kept;
+- `/api/transcribe` tests with a stubbed `fetch`: key, 404, 413, 502 and success;
+- e2e tests with a stubbed microphone and recorder that prove hold-to-talk sends the transcript as a question;
+- an e2e test where the check question appears after the tour and playback waits;
+- an e2e test for the suggested questions and the voice pill's Pause and Resume.
+
+Recording the demo needs a person.
+
 ## Phase 7: Measurement and evals
 
 - [ ] **Call log.** Every LLM call appends one JSON line to `.tutor/private/calls.jsonl`: call type, provider, mode, time to `ack`, time to first content, input/output/cache tokens, cost, files opened, and outcome.
@@ -192,7 +217,7 @@ Two swappable voices behind one interface: the browser's own local voice (defaul
 
 - [ ] **Local voice.** A third `Speaker`, `--voice kokoro`, runs a free local voice model in a Web Worker (Kokoro by default), so a natural voice needs no cloud service.
 - [ ] **Scroll lead.** The viewer scrolls to the next file about 200 ms before that segment's audio starts.
-- [ ] **Push-to-talk.** Holding Space (outside text fields) records the microphone with echo cancellation; releasing it transcribes. A denied microphone shows a clear message, and the text box still works.
+- [ ] **Push-to-talk.** Phase 6.5 built push-to-talk for `--voice elevenlabs`; this makes it work with local Whisper for every voice. Holding Space (outside text fields) records the microphone with echo cancellation; releasing it transcribes. A denied microphone shows a clear message, and the text box still works.
 - [ ] **Whisper speech-to-text.** Whisper runs in the browser (WebGPU, with a WASM fallback) in a Web Worker. The model downloads once and is cached. Repo symbol names are passed as hints.
 - [ ] **Transcript cleanup.** Filler words are removed, and words are fuzzy-matched to repo symbol names (for example "upload clip" becomes `uploadClip`).
 - [ ] **Time to first sound** is added to the call log.

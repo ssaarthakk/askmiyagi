@@ -8,6 +8,7 @@ let {
   next,
   voiceOn,
   playing,
+  checkQuestion,
   canSpeak,
   onselect,
   onpause,
@@ -20,6 +21,7 @@ let {
   next: Position | undefined;
   voiceOn: boolean;
   playing: boolean;
+  checkQuestion: string | undefined;
   canSpeak: boolean;
   onselect: (position: Position) => void;
   onpause: () => void;
@@ -65,6 +67,9 @@ let {
       </li>
     {/each}
   </ol>
+  {#if checkQuestion}
+    <p><strong>Check question:</strong> {checkQuestion}</p>
+  {/if}
 </section>
 
 <style>

@@ -40,13 +40,14 @@ function controlledSpeaker() {
   };
 }
 
-function setup(list = steps) {
+function setup(list = steps, closing?: string) {
   const fake = controlledSpeaker();
   const started: { step: number; segment: number }[] = [];
   const onEnd = vi.fn();
   const playback = createPlayback(fake.speaker, {
     steps: () => list,
     ready: () => Promise.resolve(),
+    closing: () => closing,
     onStart: (position) => started.push(position),
     onEnd,
   });
@@ -86,12 +87,47 @@ describe("createPlayback", () => {
     return { speaker, starts };
   }
 
+  it("speaks the closing text after the last segment, then ends", async () => {
+    const { playback, spoken, finishLast, onEnd } = setup(
+      [oneStep("one")],
+      "What does one return?",
+    );
+
+    playback.play({ step: 0, segment: 0 });
+    await vi.waitFor(() => expect(spoken).toEqual(["one"]));
+    finishLast();
+    await vi.waitFor(() => expect(spoken).toEqual(["one", "What does one return?"]));
+    expect(onEnd).not.toHaveBeenCalled();
+    finishLast();
+
+    await vi.waitFor(() => expect(onEnd).toHaveBeenCalledOnce());
+    expect(spoken).toEqual(["one", "What does one return?"]);
+  });
+
+  it("stop during the closing text gives the last segment so Resume can replay it", async () => {
+    const { playback, spoken, finishLast, onEnd } = setup(
+      [oneStep("one")],
+      "What does one return?",
+    );
+    playback.play({ step: 0, segment: 0 });
+    await vi.waitFor(() => expect(spoken).toEqual(["one"]));
+    finishLast();
+    await vi.waitFor(() => expect(spoken).toHaveLength(2));
+
+    expect(playback.stop()).toEqual({ step: 0, segment: 0 });
+    finishLast();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(onEnd).not.toHaveBeenCalled();
+  });
+
   it("reports a segment only when the speaker says its audio started", async () => {
     const { speaker, starts } = silentSpeaker();
     const started: { step: number; segment: number }[] = [];
     const playback = createPlayback(speaker, {
       steps: () => steps,
       ready: () => Promise.resolve(),
+      closing: () => undefined,
       onStart: (position) => started.push(position),
       onEnd: vi.fn(),
     });
@@ -110,6 +146,7 @@ describe("createPlayback", () => {
     const playback = createPlayback(speaker, {
       steps: () => steps,
       ready: () => Promise.resolve(),
+      closing: () => undefined,
       onStart,
       onEnd: vi.fn(),
     });
@@ -216,6 +253,7 @@ describe("createPlayback ready", () => {
     const playback = createPlayback(fake.speaker, {
       steps: () => steps,
       ready: () => ready,
+      closing: () => undefined,
       onStart: (position) => started.push(position),
       onEnd: vi.fn(),
     });

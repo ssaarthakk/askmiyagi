@@ -4,6 +4,7 @@ import { selectionSchema } from "../../shared/anchor.ts";
 import { parseContract } from "../../shared/parse.ts";
 import { ackPhrases } from "../../shared/phrases.ts";
 import { askEvents } from "../llm/ask.ts";
+import { createConversation } from "../llm/conversation.ts";
 import type { LLMProvider } from "../llm/provider.ts";
 
 const maxBodyBytes = 100_000;
@@ -60,6 +61,7 @@ export function createAskHandler(options: {
 }) {
   let running = false;
   let asked = 0;
+  const conversation = createConversation();
 
   return async function handleAsk(request: IncomingMessage, response: ServerResponse) {
     const body = await readJsonBody(request, response, askBodySchema);
@@ -78,6 +80,7 @@ export function createAskHandler(options: {
       for await (const event of askEvents({
         root: options.root,
         provider: options.provider,
+        conversation,
         question: body.question,
         selection: body.selection,
         ack,

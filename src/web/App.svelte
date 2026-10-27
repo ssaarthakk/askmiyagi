@@ -42,6 +42,7 @@ const selectionLabel = $derived(
 let asking = $state(false);
 let highlight = $state<Highlight>();
 let steps = $state<PlayerStep[]>([]);
+let checkQuestion = $state<string>();
 let position = $state<Position>();
 let tourStarted = false;
 const previous = $derived(position && neighbour(steps, position, -1));
@@ -63,6 +64,7 @@ const playback =
   speaker &&
   createPlayback(speaker, {
     steps: () => steps,
+    closing: () => checkQuestion,
     ready: () => announcer?.finished() ?? Promise.resolve(),
     onStart: select,
     onEnd: (error) => {
@@ -126,6 +128,7 @@ async function submit(event: SubmitEvent) {
   interrupted = undefined;
   messages = [];
   steps = [];
+  checkQuestion = undefined;
   position = undefined;
   tourStarted = false;
   highlight = undefined;
@@ -147,6 +150,12 @@ async function submit(event: SubmitEvent) {
         }));
         if (!tourStarted || (position && !steps[position.step]?.step.narration[position.segment])) {
           selectFirst();
+        }
+        checkQuestion = askEvent.tour.checkQuestion;
+        if (caughtUp && checkQuestion && playback) {
+          caughtUp = false;
+          playing = true;
+          void playback.play(undefined);
         }
       } else if (askEvent.type === "error") {
         messages.push({ kind: "error", text: askEvent.message });
@@ -192,6 +201,7 @@ async function submit(event: SubmitEvent) {
       {next}
       {voiceOn}
       {playing}
+      {checkQuestion}
       canSpeak={speaker !== undefined}
       onselect={go}
       onpause={pause}

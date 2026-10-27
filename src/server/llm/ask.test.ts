@@ -1,11 +1,11 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { collect } from "../../../test/fake-claude.ts";
-import type { Selection } from "../../shared/anchor.ts";
 import type { ProviderEvent } from "../../shared/events.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
 import type { Step } from "../../shared/tour.ts";
 import { askEvents } from "./ask.ts";
+import { createConversation } from "./conversation.ts";
 import type { LLMProvider } from "./provider.ts";
 
 const root = resolve(import.meta.dirname, "../../../test/fixtures/basic");
@@ -42,13 +42,18 @@ function scripted(events: ProviderEvent[], seen: LLMRequest[] = []): LLMProvider
   };
 }
 
-function stream(provider: LLMProvider, signal = new AbortController().signal) {
+function stream(
+  provider: LLMProvider,
+  signal = new AbortController().signal,
+  conversation = createConversation(),
+) {
   return askEvents({
     root,
     provider,
     question: "How are clips saved?",
     ack: "One moment.",
     signal,
+    conversation,
   });
 }
 
@@ -181,6 +186,7 @@ describe("askEvents", () => {
         question,
         ack: "One moment.",
         signal: new AbortController().signal,
+        conversation: createConversation(),
       }),
     );
     expect(JSON.stringify(seen)).not.toContain("sk-ant-");
@@ -204,67 +210,53 @@ describe("askEvents", () => {
   });
 });
 
-describe("askEvents with a selection", () => {
-  async function askWith(selection: Selection) {
+describe("askEvents conversation", () => {
+  const finished: ProviderEvent[] = [
+    { type: "step", step: saveStep },
+    { type: "checkQuestion", text: "What does save return?" },
+    { type: "done", usage },
+  ];
+
+  it("sends the first question and a record of its tour with the next request", async () => {
+    const conversation = createConversation();
     const seen: LLMRequest[] = [];
-    const events = await collect(
-      askEvents({
-        root,
-        provider: scripted([{ type: "done", usage }], seen),
-        question: "What is this?",
-        ack: "One moment.",
-        signal: new AbortController().signal,
-        selection,
-      }),
+    await collect(stream(scripted(finished, seen), undefined, conversation));
+    expect(seen[0]?.conversation).toBe("");
+
+    await collect(stream(scripted(finished, seen), undefined, conversation));
+    expect(seen[1]?.conversation).toContain("How are clips saved?");
+    expect(seen[1]?.conversation).toContain("Saving a clip");
+    expect(seen[1]?.conversation).toContain("What does save return?");
+  });
+
+  it("does not store an ask that ended in an error", async () => {
+    const conversation = createConversation();
+    await collect(
+      stream(
+        scripted([{ type: "error", message: "boom", retryable: false }]),
+        undefined,
+        conversation,
+      ),
     );
-    return { seen, events };
-  }
-
-  it("puts a selection whose lines contain its text into the request as untrusted content", async () => {
-    const { seen, events } = await askWith({
-      file: "src/upload.ts",
-      start: 1,
-      end: 1,
-      text: "uploadClip",
-    });
-    expect(seen[0]?.question).toContain("What is this?");
-    expect(seen[0]?.question).toContain("src/upload.ts");
-    expect(seen[0]?.question).toMatch(/<untrusted_content[^>]*>uploadClip<\/untrusted_content>/);
-    expect(events.filter((event) => event.type === "progress")).toEqual([]);
+    expect(conversation.render()).toBe("");
   });
 
-  it("keeps a whole-line selection that ends with the line break", async () => {
-    const { seen, events } = await askWith({
-      file: "src/upload.ts",
-      start: 1,
-      end: 1,
-      text: "export async function uploadClip(path: string) {\n",
-    });
-    expect(seen[0]?.question).toContain("src/upload.ts");
-    expect(events.filter((event) => event.type === "progress")).toEqual([]);
+  it("does not store an ask that produced no steps", async () => {
+    const conversation = createConversation();
+    await collect(stream(scripted([{ type: "done", usage }]), undefined, conversation));
+    expect(conversation.render()).toBe("");
   });
 
-  it.each([
-    [
-      "the text is not in those lines",
-      { file: "src/upload.ts", start: 2, end: 2, text: "uploadClip" },
-    ],
-    [
-      "the lines are past the end of the file",
-      { file: "src/upload.ts", start: 9, end: 9, text: "x" },
-    ],
-    [
-      "the end is before the start",
-      { file: "src/upload.ts", start: 3, end: 1, text: "uploadClip" },
-    ],
-    ["the file does not exist", { file: "src/nope.ts", start: 1, end: 1, text: "x" }],
-    ["the path escapes the project", { file: "../outside.ts", start: 1, end: 1, text: "x" }],
-  ])("drops the selection and says so when %s", async (_reason, selection) => {
-    const { seen, events } = await askWith(selection);
-    expect(seen[0]?.question).toBe("What is this?");
-    expect(events.filter((event) => event.type === "progress")).toEqual([
-      { type: "progress", text: expect.stringContaining("selection") },
-    ]);
-    expect(events.at(-1)).toEqual({ type: "done" });
+  it("does not store an ask that was aborted", async () => {
+    const conversation = createConversation();
+    const controller = new AbortController();
+    const provider: LLMProvider = {
+      async *ask() {
+        yield { type: "step", step: saveStep };
+        controller.abort();
+      },
+    };
+    await collect(stream(provider, controller.signal, conversation));
+    expect(conversation.render()).toBe("");
   });
 });

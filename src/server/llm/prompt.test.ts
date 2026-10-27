@@ -55,6 +55,59 @@ describe("system prompt", () => {
   });
 });
 
+describe("answer length", () => {
+  it("gives a simple or factual question one step with one to three narration parts", async () => {
+    const root = await createRepo({ "a.ts": "export const a = 1;\n" });
+    const { request } = await buildRequest(root, "Where is a?");
+    expect(request.system).toMatch(/simple or factual question/i);
+    expect(request.system).toMatch(/exactly one step with one to three narration parts/i);
+  });
+
+  it("limits a how-it-works or walk-through question to a tour of at most 5 steps", async () => {
+    const root = await createRepo({ "a.ts": "export const a = 1;\n" });
+    const { request } = await buildRequest(root, "How does a work?");
+    expect(request.system).toMatch(/how does x work/i);
+    expect(request.system).toMatch(/walk me through/i);
+    expect(request.system).toMatch(/at most 5 steps/i);
+  });
+
+  it("keeps every narration part to at most two short sentences", async () => {
+    const root = await createRepo({ "a.ts": "export const a = 1;\n" });
+    const { request } = await buildRequest(root, "What is a?");
+    expect(request.system).toMatch(/every narration part is at most two short sentences/i);
+  });
+});
+
+describe("answering a check question", () => {
+  it("tells the model the new message may be the learner's answer and how to respond", async () => {
+    const root = await createRepo({ "a.ts": "export const a = 1;\n" });
+    const { request } = await buildRequest(root, "It returns one.");
+    expect(request.system).toMatch(/last turn ended with a check question/i);
+    expect(request.system).toMatch(/may be the learner's answer/i);
+    expect(request.system).toMatch(/whether it is right/i);
+    expect(request.system).toMatch(/one or two sentences/i);
+    expect(request.system).toMatch(/fix it gently/i);
+  });
+
+  it("puts the verdict in the first narration part of the first step", async () => {
+    const root = await createRepo({ "a.ts": "export const a = 1;\n" });
+    const { request } = await buildRequest(root, "It returns one.");
+    expect(request.system).toMatch(/first narration part of the first step/i);
+  });
+
+  it("puts the earlier conversation into the request", async () => {
+    const root = await createRepo({ "a.ts": "export const a = 1;\n" });
+    const { request } = await buildRequest(
+      root,
+      "It returns one.",
+      undefined,
+      undefined,
+      "Earlier in this conversation: ...",
+    );
+    expect(request.conversation).toBe("Earlier in this conversation: ...");
+  });
+});
+
 describe("request", () => {
   it("is a valid LLMRequest carrying the question and the root", async () => {
     const root = await createRepo({ "a.ts": "export const a = 1;\n" });

@@ -38,6 +38,11 @@ process.stdin.on("end", () => {
     console.log('{"type":"system"}');
     console.log("");
     console.log('{"type":"result"}');
+  } else if (mode === "tour") {
+    const step = { title: "Saving a clip", anchors: [{ file: "src/clip-service.ts", symbol: "ClipService.save" }], narration: [{ text: "Clips are saved here.", anchor: 0 }] };
+    const delta = { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: JSON.stringify(step) + "\\n" } };
+    console.log(JSON.stringify({ type: "stream_event", event: delta, parent_tool_use_id: null }));
+    console.log('{"type":"result","is_error":false,"result":"","usage":{}}');
   } else if (mode === "logged-out") {
     console.log('{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Not logged in \u00b7 Please run /login"}]},"error":"authentication_failed"}');
     console.log('{"type":"result","subtype":"success","is_error":true,"result":"Not logged in \u00b7 Please run /login","usage":{}}');

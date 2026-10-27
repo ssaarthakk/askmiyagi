@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { ask } from "./ask.ts";
 import {
   announced,
@@ -142,4 +142,55 @@ test("progress after the first step is not spoken over the tour", async ({ page 
   await expect(page.getByRole("button", { name: "Streamed two." })).toBeVisible();
 
   expect(await announced(page)).toEqual([ackText]);
+});
+
+test.describe("check question", () => {
+  const check = "What does the save method return?";
+
+  async function finishTour(page: Page) {
+    const one = stepEvent("Streamed one.");
+    await sendAskEvent(page, {
+      type: "tour",
+      tour: { question: "How are clips saved?", steps: [one.step], checkQuestion: check },
+      ranges: [one.ranges],
+    });
+    await sendAskEvent(page, { type: "done" });
+  }
+
+  test("is shown after the last step, spoken after the last segment, and then playback waits", async ({
+    page,
+  }) => {
+    await page.addInitScript(heldAsk);
+    await ask(page);
+    await sendAskEvent(page, stepEvent("Streamed one."));
+    await expect.poll(() => spoken(page)).toEqual(["Streamed one."]);
+    await finishTour(page);
+    await expect(page.getByText(check)).toBeVisible();
+    const pageText = await page.getByRole("main").innerText();
+    expect(pageText.indexOf(check)).toBeGreaterThan(pageText.lastIndexOf("Step"));
+    expect(await spoken(page)).toEqual(["Streamed one."]);
+
+    await finishSpeech(page);
+    await expect.poll(() => spoken(page)).toEqual(["Streamed one.", check]);
+    await finishSpeech(page);
+
+    await expect(page.getByRole("button", { name: "Pause" })).toHaveCount(0);
+    await page.waitForTimeout(300);
+    expect(await spoken(page)).toEqual(["Streamed one.", check]);
+  });
+
+  test("is spoken when the tour event arrives after the last segment has already ended", async ({
+    page,
+  }) => {
+    await page.addInitScript(heldAsk);
+    await ask(page);
+    await sendAskEvent(page, stepEvent("Streamed one."));
+    await expect.poll(() => spoken(page)).toEqual(["Streamed one."]);
+    await finishSpeech(page);
+    await expect(page.getByRole("button", { name: "Resume" })).toBeVisible();
+
+    await finishTour(page);
+
+    await expect.poll(() => spoken(page)).toEqual(["Streamed one.", check]);
+  });
 });

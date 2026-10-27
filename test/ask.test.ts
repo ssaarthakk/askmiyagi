@@ -203,6 +203,20 @@ describe("POST /api/ask", () => {
   });
 });
 
+describe("conversation memory", () => {
+  it("sends the earlier question to the model with the next ask", async () => {
+    const { env, work } = await fakeEnv("tour");
+    const { url, token } = await startServer(basic, [], env);
+    await (await post(url, token, question)).text();
+    expect((await recorded(work)).stdin).not.toContain("Earlier in this conversation");
+
+    await (await post(url, token, JSON.stringify({ question: "And uploads?" }))).text();
+    const { stdin } = await recorded(work);
+    expect(stdin).toContain("Earlier in this conversation");
+    expect(stdin).toContain("How are clips saved?");
+  });
+});
+
 describe("--brute-force-tokens", () => {
   it.each(["0", "-5", "1.5", "abc"])("rejects %s", async (value) => {
     const server = startCli(sourceCli, ["--no-open", "--brute-force-tokens", value]);

@@ -8,6 +8,7 @@ import {
 } from "../../shared/tool-inputs.ts";
 import type { Step } from "../../shared/tour.ts";
 import { resolveAnchor } from "../code/anchor-resolver.ts";
+import type { Conversation } from "./conversation.ts";
 import { buildRequest } from "./prompt.ts";
 import type { LLMProvider } from "./provider.ts";
 import { checkSelection } from "./selection.ts";
@@ -31,6 +32,7 @@ function progressText(name: string, input: unknown) {
 export async function* askEvents(options: {
   root: string;
   provider: LLMProvider;
+  conversation: Conversation;
   question: string;
   ack: string;
   selection?: Selection | undefined;
@@ -57,6 +59,7 @@ export async function* askEvents(options: {
       options.question,
       options.bruteForceTokens,
       selection,
+      options.conversation.render(),
     );
     for await (const event of options.provider.ask(request, signal)) {
       if (signal.aborted) return;
@@ -92,14 +95,12 @@ export async function* askEvents(options: {
   }
   if (signal.aborted) return;
 
-  yield {
-    type: "tour",
-    tour: {
-      question: options.question,
-      steps,
-      ...(checkQuestion === undefined ? {} : { checkQuestion }),
-    },
-    ranges: allRanges,
+  const tour = {
+    question: options.question,
+    steps,
+    ...(checkQuestion === undefined ? {} : { checkQuestion }),
   };
+  if (steps.length > 0) options.conversation.add(options.question, tour);
+  yield { type: "tour", tour, ranges: allRanges };
   yield { type: "done" };
 }

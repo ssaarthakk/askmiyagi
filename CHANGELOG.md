@@ -24,3 +24,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Speech starts with the first streamed step, before the whole tour has arrived.
 - The acknowledgement is spoken within 300 ms of asking, and progress lines are spoken briefly without file extensions; with ElevenLabs the acknowledgement phrases are fetched once at page load.
 - `miyagi https://github.com/<owner>/<repo>` shallow-clones a public GitHub repository into a temp folder, explains it, and deletes the clone on exit.
+- Answers fit the question: a simple question gets one short step, and a walkthrough is at most five steps.
+- Follow-up questions remember the last three turns. The tutor ends with a check question, shown and spoken after the last step, then waits; answering it gets brief feedback first.

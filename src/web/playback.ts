@@ -4,6 +4,7 @@ import type { Speaker } from "./speaker.ts";
 type PlaybackHooks = {
   steps: () => PlayerStep[];
   ready: () => Promise<void>;
+  closing: () => string | undefined;
   onStart: (position: Position) => void;
   onEnd: (error?: Error) => void;
 };
@@ -12,7 +13,7 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
   let running: AbortController | undefined;
   let current: Position | undefined;
 
-  async function play(from: Position) {
+  async function play(from: Position | undefined) {
     running?.abort();
     const mine = new AbortController();
     running = mine;
@@ -31,6 +32,11 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
         });
         if (mine.signal.aborted) return;
         at = neighbour(hooks.steps(), at, 1);
+      }
+      const closing = hooks.closing();
+      if (closing) {
+        await speaker.speak(closing, mine.signal, () => undefined);
+        if (mine.signal.aborted) return;
       }
       current = undefined;
       hooks.onEnd();

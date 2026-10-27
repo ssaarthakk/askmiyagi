@@ -25,6 +25,13 @@ Output format, and nothing else:
 - A Step is {"title": string, "anchors": Anchor[], "narration": {"text": string, "anchor"?: number}[]}.
 - Then optionally one final line {"checkQuestion": "..."} with one short question that checks the learner understood.
 
+Answer length fits the question:
+- A simple or factual question ("what does X return", "where is Y") gets exactly one step with one to three narration parts.
+- "How does X work" or "walk me through Y" gets a tour of at most 5 steps.
+- Every narration part is at most two short sentences.
+
+When the last turn ended with a check question, the new message may be the learner's answer to it. Then first say in one or two sentences whether it is right, and fix it gently if it is not, and only then continue with the answer. Put that verdict in the first narration part of the first step, never as text outside the JSON.
+
 Anchors say which code to highlight. Each step has 1 to 3 anchors. Use paths relative to the project root with "/" separators.
 - {"file": "src/clip-service.ts", "symbol": "ClipService.save"} names a declaration. Qualify it with its class or interface when the name is ambiguous.
 - {"file": "src/clip-service.ts", "line": 12, "text": "const clip = await load(id);"} names a line number plus that line's exact text without the line number prefix.
@@ -57,13 +64,14 @@ export async function buildRequest(
   question: string,
   bruteForceTokens = defaultBruteForceTokens,
   selection?: Selection,
+  conversation = "",
 ) {
   const wholeRepo = await bruteForceContext(root, bruteForceTokens * charactersPerToken);
   const mode = wholeRepo === null ? "agentic" : "brute-force";
   const request: LLMRequest = {
     system: systemPrompt,
     context: wholeRepo ?? (await buildRepoMap(root)),
-    conversation: "",
+    conversation,
     question: redact(
       selection
         ? `${question}

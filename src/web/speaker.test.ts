@@ -94,6 +94,16 @@ describe("browserSpeaker", () => {
     await expect(done).rejects.toThrow("synthesis-failed");
   });
 
+  it("ends normally when another utterance interrupts it", async () => {
+    const { synthesis, spoken } = fakeSynthesis([local]);
+    const done = browserSpeaker(synthesis).speak("hello", new AbortController().signal);
+    await vi.waitFor(() => expect(spoken).toHaveLength(1));
+
+    spoken[0]?.onerror?.({ error: "interrupted" });
+
+    await expect(done).resolves.toBeUndefined();
+  });
+
   it("treats the error from its own cancel after an abort as a normal end", async () => {
     const { synthesis, spoken } = fakeSynthesis([local]);
     const controller = new AbortController();

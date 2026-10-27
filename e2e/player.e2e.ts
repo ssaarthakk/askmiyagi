@@ -189,6 +189,7 @@ test("a second ask clears the old tour's code until its own tour arrives", async
   await expect(page.getByRole("region", { name: "Code" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
 
+  await page.getByLabel("Question").fill("And again?");
   await page.getByLabel("Question").press("Enter");
 
   await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();

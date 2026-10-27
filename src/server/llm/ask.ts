@@ -8,9 +8,10 @@ import {
 } from "../../shared/tool-inputs.ts";
 import type { Step } from "../../shared/tour.ts";
 import { resolveAnchor } from "../code/anchor-resolver.ts";
+import { logError } from "../log.ts";
 import type { Conversation } from "./conversation.ts";
 import { buildRequest } from "./prompt.ts";
-import type { LLMProvider } from "./provider.ts";
+import { type LLMProvider, lostThread } from "./provider.ts";
 import { checkSelection } from "./selection.ts";
 
 function progressText(name: string, input: unknown) {
@@ -45,6 +46,8 @@ export async function* askEvents(options: {
   const steps: Step[] = [];
   const allRanges: (ResolvedAnchor | null)[][] = [];
   let checkQuestion: string | undefined;
+  const progressSent = new Set<string>();
+  const replyLines: string[] = [];
   try {
     let selection = options.selection;
     if (selection) {
@@ -65,11 +68,15 @@ export async function* askEvents(options: {
       if (signal.aborted) return;
       if (event.type === "tool_call") {
         const text = progressText(event.name, event.input);
-        if (text !== undefined) yield { type: "progress", text };
+        if (text !== undefined && !progressSent.has(text)) {
+          progressSent.add(text);
+          yield { type: "progress", text };
+        }
       } else if (event.type === "step") {
         const ranges = await Promise.all(
           event.step.anchors.map(async (anchor) => {
             const resolved = await resolveAnchor(root, anchor);
+            if (!resolved.ok) logError(`No highlight for ${anchor.file}: ${resolved.error}`);
             return resolved.ok ? resolved.value : null;
           }),
         );
@@ -79,28 +86,37 @@ export async function* askEvents(options: {
       } else if (event.type === "checkQuestion") {
         checkQuestion = event.text;
       } else if (event.type === "text") {
-        yield {
-          type: "error",
-          message: `The tutor answered with text that is not a step: ${event.text}`,
-        };
-        return;
+        replyLines.push(event.text);
       } else if (event.type === "error") {
+        logError(`Ask failed: ${event.detail ?? event.message}`);
         yield { type: "error", message: event.message };
         return;
       }
     }
   } catch (error) {
-    yield { type: "error", message: error instanceof Error ? error.message : String(error) };
+    const message = error instanceof Error ? error.message : String(error);
+    logError(`Ask failed: ${message}`);
+    yield { type: "error", message };
     return;
   }
   if (signal.aborted) return;
 
+  if (steps.length > 0 && replyLines.length > 0) {
+    logError(`Ignored text outside the steps: ${replyLines.join(" ")}`);
+  }
+  const reply = steps.length === 0 && replyLines.length > 0 ? replyLines.join(" ") : undefined;
+  if (reply && (reply.length > 600 || replyLines.some((line) => /^\s*([{[]|```)/.test(line)))) {
+    logError(`Ask failed: the tutor's reply was not plain speech: ${reply}`);
+    yield { type: "error", message: lostThread };
+    return;
+  }
   const tour = {
     question: options.question,
     steps,
     ...(checkQuestion === undefined ? {} : { checkQuestion }),
+    ...(reply === undefined ? {} : { reply }),
   };
-  if (steps.length > 0) options.conversation.add(options.question, tour);
+  if (steps.length > 0 || reply) options.conversation.add(options.question, tour);
   yield { type: "tour", tour, ranges: allRanges };
   yield { type: "done" };
 }

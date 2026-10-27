@@ -80,14 +80,22 @@ test("the acknowledgement starts within 300 ms of submitting", async ({ page }) 
   expect(delay).toBeLessThan(300);
 });
 
-test("progress lines are spoken without the file extension", async ({ page }) => {
+test("the first two progress lines are spoken like a person and later ones only shown", async ({
+  page,
+}) => {
   await page.addInitScript(heldAsk);
   await ask(page);
 
   await sendAskEvent(page, { type: "ack", text: ackText });
+  await sendAskEvent(page, { type: "progress", text: "Searching for upload or post" });
   await sendAskEvent(page, { type: "progress", text: "Looking at upload.ts" });
+  await sendAskEvent(page, { type: "progress", text: "Looking at ask-route.ts" });
+  await sendAskEvent(page, { type: "progress", text: "Looking at cli.ts" });
 
-  await expect.poll(() => announced(page)).toEqual([ackText, "Looking at upload"]);
+  await expect(page.getByText("Looking at cli.ts")).toBeVisible();
+  await expect
+    .poll(() => announced(page))
+    .toEqual([ackText, "Let me look at upload.", "Now ask route."]);
 });
 
 test("a progress line still waiting when a step arrives is dropped", async ({ page }) => {
@@ -109,9 +117,7 @@ test("a progress line still waiting when a step arrives is dropped", async ({ pa
   expect(await announced(page)).toEqual([ackText]);
 });
 
-test("a failing acknowledgement after a step arrived switches to text and speaks nothing", async ({
-  page,
-}) => {
+test("a failing acknowledgement is skipped and the tour is still spoken", async ({ page }) => {
   await page.addInitScript("window.holdAnnouncements = true;");
   await page.addInitScript(heldAsk);
   await ask(page);
@@ -119,16 +125,10 @@ test("a failing acknowledgement after a step arrived switches to text and speaks
   await sendAskEvent(page, stepEvent("Streamed one."));
   await expect.poll(() => announced(page)).toEqual([ackText]);
 
-  await page.evaluate("window.failAnnouncement(new Error('Speech failed: no voice'))");
+  await page.evaluate("window.failAnnouncement(new Error('Speech failed: network'))");
 
-  await expect(page.getByRole("status")).toHaveText("Speech failed: no voice");
-  await page.waitForTimeout(200);
-  expect(await spoken(page)).toEqual([]);
-  await expect(page.getByRole("button", { name: "Pause" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Streamed one." })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
+  await expect.poll(() => spoken(page)).toEqual(["Streamed one."]);
+  await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
 });
 
 test("progress after the first step is not spoken over the tour", async ({ page }) => {

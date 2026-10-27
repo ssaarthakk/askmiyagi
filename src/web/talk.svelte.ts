@@ -59,14 +59,15 @@ export function createTalk(options: {
     }
   }
 
+  let clicked: Element | null | undefined;
+
   function spaceTalks(event: KeyboardEvent) {
     const target = event.target as HTMLElement;
-    return (
-      options.enabled &&
-      event.code === "Space" &&
-      (target === options.button() ||
-        !target.closest("input, textarea, select, button, a, [contenteditable]"))
-    );
+    if (!options.enabled || event.code !== "Space") return false;
+    if (target === options.button()) return true;
+    if (target.closest("input, textarea, select, [contenteditable]")) return false;
+    const control = target.closest("button, a");
+    return !control || control === clicked;
   }
 
   return {
@@ -77,7 +78,11 @@ export function createTalk(options: {
       return notice;
     },
     stop,
+    pointerused(event: PointerEvent) {
+      clicked = (event.target as Element).closest("button, a");
+    },
     keydown(event: KeyboardEvent) {
+      if (event.key === "Tab") clicked = undefined;
       if (!spaceTalks(event)) return;
       event.preventDefault();
       if (!event.repeat) start();

@@ -1,3 +1,3 @@
 {"type":"step","step":{"title":"Saving a clip","anchors":[{"file":"src/clip-service.ts","symbol":"ClipService.save"}],"narration":[{"text":"Clips are saved here.","anchor":0}]}}
-{"type":"error","message":"title: Too small: expected string to have >=1 characters","retryable":false}
+{"type":"error","message":"Sorry, I lost my thread there. Please ask again.","detail":"title: Too small: expected string to have >=1 characters","retryable":false}
 {"type":"done","usage":{"inputTokens":1,"outputTokens":1,"cacheReadTokens":0,"cacheWriteTokens":0,"costUsd":null}}

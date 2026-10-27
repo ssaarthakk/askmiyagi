@@ -28,3 +28,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Follow-up questions remember the last three turns. The tutor ends with a check question, shown and spoken after the last step, then waits; answering it gets brief feedback first.
 - Push-to-talk with `--voice elevenlabs`: hold the microphone button or Space to ask by voice; the server transcribes the recording through ElevenLabs speech-to-text (`POST /api/transcribe`) and the question is sent at once.
 - A two-pane dark layout: the code on the left with its file path, a conversation panel on the right with question bubbles, progress notes, the tour card, the check question and a pinned composer (Enter sends, Shift+Enter adds a line), suggested first questions under the project name, and a floating voice pill with level bars, the step title, Previous, Pause/Resume, Next and Voice.
+- Ask a question in the middle of a spoken explanation: it stops, answers, then says "Now, back to where we were" and continues from the interrupted sentence.
+- Plain spoken replies when a message needs no code, such as "I don't know"; check questions are now rare.
+- The terminal now shows why things fail: refused requests, failed asks, ElevenLabs errors with their reason, and code that could not be highlighted.
+
+### Fixed
+
+- `miyagi` started through `npm link` or `npx` did nothing.
+- One speech hiccup no longer turns the voice off for the rest of the session.
+- Highlights now find nested functions and methods and lines quoted with different spacing, and one bad highlight no longer throws away the whole answer.
+- The browser shows a short "Sorry, I lost my thread there" instead of raw validation errors.
+- The acknowledgement no longer says "Good question" to everything, progress is spoken like a person and only once per file, and the question box clears when you send.
+- Space after clicking Pause asks a question instead of pressing Resume.

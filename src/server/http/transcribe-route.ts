@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { transcriptSchema } from "../../shared/transcript.ts";
+import { describeError } from "../log.ts";
 import { readBody, sendError } from "./ask-route.ts";
 
 const maxRecordingBytes = 10 * 1024 * 1024;
@@ -41,12 +42,23 @@ export function createTranscribeHandler(options: { apiKey?: string | undefined }
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!upstream.ok) {
-        sendError(response, 502, `Speech-to-text failed: ${upstream.status}`);
+        const reason = await upstream.text().catch(() => "");
+        sendError(
+          response,
+          502,
+          `Speech-to-text failed: ${upstream.status}`,
+          describeError(reason, options.apiKey),
+        );
         return;
       }
       text = transcriptSchema.parse(await upstream.json()).text.trim();
-    } catch {
-      sendError(response, 502, "Speech-to-text failed: unreachable");
+    } catch (error) {
+      sendError(
+        response,
+        502,
+        "Speech-to-text failed: unreachable",
+        describeError(error, options.apiKey),
+      );
       return;
     }
     response.writeHead(200, { "content-type": "application/json; charset=utf-8" });

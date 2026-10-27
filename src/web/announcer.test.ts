@@ -117,20 +117,34 @@ describe("createAnnouncer", () => {
 });
 
 describe("spokenProgress", () => {
-  it("drops the extension from a file name", () => {
-    expect(spokenProgress("Looking at upload.ts")).toBe("Looking at upload");
-    expect(spokenProgress("Looking at clip.test.tsx")).toBe("Looking at clip.test");
+  it("speaks the first file like a person, without the extension", () => {
+    expect(spokenProgress("Looking at upload.ts", 0)).toBe("Let me look at upload.");
+    expect(spokenProgress("Looking at clip.test.tsx", 0)).toBe("Let me look at clip test.");
   });
 
-  it("keeps names without an extension and dotfiles as they are", () => {
-    expect(spokenProgress("Looking at Dockerfile")).toBe("Looking at Dockerfile");
-    expect(spokenProgress("Looking at .gitignore")).toBe("Looking at .gitignore");
+  it("says the second one briefly and stays quiet after that", () => {
+    expect(spokenProgress("Looking at ask-route.ts", 1)).toBe("Now ask route.");
+    expect(spokenProgress("Looking at cli.ts", 2)).toBeUndefined();
   });
 
-  it("leaves searches and symbol lookups alone", () => {
-    expect(spokenProgress("Searching for upload.ts or post")).toBe(
-      "Searching for upload.ts or post",
+  it("splits camel case and snake case names into words", () => {
+    expect(spokenProgress("Looking at claudeStream.ts", 0)).toBe("Let me look at claude Stream.");
+    expect(spokenProgress("Finding ClipService.save", 0)).toBe("Let me find Clip Service save.");
+    expect(spokenProgress("Looking at file_filter.ts", 1)).toBe("Now file filter.");
+  });
+
+  it("keeps names without an extension and drops the dot of a dotfile", () => {
+    expect(spokenProgress("Looking at Dockerfile", 0)).toBe("Let me look at Dockerfile.");
+    expect(spokenProgress("Looking at .gitignore", 0)).toBe("Let me look at gitignore.");
+  });
+
+  it("does not read search patterns aloud", () => {
+    expect(spokenProgress("Searching for upload.ts or post", 0)).toBeUndefined();
+  });
+
+  it("says other notes as they are", () => {
+    expect(spokenProgress("Ignoring the selection: line 9 is not in upload.ts", 0)).toBe(
+      "Ignoring the selection: line 9 is not in upload.ts",
     );
-    expect(spokenProgress("Finding ClipService.save")).toBe("Finding ClipService.save");
   });
 });

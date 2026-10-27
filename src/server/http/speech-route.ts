@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 import { redact } from "../files/redact.ts";
+import { describeError } from "../log.ts";
 import { readJsonBody, sendError } from "./ask-route.ts";
 
 const speechBodySchema = z.object({ text: z.string().min(1).max(2000) });
@@ -26,9 +27,8 @@ export function createSpeechHandler(options: { apiKey?: string | undefined; voic
       .digest("hex");
     let audio = cache.get(cacheKey);
     if (!audio) {
-      let upstream: Response;
       try {
-        upstream = await fetch(
+        const upstream = await fetch(
           `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(options.voiceId)}?output_format=mp3_44100_128`,
           {
             method: "POST",
@@ -37,13 +37,28 @@ export function createSpeechHandler(options: { apiKey?: string | undefined; voic
             signal: AbortSignal.timeout(timeoutMs),
           },
         );
-        if (upstream.ok) audio = Buffer.from(await upstream.arrayBuffer());
-      } catch {
-        sendError(response, 502, "Voice service failed: unreachable");
-        return;
-      }
-      if (!audio?.length) {
-        sendError(response, 502, `Voice service failed: ${upstream.status}`);
+        if (!upstream.ok) {
+          const reason = await upstream.text().catch(() => "");
+          sendError(
+            response,
+            502,
+            `Voice service failed: ${upstream.status}`,
+            describeError(reason, options.apiKey),
+          );
+          return;
+        }
+        audio = Buffer.from(await upstream.arrayBuffer());
+        if (audio.length === 0) {
+          sendError(response, 502, `Voice service failed: ${upstream.status}`);
+          return;
+        }
+      } catch (error) {
+        sendError(
+          response,
+          502,
+          "Voice service failed: unreachable",
+          describeError(error, options.apiKey),
+        );
         return;
       }
       cache.set(cacheKey, audio);

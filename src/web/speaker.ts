@@ -35,20 +35,22 @@ export function browserSpeaker(synthesis: SpeechSynthesis): Speaker {
       await new Promise<void>((resolve, reject) => {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.voice = voice;
+        const stop = () => {
+          synthesis.cancel();
+          resolve();
+        };
         utterance.onstart = () => onStart?.();
-        utterance.onend = () => resolve();
+        utterance.onend = () => {
+          signal.removeEventListener("abort", stop);
+          resolve();
+        };
         utterance.onerror = (event) => {
-          if (signal.aborted) resolve();
+          signal.removeEventListener("abort", stop);
+          if (signal.aborted || event.error === "interrupted" || event.error === "canceled")
+            resolve();
           else reject(new Error(`Speech failed: ${event.error}`));
         };
-        signal.addEventListener(
-          "abort",
-          () => {
-            synthesis.cancel();
-            resolve();
-          },
-          { once: true },
-        );
+        signal.addEventListener("abort", stop, { once: true });
         synthesis.speak(utterance);
       });
     },

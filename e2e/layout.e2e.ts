@@ -59,6 +59,7 @@ test("Enter sends the question and Shift+Enter adds a line", async ({ page }) =>
   await box.press("Enter");
 
   expect((await request).postDataJSON()).toEqual({ question: "First line\nSecond line" });
+  await expect(box).toHaveValue("");
 });
 
 test("the conversation shows the question, the tutor's lines, the tour and the check question in order", async ({

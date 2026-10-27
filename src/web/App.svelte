@@ -38,6 +38,7 @@ function textMode(notice: string) {
   voiceNotice = notice;
   voiceOn = false;
   pause();
+  earlierTours.length = 0;
   const at = position ? undefined : (interrupted ?? firstPosition(steps));
   if (at) select(at);
 }
@@ -50,9 +51,11 @@ const selectionLabel = $derived(
 let asking = $state(false);
 let highlight = $state<Highlight>();
 let steps = $state<PlayerStep[]>([]);
-let checkQuestion = $state<string>();
+let tutorLine = $state<string>();
 let position = $state<Position>();
 let tourStarted = false;
+const earlierTours: { steps: PlayerStep[]; tutorLine: string | undefined; at: Position }[] = [];
+let awaitingAnswer = false;
 const previous = $derived(position && neighbour(steps, position, -1));
 const next = $derived(position && neighbour(steps, position, 1));
 
@@ -63,7 +66,12 @@ function select(chosen: Position) {
   if (target) highlight = moveHighlight(highlight, target.file, target.range);
 }
 
-const announcer = speaker && createAnnouncer(speaker, (error) => textMode(error.message));
+const announcer =
+  speaker &&
+  createAnnouncer(speaker, (error) => {
+    if (error.message === noLocalVoice) textMode(error.message);
+    else console.warn("Skipped a spoken note", error);
+  });
 function announce(text: string) {
   if (voiceOn && steps.length === 0) announcer?.say(text);
 }
@@ -72,13 +80,14 @@ const playback =
   speaker &&
   createPlayback(speaker, {
     steps: () => steps,
-    closing: () => checkQuestion,
+    closing: () => tutorLine,
     ready: () => announcer?.finished() ?? Promise.resolve(),
     onStart: select,
     onEnd: (error) => {
       playing = false;
       caughtUp = !error;
       if (error) textMode(error.message);
+      else resumeEarlierTour();
     },
   });
 
@@ -113,6 +122,7 @@ function resume() {
 function toggleVoice() {
   pause();
   voiceOn = !voiceOn;
+  if (!voiceOn) earlierTours.length = 0;
 }
 
 if (!speaker) {
@@ -124,6 +134,26 @@ if (!speaker) {
 }
 
 let turns = $state<Turn[]>([]);
+
+function startTurn(question: string, notes: Note[]) {
+  const finished = turns.at(-1);
+  if (finished) finished.titles = steps.map((entry) => entry.step.title);
+  turns.push({ question, notes, titles: [], check: undefined });
+}
+
+function resumeEarlierTour() {
+  const earlier = earlierTours.at(-1);
+  if (!earlier || asking || playing || !voiceOn || awaitingAnswer) return;
+  if (!caughtUp && (steps.length > 0 || tutorLine)) return;
+  earlierTours.pop();
+  startTurn("", [{ kind: "progress", text: "Back to where we were" }]);
+  steps = earlier.steps;
+  tutorLine = earlier.tutorLine;
+  position = undefined;
+  highlight = undefined;
+  announcer?.say("Now, back to where we were.");
+  go(earlier.at);
+}
 
 function note(kind: Note["kind"], text: string) {
   turns.at(-1)?.notes.push({ kind, text });
@@ -137,24 +167,35 @@ function askText(text: string) {
 async function sendQuestion() {
   const text = question.trim();
   if (!text || asking) return;
+  question = "";
   asking = true;
   const attached = selection;
   selection = undefined;
   pause();
+  if (voiceOn && interrupted && steps.length > 0) {
+    earlierTours.push({ steps, tutorLine, at: interrupted });
+  }
   interrupted = undefined;
-  const finished = turns.at(-1);
-  if (finished) finished.titles = steps.map((entry) => entry.step.title);
-  turns.push({ question: text, notes: [], titles: [], check: undefined });
+  awaitingAnswer = false;
+  startTurn(text, []);
   steps = [];
-  checkQuestion = undefined;
+  tutorLine = undefined;
   position = undefined;
   tourStarted = false;
   highlight = undefined;
+  let progressSpoken = 0;
   try {
     await ask(text, token, attached, (askEvent) => {
-      if (askEvent.type === "ack" || askEvent.type === "progress") {
-        note(askEvent.type, askEvent.text);
-        announce(askEvent.type === "progress" ? spokenProgress(askEvent.text) : askEvent.text);
+      if (askEvent.type === "ack") {
+        note("ack", askEvent.text);
+        announce(askEvent.text);
+      } else if (askEvent.type === "progress") {
+        note("progress", askEvent.text);
+        const line = spokenProgress(askEvent.text, progressSpoken);
+        if (line) {
+          progressSpoken += 1;
+          announce(line);
+        }
       } else if (askEvent.type === "step") {
         announcer?.dropWaiting();
         steps.push({ step: askEvent.step, ranges: askEvent.ranges });
@@ -169,10 +210,11 @@ async function sendQuestion() {
         if (!tourStarted || (position && !steps[position.step]?.step.narration[position.segment])) {
           selectFirst();
         }
-        checkQuestion = askEvent.tour.checkQuestion;
+        tutorLine = askEvent.tour.reply ?? askEvent.tour.checkQuestion;
+        awaitingAnswer = !askEvent.tour.reply && askEvent.tour.checkQuestion !== undefined;
         const current = turns.at(-1);
-        if (current) current.check = checkQuestion;
-        if (caughtUp && checkQuestion && playback) {
+        if (current) current.check = tutorLine;
+        if (tutorLine && playback && voiceOn && (caughtUp || steps.length === 0)) {
           caughtUp = false;
           playing = true;
           void playback.play(undefined);
@@ -186,6 +228,7 @@ async function sendQuestion() {
   } finally {
     asking = false;
   }
+  resumeEarlierTour();
 }
 
 let microphoneButton = $state<HTMLButtonElement>();
@@ -200,7 +243,12 @@ const talk = createTalk({
 });
 </script>
 
-<svelte:window onkeydown={talk.keydown} onkeyup={talk.keyup} onblur={talk.stop} />
+<svelte:window
+  onkeydown={talk.keydown}
+  onkeyup={talk.keyup}
+  onblur={talk.stop}
+  onpointerdown={talk.pointerused}
+/>
 
 <main class="app">
   <div class="code-pane">

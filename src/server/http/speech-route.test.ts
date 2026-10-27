@@ -156,6 +156,21 @@ describe("POST /api/speech", () => {
     expect(result.body.toString()).not.toContain(apiKey);
   });
 
+  it("prints ElevenLabs' reason for a failure to the terminal, without the key", async () => {
+    const terminal = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    stubElevenLabs(
+      () => new Response(`{"detail":{"message":"Invalid API key ${apiKey}"}}`, { status: 401 }),
+    );
+    const post = await start({ apiKey, voiceId });
+
+    await post(JSON.stringify({ text: "Hello" }));
+
+    const printed = terminal.mock.calls.map(([text]) => String(text)).join("");
+    expect(printed).toContain("Voice service failed: 401");
+    expect(printed).toContain("Invalid API key");
+    expect(printed).not.toContain(apiKey);
+  });
+
   it("answers 502 when ElevenLabs cannot be reached and does not cache failures", async () => {
     let calls = 0;
     const stub = vi.fn(() => {

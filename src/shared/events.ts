@@ -11,7 +11,12 @@ export const providerEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("checkQuestion"), text: z.string().min(1) }),
   z.object({ type: z.literal("tool_call"), name: z.string(), input: z.unknown() }),
   z.object({ type: z.literal("done"), usage: usageSchema }),
-  z.object({ type: z.literal("error"), message: z.string(), retryable: z.boolean() }),
+  z.object({
+    type: z.literal("error"),
+    message: z.string(),
+    detail: z.string().optional(),
+    retryable: z.boolean(),
+  }),
 ]);
 
 export const askEventSchema = z.discriminatedUnion("type", [

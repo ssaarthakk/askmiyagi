@@ -11,7 +11,8 @@ export function createConversation() {
     add(question: string, tour: Tour) {
       const titles = tour.steps.map((step) => step.title).join("; ");
       const check = tour.checkQuestion ? ` Check question: ${tour.checkQuestion}` : "";
-      const record = wrapUntrusted("tour_record", redact(`Tour: ${titles}.${check}`));
+      const summary = tour.reply ? `Replied: ${tour.reply}` : `Tour: ${titles}.${check}`;
+      const record = wrapUntrusted("tour_record", redact(summary));
       turns.push(`- Learner asked: ${redact(question)}\n  ${record}`);
       turns.splice(0, turns.length - keptTurns);
     },

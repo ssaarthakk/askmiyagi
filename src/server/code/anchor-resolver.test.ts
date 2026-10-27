@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import type { Anchor } from "../../shared/anchor.ts";
 import { resolveAnchor } from "./anchor-resolver.ts";
 
 const fixtureRoot = fileURLToPath(new URL("../../../test/fixtures/basic/", import.meta.url));
@@ -77,15 +78,12 @@ describe("resolveAnchor with a symbol", () => {
     });
   });
 
-  it("rejects an unqualified name with several definitions and lists the candidates", async () => {
+  it("highlights the first definition of an unqualified name with several definitions", async () => {
     const root = await createRepo();
 
     const result = await resolveAnchor(root, { file: "src/service.ts", symbol: "run" });
 
-    expect(result).toEqual({
-      ok: false,
-      error: expect.stringContaining("First.run 11-11, Second.run 14-14"),
-    });
+    expect(result).toMatchObject({ ok: true, value: { file: "src/service.ts", start: 11 } });
   });
 
   it("rejects a missing symbol", async () => {
@@ -96,10 +94,12 @@ describe("resolveAnchor with a symbol", () => {
     ).resolves.toEqual({ ok: false, error: expect.stringContaining("nothing") });
   });
 
-  it("rejects a symbol in a file without a parser", async () => {
+  it("rejects a symbol that is not mentioned in a file without a parser", async () => {
     const root = await createRepo();
 
-    await expect(resolveAnchor(root, { file: "notes.md", symbol: "Notes" })).resolves.toEqual({
+    await expect(
+      resolveAnchor(root, { file: "notes.md", symbol: "NotMentionedAnywhere" }),
+    ).resolves.toEqual({
       ok: false,
       error: expect.stringContaining("notes.md"),
     });
@@ -182,6 +182,17 @@ describe("resolveAnchor with a line and text", () => {
       ok: true,
       value: { file: "notes.md", start: 4, end: 4, capped: false },
     });
+  });
+
+  it("matches loosely quoted lines and finds a declaration in a file without a parser", async () => {
+    const root = await createRepo({ "tool.py": "from a import run\nrun()\ndef run(name):\n" });
+    const resolve = (anchor: Anchor) =>
+      resolveAnchor(root, anchor).then((found) => found.ok && found.value.start);
+    await expect(resolve({ file: "notes.md", line: 1, text: "Second    point" })).resolves.toBe(4);
+    await expect(
+      resolve({ file: "src/service.ts", line: 9, text: "uploadClip(path: string)" }),
+    ).resolves.toBe(1);
+    await expect(resolve({ file: "tool.py", symbol: "run" })).resolves.toBe(3);
   });
 
   it("finds statements in files with CRLF line endings", async () => {

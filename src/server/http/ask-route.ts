@@ -6,6 +6,7 @@ import { ackPhrases } from "../../shared/phrases.ts";
 import { askEvents } from "../llm/ask.ts";
 import { createConversation } from "../llm/conversation.ts";
 import type { LLMProvider } from "../llm/provider.ts";
+import { logError } from "../log.ts";
 
 const maxBodyBytes = 100_000;
 
@@ -14,7 +15,8 @@ const askBodySchema = z.object({
   selection: selectionSchema.optional(),
 });
 
-export function sendError(response: ServerResponse, status: number, message: string) {
+export function sendError(response: ServerResponse, status: number, message: string, reason = "") {
+  logError(`${status} ${message}${reason && ` (${reason})`}`);
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   response.end(JSON.stringify({ error: message }));
 }

@@ -1,5 +1,5 @@
 import { neighbour, type PlayerStep, type Position } from "./player.ts";
-import type { Speaker } from "./speaker.ts";
+import { noLocalVoice, type Speaker } from "./speaker.ts";
 
 type PlaybackHooks = {
   steps: () => PlayerStep[];
@@ -18,6 +18,18 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
     const mine = new AbortController();
     running = mine;
     current = from;
+    let spoken = false;
+    let failure: unknown;
+    async function say(text: string, signal: AbortSignal, onStart: () => void) {
+      try {
+        await speaker.speak(text, signal, onStart);
+        spoken = true;
+      } catch (error) {
+        if (error instanceof Error && error.message === noLocalVoice) throw error;
+        failure = error;
+        console.warn("Skipped a narration part that could not be spoken", error);
+      }
+    }
     try {
       await hooks.ready();
       if (mine.signal.aborted) return;
@@ -27,7 +39,7 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
         if (!segment) break;
         const started = at;
         current = at;
-        await speaker.speak(segment.text, mine.signal, () => {
+        await say(segment.text, mine.signal, () => {
           if (!mine.signal.aborted) hooks.onStart(started);
         });
         if (mine.signal.aborted) return;
@@ -35,9 +47,10 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
       }
       const closing = hooks.closing();
       if (closing) {
-        await speaker.speak(closing, mine.signal, () => undefined);
+        await say(closing, mine.signal, () => undefined);
         if (mine.signal.aborted) return;
       }
+      if (!spoken && failure) throw failure;
       current = undefined;
       hooks.onEnd();
     } catch (error) {

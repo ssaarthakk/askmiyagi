@@ -74,7 +74,9 @@ function keydown(event: KeyboardEvent) {
   <p role="status" class="muted notice">{voiceNotice}</p>
   <ul bind:this={list} aria-label="Conversation" aria-live="polite">
     {#each turns as turn, index}
-      <li class="question">{turn.question}</li>
+      {#if turn.question}
+        <li class="question">{turn.question}</li>
+      {/if}
       {#each turn.notes as note}
         <li class="note {note.kind}">{note.text}</li>
       {/each}

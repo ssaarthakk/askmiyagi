@@ -1,7 +1,9 @@
 import { z } from "zod";
+import { anchorSchema } from "../../shared/anchor.ts";
 import type { ProviderEvent } from "../../shared/events.ts";
 import { parseContract } from "../../shared/parse.ts";
 import { stepSchema } from "../../shared/tour.ts";
+import { lostThread } from "./provider.ts";
 
 const toolPrefix = "mcp__miyagi__";
 const authenticationFailed = "authentication_failed";
@@ -49,6 +51,30 @@ function failure(message: string): ProviderEvent {
   return { type: "error", message, retryable: false };
 }
 
+function modelFailure(detail: string): ProviderEvent {
+  return { type: "error", message: lostThread, detail, retryable: false };
+}
+
+function withoutBadAnchors(json: object) {
+  if (!("anchors" in json) || !Array.isArray(json.anchors)) return json;
+  const anchors: unknown[] = json.anchors;
+  const kept = anchors.flatMap((anchor, index) =>
+    anchorSchema.safeParse(anchor).success ? [index] : [],
+  );
+  if (kept.length === 0 || kept.length === anchors.length) return json;
+  const narration =
+    "narration" in json && Array.isArray(json.narration)
+      ? json.narration.map((part: unknown) => {
+          if (typeof part !== "object" || part === null || !("anchor" in part)) return part;
+          const { anchor, ...rest } = part;
+          if (typeof anchor !== "number" || !Number.isInteger(anchor)) return part;
+          const moved = kept.indexOf(anchor);
+          return moved === -1 ? rest : { ...rest, anchor: moved };
+        })
+      : undefined;
+  return { ...json, anchors: kept.map((index) => anchors[index]), narration };
+}
+
 function parseModelLine(line: string): ProviderEvent {
   let json: unknown;
   try {
@@ -60,10 +86,13 @@ function parseModelLine(line: string): ProviderEvent {
     const parsed = parseContract(checkQuestionSchema, json);
     return parsed.ok
       ? { type: "checkQuestion", text: parsed.value.checkQuestion }
-      : failure(parsed.error);
+      : modelFailure(parsed.error);
   }
-  const parsed = parseContract(stepSchema, json);
-  return parsed.ok ? { type: "step", step: parsed.value } : failure(parsed.error);
+  const parsed = parseContract(
+    stepSchema,
+    typeof json === "object" && json !== null ? withoutBadAnchors(json) : json,
+  );
+  return parsed.ok ? { type: "step", step: parsed.value } : modelFailure(parsed.error);
 }
 
 function* modelLineEvents(text: string) {

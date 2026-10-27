@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { collect, request } from "../../../test/fake-claude.ts";
 import { runClaude } from "./claude-process.ts";
 import { parseClaudeStream } from "./claude-stream.ts";
+import { lostThread } from "./provider.ts";
 
 const recordings = resolve(import.meta.dirname, "../../../test/fixtures/recordings");
 
@@ -65,14 +66,51 @@ describe("parseClaudeStream", () => {
     ]);
     expect(events[0]).toEqual({ type: "text", text: "Here is the tour:" });
     const stepError = events[1];
-    expect(stepError).toMatchObject({ type: "error", retryable: false });
+    expect(stepError).toMatchObject({ type: "error", message: lostThread, retryable: false });
     if (stepError?.type === "error") {
-      expect(stepError.message).toContain("title");
-      expect(stepError.message).toContain("anchors");
+      expect(stepError.detail).toContain("title");
+      expect(stepError.detail).toContain("anchors");
     }
     expect(events[3]).toMatchObject({
       type: "error",
-      message: expect.stringContaining("checkQuestion"),
+      message: lostThread,
+      detail: expect.stringContaining("checkQuestion"),
+    });
+  });
+
+  it("keeps a step with one bad anchor, dropping the anchor and repointing the narration", async () => {
+    const step = {
+      title: "Saving a clip",
+      anchors: [
+        { file: "src/clip-service.ts", symbol: "ClipService" },
+        { file: "src/upload.ts", line: 3, text: "" },
+        { file: "src/upload.ts", symbol: "uploadClip" },
+      ],
+      narration: [
+        { text: "One.", anchor: 0 },
+        { text: "Two.", anchor: 1 },
+        { text: "Three.", anchor: 2 },
+      ],
+    };
+    const events = await collect(
+      parseClaudeStream(
+        linesOf([
+          delta(`${JSON.stringify(step)}
+`),
+          result,
+        ]),
+      ),
+    );
+    expect(events[0]).toEqual({
+      type: "step",
+      step: {
+        title: "Saving a clip",
+        anchors: [
+          { file: "src/clip-service.ts", symbol: "ClipService" },
+          { file: "src/upload.ts", symbol: "uploadClip" },
+        ],
+        narration: [{ text: "One.", anchor: 0 }, { text: "Two." }, { text: "Three.", anchor: 1 }],
+      },
     });
   });
 

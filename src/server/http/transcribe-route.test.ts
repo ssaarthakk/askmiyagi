@@ -162,6 +162,45 @@ describe("POST /api/transcribe", () => {
     expect(result.body).not.toContain(apiKey);
   });
 
+  it("prints ElevenLabs' reason for a failure to the terminal, without the key", async () => {
+    const terminal = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    stubElevenLabs(
+      () =>
+        new Response(
+          JSON.stringify({
+            detail: {
+              status: "missing_permissions",
+              message: `The API key you used is missing the permission speech_to_text to execute this operation. Key: ${apiKey}`,
+            },
+          }),
+          { status: 401 },
+        ),
+    );
+    const post = await start({ apiKey });
+
+    await post(recording);
+
+    const printed = terminal.mock.calls.map(([text]) => String(text)).join("");
+    expect(printed).toContain("Speech-to-text failed: 401");
+    expect(printed).toContain(
+      "The API key you used is missing the permission speech_to_text to execute this operation.",
+    );
+    expect(printed).not.toContain(apiKey);
+  });
+
+  it("prints why ElevenLabs could not be reached to the terminal", async () => {
+    const terminal = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    vi.stubGlobal("fetch", () => Promise.reject(new Error(`getaddrinfo ENOTFOUND with ${apiKey}`)));
+    const post = await start({ apiKey });
+
+    await post(recording);
+
+    const printed = terminal.mock.calls.map(([text]) => String(text)).join("");
+    expect(printed).toContain("Speech-to-text failed: unreachable");
+    expect(printed).toContain("getaddrinfo ENOTFOUND");
+    expect(printed).not.toContain(apiKey);
+  });
+
   it("answers 502 when ElevenLabs cannot be reached", async () => {
     vi.stubGlobal("fetch", () => Promise.reject(new Error(`connect failed with ${apiKey}`)));
     const post = await start({ apiKey });

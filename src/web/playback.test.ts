@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createPlayback } from "./playback.ts";
 import type { PlayerStep } from "./player.ts";
-import type { Speaker } from "./speaker.ts";
+import { noLocalVoice, type Speaker } from "./speaker.ts";
 
 function oneStep(...texts: string[]): PlayerStep {
   return {
@@ -230,14 +230,26 @@ describe("createPlayback", () => {
     await vi.waitFor(() => expect(spoken).toEqual(["one", "later"]));
   });
 
-  it("reports the speaker's error and stops", async () => {
+  it("skips a part that fails to play and keeps talking", async () => {
+    vi.spyOn(console, "warn").mockReturnValue();
     const { playback, spoken, failLast, onEnd } = setup();
     playback.play({ step: 0, segment: 0 });
     await vi.waitFor(() => expect(spoken).toHaveLength(1));
 
-    failLast(new Error("no voice"));
+    failLast(new Error("Audio could not be played"));
 
-    await vi.waitFor(() => expect(onEnd).toHaveBeenCalledWith(new Error("no voice")));
+    await vi.waitFor(() => expect(spoken).toHaveLength(2));
+    expect(onEnd).not.toHaveBeenCalled();
+  });
+
+  it("stops and reports when there is no local voice at all", async () => {
+    const { playback, spoken, failLast, onEnd } = setup();
+    playback.play({ step: 0, segment: 0 });
+    await vi.waitFor(() => expect(spoken).toHaveLength(1));
+
+    failLast(new Error(noLocalVoice));
+
+    await vi.waitFor(() => expect(onEnd).toHaveBeenCalledWith(new Error(noLocalVoice)));
     expect(spoken).toEqual(["one"]);
   });
 });

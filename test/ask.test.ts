@@ -1,6 +1,7 @@
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { lostThread } from "../src/server/llm/provider.ts";
 import { askEventSchema } from "../src/shared/events.ts";
 import { ackPhrases } from "../src/shared/phrases.ts";
 import { requestPath, sourceCli, startCli, startServer, waitForExit } from "./cli-harness.ts";
@@ -200,6 +201,17 @@ describe("POST /api/ask", () => {
     const { url, token } = await startServer(basic, fake("ask-invalid.jsonl"));
     const events = await readEvents(await post(url, token, question));
     expect(events.map((event) => event.type)).toEqual(["ack", "step", "error"]);
+  });
+
+  it("prints a failed ask and a refused request to the terminal", async () => {
+    const { server, url, token } = await startServer(basic, fake("ask-invalid.jsonl"));
+    const events = await readEvents(await post(url, token, question));
+    const failure = events.at(-1);
+    await post(url, "wrong-token", question);
+
+    expect(failure).toEqual({ type: "error", message: lostThread });
+    await expect.poll(() => server.stderr).toContain("Ask failed: title");
+    await expect.poll(() => server.stderr).toContain("401 Unauthorized");
   });
 });
 

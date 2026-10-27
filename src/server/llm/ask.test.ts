@@ -1,12 +1,21 @@
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { collect } from "../../../test/fake-claude.ts";
 import type { ProviderEvent } from "../../shared/events.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
 import type { Step } from "../../shared/tour.ts";
 import { askEvents } from "./ask.ts";
 import { createConversation } from "./conversation.ts";
-import type { LLMProvider } from "./provider.ts";
+import { type LLMProvider, lostThread } from "./provider.ts";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function terminal() {
+  const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+  return () => write.mock.calls.map(([text]) => String(text)).join("");
+}
 
 const root = resolve(import.meta.dirname, "../../../test/fixtures/basic");
 
@@ -64,6 +73,24 @@ describe("askEvents", () => {
     expect((await events.next()).value).toEqual({ type: "ack", text: "One moment." });
     expect(seen).toEqual([]);
     await events.return(undefined);
+  });
+
+  it("sends a progress line only once per ask", async () => {
+    const events = await collect(
+      stream(
+        scripted([
+          { type: "tool_call", name: "read_file", input: { path: "src/cli.ts" } },
+          { type: "tool_call", name: "read_file", input: { path: "src/cli.ts" } },
+          { type: "tool_call", name: "read_file", input: { path: "src/upload.ts" } },
+          { type: "tool_call", name: "read_file", input: { path: "src/cli.ts" } },
+          { type: "done", usage },
+        ]),
+      ),
+    );
+    expect(events.filter((event) => event.type === "progress")).toEqual([
+      { type: "progress", text: "Looking at cli.ts" },
+      { type: "progress", text: "Looking at upload.ts" },
+    ]);
   });
 
   it("turns tool calls into progress lines", async () => {
@@ -128,32 +155,54 @@ describe("askEvents", () => {
   });
 
   it("ends the ask with an error after an invalid step, keeping the steps already sent", async () => {
+    const printed = terminal();
     const events = await collect(
       stream(
         scripted([
           { type: "step", step: saveStep },
-          { type: "error", message: "title: must not be empty", retryable: false },
+          {
+            type: "error",
+            message: lostThread,
+            detail: "title: must not be empty",
+            retryable: false,
+          },
           { type: "step", step: uploadStep },
           { type: "done", usage },
         ]),
       ),
     );
     expect(events.map((event) => event.type)).toEqual(["ack", "step", "error"]);
-    expect(events.at(-1)).toEqual({ type: "error", message: "title: must not be empty" });
+    expect(events.at(-1)).toEqual({ type: "error", message: lostThread });
+    expect(printed()).toContain("Ask failed: title: must not be empty");
   });
 
-  it("ends the ask with an error that shows the line when it was not valid JSON", async () => {
+  it("keeps the steps and ignores stray text around them", async () => {
+    terminal();
     const events = await collect(
       stream(
         scripted([
-          { type: "step", step: saveStep },
           { type: "text", text: "Sure! Here is the tour" },
+          { type: "step", step: saveStep },
           { type: "done", usage },
         ]),
       ),
     );
-    expect(events.map((event) => event.type)).toEqual(["ack", "step", "error"]);
-    expect(JSON.stringify(events.at(-1))).toContain("Sure! Here is the tour");
+    expect(events.map((event) => event.type)).toEqual(["ack", "step", "tour", "done"]);
+  });
+
+  it("turns plain text with no steps into a spoken reply", async () => {
+    const events = await collect(
+      stream(
+        scripted([
+          { type: "text", text: "That's fine." },
+          { type: "text", text: "Ask me about any part of it." },
+          { type: "done", usage },
+        ]),
+      ),
+    );
+    expect(events.find((event) => event.type === "tour")).toMatchObject({
+      tour: { steps: [], reply: "That's fine. Ask me about any part of it." },
+    });
   });
 
   it("turns a thrown provider failure into an error event", async () => {

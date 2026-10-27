@@ -25,6 +25,7 @@ export const tourSchema = z.object({
   question: z.string(),
   steps: z.array(stepSchema),
   checkQuestion: z.string().min(1).optional(),
+  reply: z.string().min(1).optional(),
 });
 
 export type Step = z.infer<typeof stepSchema>;

@@ -74,7 +74,7 @@ test("holding the microphone button records and sends the transcript as a questi
   expect((await asked).postDataJSON()).toEqual({ question: "How are clips saved?" });
   expect(uploads).toEqual([{ type: "audio/webm", token: expect.any(String), size: 3 }]);
   expect(uploads[0]?.token).not.toBe("");
-  await expect(page.getByLabel("Question")).toHaveValue("How are clips saved?");
+  await expect(page.getByLabel("Question")).toHaveValue("");
 });
 
 test("a picked symbol is sent with the spoken question", async ({ page }) => {
@@ -241,4 +241,49 @@ test("with the browser voice holding Space never opens the microphone", async ({
 
   expect(await page.evaluate("window.micRequests")).toBe(0);
   expect(transcribes).toBe(0);
+});
+
+test("after pausing with the mouse, holding Space asks instead of resuming", async ({ page }) => {
+  await openWithElevenLabs(page, "What does runCli do?");
+  await ask(page);
+  await expect.poll(() => page.evaluate<number>("window.spoken.length")).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "Pause" }).click();
+  const spokenBefore = await page.evaluate<number>("window.spoken.length");
+  const asked = page.waitForRequest(
+    (request) =>
+      request.url().endsWith("/api/ask") && request.postData()?.includes("runCli") === true,
+  );
+
+  await page.keyboard.down("Space");
+  await expect(page.getByRole("button", { name: "Hold to talk" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.keyboard.up("Space");
+
+  expect((await asked).postDataJSON()).toEqual({ question: "What does runCli do?" });
+  expect(await page.evaluate<number>("window.spoken.length")).toBe(spokenBefore);
+});
+
+test("an interrupting question is answered, then the earlier tour continues where it stopped", async ({
+  page,
+}) => {
+  await openWithElevenLabs(page, "What does runCli do?");
+  await ask(page);
+  await expect.poll(() => page.evaluate<number>("window.spoken.length")).toBeGreaterThan(0);
+  const interrupted = await page.evaluate<string>("window.spoken.at(-1)");
+
+  await page.keyboard.down("Space");
+  await page.keyboard.up("Space");
+  await expect(page.getByText("What does runCli do?")).toBeVisible();
+
+  const backAgain = "window.announced.some((line) => line.text === 'Now, back to where we were.')";
+  for (let turn = 0; turn < 30 && !(await page.evaluate<boolean>(backAgain)); turn++) {
+    await page.evaluate("window.finishSpeech?.()");
+    await page.waitForTimeout(100);
+  }
+
+  expect(await page.evaluate<boolean>(backAgain)).toBe(true);
+  await expect.poll(() => page.evaluate<string>("window.spoken.at(-1)")).toBe(interrupted);
+  await expect(page.getByText("Back to where we were")).toBeVisible();
 });

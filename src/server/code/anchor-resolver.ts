@@ -21,18 +21,59 @@ function block(file: string, start: number, end: number, line = start): Result<R
   };
 }
 
-function nearestMatchingLine(lines: string[], line: number, text: string) {
+function collapsed(text: string) {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function nearestLine(lines: string[], line: number, matches: (candidate: string) => boolean) {
   let nearest: number | undefined;
   lines.forEach((candidate, index) => {
     const number = index + 1;
     if (
-      candidate.trim() === text &&
+      matches(candidate) &&
       (nearest === undefined || Math.abs(number - line) < Math.abs(nearest - line))
     ) {
       nearest = number;
     }
   });
   return nearest;
+}
+
+function nearestMatchingLine(lines: string[], line: number, text: string) {
+  const wanted = collapsed(text);
+  return (
+    nearestLine(lines, line, (candidate) => collapsed(candidate) === wanted) ??
+    (wanted.length >= 8
+      ? nearestLine(lines, line, (candidate) => collapsed(candidate).includes(wanted))
+      : undefined)
+  );
+}
+
+function declarationPatterns(name: string) {
+  const word = `(?<![\\w$])${name.replaceAll("$", "\\$")}(?![\\w$])`;
+  const modifiers = "(export\\s+|async\\s+|static\\s+|public\\s+|private\\s+|protected\\s+)*";
+  return [
+    new RegExp(`\\b(function|class|interface|type|enum|const|let|var|def|fn|func)\\s+${word}`),
+    new RegExp(`^\\s*${modifiers}${word}\\s*[(<].*(\\{|=>)\\s*$`),
+    new RegExp(`${word}\\s*[:=]\\s*(async\\s*)?(\\(|function\\b)`),
+    new RegExp(`^(?!\\s*import\\b).*${word}`),
+  ];
+}
+
+function declarationLine(lines: string[], symbol: string) {
+  const names = symbol.split(".");
+  if (!names.every((name) => /^[\w$]+$/.test(name))) return undefined;
+  let from = 0;
+  if (names.length > 1) {
+    const [owner] = declarationPatterns(names.at(-2) ?? "");
+    from = lines.findIndex((candidate) => owner?.test(candidate));
+    if (from === -1) return undefined;
+  }
+  for (const pattern of declarationPatterns(names.at(-1) ?? "")) {
+    const index = lines.findIndex((candidate, at) => at >= from && pattern.test(candidate));
+    if (index !== -1) return index + 1;
+  }
+  return undefined;
 }
 
 function enclosingStatement(tree: Tree, text: string, line: number) {
@@ -52,11 +93,21 @@ export async function resolveAnchor(root: string, anchor: Anchor): Promise<Resul
   const tree = await parseFile(relPath, source);
 
   if ("symbol" in anchor) {
-    if (!tree) return { ok: false, error: `No parser for ${relPath}; anchor it by line and text` };
-    const found = uniqueDefinition(tree.rootNode, relPath, anchor.symbol.trim());
-    if (!found.ok) return found;
-    const { startPosition, endPosition } = found.value.node;
-    return block(relPath, startPosition.row + 1, endPosition.row + 1);
+    const symbol = anchor.symbol.trim();
+    const found = tree ? uniqueDefinition(tree.rootNode, relPath, symbol) : undefined;
+    if (found?.ok) {
+      const { startPosition, endPosition } = found.value.node;
+      return block(relPath, startPosition.row + 1, endPosition.row + 1);
+    }
+    const lines = source.split("\n");
+    const line = declarationLine(lines, symbol);
+    if (line === undefined) {
+      return found ?? { ok: false, error: `Symbol not found in ${relPath}: ${symbol}` };
+    }
+    const statement = tree && enclosingStatement(tree, lines[line - 1] ?? "", line);
+    return statement
+      ? block(relPath, statement.startPosition.row + 1, statement.endPosition.row + 1, line)
+      : block(relPath, line, line);
   }
 
   const text = anchor.text.trim();

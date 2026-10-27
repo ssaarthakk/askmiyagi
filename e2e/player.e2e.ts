@@ -35,7 +35,7 @@ test("clicking segment 2 highlights its lines and dims segment 1's", async ({ pa
   await ask(page);
   const lines = page.locator(".cm-line");
   await expect(lines.nth(1)).toHaveClass(/cm-highlight-current/);
-  await expect(page.getByRole("button", { name: "Ask" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
 
   await page.getByRole("button", { name: "It depends on zod." }).click();
 
@@ -187,11 +187,11 @@ test("a second ask clears the old tour's code until its own tour arrives", async
   });
   await ask(page);
   await expect(page.getByRole("region", { name: "Code" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ask" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
 
   await page.getByLabel("Question").press("Enter");
 
-  await expect(page.getByRole("button", { name: "Ask" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();
   await expect(page.getByRole("region", { name: "Code" })).toHaveCount(0);
   release();
 });

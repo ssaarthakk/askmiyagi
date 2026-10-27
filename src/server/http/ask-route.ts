@@ -19,14 +19,14 @@ export function sendError(response: ServerResponse, status: number, message: str
   response.end(JSON.stringify({ error: message }));
 }
 
-async function readBody(request: IncomingMessage) {
+export async function readBody(request: IncomingMessage, maxBytes: number) {
   const chunks: Buffer[] = [];
   let length = 0;
   for await (const chunk of request) {
     length += (chunk as Buffer).length;
-    if (length <= maxBodyBytes) chunks.push(chunk as Buffer);
+    if (length <= maxBytes) chunks.push(chunk as Buffer);
   }
-  return length > maxBodyBytes ? undefined : Buffer.concat(chunks).toString("utf8");
+  return length > maxBytes ? undefined : Buffer.concat(chunks);
 }
 
 export async function readJsonBody<T>(
@@ -34,14 +34,14 @@ export async function readJsonBody<T>(
   response: ServerResponse,
   schema: z.ZodType<T>,
 ) {
-  const text = await readBody(request);
-  if (text === undefined) {
+  const raw = await readBody(request, maxBodyBytes);
+  if (raw === undefined) {
     sendError(response, 400, "Request body is too large");
     return undefined;
   }
   let json: unknown;
   try {
-    json = JSON.parse(text);
+    json = JSON.parse(raw.toString("utf8"));
   } catch {
     sendError(response, 400, "Request body is not valid JSON");
     return undefined;

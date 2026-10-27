@@ -3,7 +3,7 @@ import { ask } from "./ask.ts";
 
 async function showUpload(page: Page) {
   await ask(page);
-  await expect(page.getByRole("button", { name: "Ask" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
   await page.getByRole("button", { name: "Then the clip is uploaded." }).click();
   await expect(page.locator(".cm-content")).toContainText("uploadClip");
 }
@@ -27,7 +27,7 @@ test("clicking a symbol attaches its line and name, shown as a chip, sent with t
   expect(body.selection).toEqual({ file: "src/upload.ts", start: 1, end: 1, text: "uploadClip" });
   await expect(page.getByText("src/upload.ts:1", { exact: true })).toBeHidden();
 
-  await expect(page.getByRole("button", { name: "Ask" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
   expect((await askAgain(page)).selection).toBeUndefined();
 });
 
@@ -46,6 +46,16 @@ test("selecting several lines attaches them with the selected text", async ({ pa
   const body = await askAgain(page);
   expect(body.selection).toMatchObject({ file: "src/upload.ts", start: 1, end: 3 });
   expect(body.selection.text).toContain("return path;");
+});
+
+test("the chip sits above the question box", async ({ page }) => {
+  await showUpload(page);
+  await page.locator(".cm-content").getByText("uploadClip").click();
+
+  const chip = await page.getByText("src/upload.ts:1", { exact: true }).boundingBox();
+  const box = await page.getByLabel("Question").boundingBox();
+  if (!chip || !box) throw new Error("the chip or question box is not visible");
+  expect(chip.y + chip.height).toBeLessThanOrEqual(box.y);
 });
 
 test("the chip can be removed so the next question carries no selection", async ({ page }) => {

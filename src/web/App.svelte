@@ -2,16 +2,24 @@
 import type { Selection } from "../shared/anchor.ts";
 import { createAnnouncer, spokenProgress } from "./announcer.ts";
 import { ask } from "./ask.ts";
+import Conversation, { type Note, type Turn } from "./Conversation.svelte";
 import { type Highlight, moveHighlight } from "./highlight.ts";
 import Player from "./Player.svelte";
 import { createPlayback } from "./playback.ts";
 import { anchorTarget, firstPosition, neighbour, type PlayerStep, type Position } from "./player.ts";
 import { chooseSpeaker, localVoices, noLocalVoice, type Speaker } from "./speaker.ts";
+import { createTalk } from "./talk.svelte.ts";
 import Viewer from "./Viewer.svelte";
+import VoicePill from "./VoicePill.svelte";
+import Welcome from "./Welcome.svelte";
 
 const token = document.querySelector<HTMLMetaElement>('meta[name="miyagi-token"]')?.content ?? "";
 
+const projectName = decodeURIComponent(
+  document.querySelector<HTMLMetaElement>('meta[name="miyagi-project"]')?.content ?? "",
+);
 const voice = document.querySelector<HTMLMetaElement>('meta[name="miyagi-voice"]')?.content ?? "browser";
+const elevenLabs = voice === "elevenlabs";
 const injectedSpeaker = (window as { __MIYAGI_SPEAKER__?: Speaker }).__MIYAGI_SPEAKER__;
 let voiceNotice = $state("");
 const speaker =
@@ -115,10 +123,18 @@ if (!speaker) {
   });
 }
 
-let messages = $state<{ kind: "ack" | "progress" | "error"; text: string }[]>([]);
+let turns = $state<Turn[]>([]);
 
-async function submit(event: SubmitEvent) {
-  event.preventDefault();
+function note(kind: Note["kind"], text: string) {
+  turns.at(-1)?.notes.push({ kind, text });
+}
+
+function askText(text: string) {
+  question = text;
+  return sendQuestion();
+}
+
+async function sendQuestion() {
   const text = question.trim();
   if (!text || asking) return;
   asking = true;
@@ -126,7 +142,9 @@ async function submit(event: SubmitEvent) {
   selection = undefined;
   pause();
   interrupted = undefined;
-  messages = [];
+  const finished = turns.at(-1);
+  if (finished) finished.titles = steps.map((entry) => entry.step.title);
+  turns.push({ question: text, notes: [], titles: [], check: undefined });
   steps = [];
   checkQuestion = undefined;
   position = undefined;
@@ -135,7 +153,7 @@ async function submit(event: SubmitEvent) {
   try {
     await ask(text, token, attached, (askEvent) => {
       if (askEvent.type === "ack" || askEvent.type === "progress") {
-        messages.push({ kind: askEvent.type, text: askEvent.text });
+        note(askEvent.type, askEvent.text);
         announce(askEvent.type === "progress" ? spokenProgress(askEvent.text) : askEvent.text);
       } else if (askEvent.type === "step") {
         announcer?.dropWaiting();
@@ -152,85 +170,116 @@ async function submit(event: SubmitEvent) {
           selectFirst();
         }
         checkQuestion = askEvent.tour.checkQuestion;
+        const current = turns.at(-1);
+        if (current) current.check = checkQuestion;
         if (caughtUp && checkQuestion && playback) {
           caughtUp = false;
           playing = true;
           void playback.play(undefined);
         }
       } else if (askEvent.type === "error") {
-        messages.push({ kind: "error", text: askEvent.message });
+        note("error", askEvent.message);
       }
     });
   } catch (error) {
-    messages.push({ kind: "error", text: error instanceof Error ? error.message : String(error) });
+    note("error", error instanceof Error ? error.message : String(error));
   } finally {
     asking = false;
   }
 }
+
+let microphoneButton = $state<HTMLButtonElement>();
+
+const talk = createTalk({
+  enabled: elevenLabs,
+  token,
+  busy: () => asking,
+  button: () => microphoneButton,
+  onstart: pause,
+  onquestion: askText,
+});
 </script>
 
-<main>
-  <h1>Miyagi</h1>
-  <form onsubmit={submit}>
-    <label>
-      Question
-      <input bind:value={question} disabled={asking} autocomplete="off" />
-    </label>
-    <button type="submit" disabled={asking}>Ask</button>
-  </form>
-  {#if selection}
-    <p>
-      <span>{selectionLabel}</span>
-      <button type="button" onclick={() => (selection = undefined)}>Remove selection</button>
-    </p>
-  {/if}
-  {#if voice === "elevenlabs"}
-    <p>Voice by ElevenLabs</p>
-  {/if}
-  <p role="status">{voiceNotice}</p>
-  <ul aria-live="polite">
-    {#each messages as message}
-      <li class={message.kind}>{message.text}</li>
-    {/each}
-  </ul>
-  {#if steps.length > 0}
-    <Player
-      {steps}
-      {position}
-      {previous}
-      {next}
-      {voiceOn}
-      {playing}
-      {checkQuestion}
-      canSpeak={speaker !== undefined}
-      onselect={go}
-      onpause={pause}
-      onresume={resume}
-      onvoice={toggleVoice}
-    />
-  {/if}
-  {#if highlight}
-    <Viewer
-      path={highlight.file}
-      {token}
-      current={highlight.current}
-      previous={highlight.previous}
-      onpick={(picked) => (selection = picked)}
-    />
-  {/if}
+<svelte:window onkeydown={talk.keydown} onkeyup={talk.keyup} onblur={talk.stop} />
+
+<main class="app">
+  <div class="code-pane">
+    {#if highlight}
+      <Viewer
+        path={highlight.file}
+        {token}
+        current={highlight.current}
+        previous={highlight.previous}
+        onpick={(picked) => (selection = picked)}
+      />
+    {:else if turns.length === 0}
+      <Welcome {projectName} onsuggest={askText} />
+    {/if}
+    {#if voiceOn && steps.length > 0}
+      <VoicePill
+        title={position ? (steps[position.step]?.step.title ?? "") : ""}
+        {previous}
+        {next}
+        {playing}
+        onselect={go}
+        onpause={pause}
+        onresume={resume}
+        onvoice={toggleVoice}
+      />
+    {/if}
+  </div>
+  <Conversation
+    {turns}
+    tourVisible={steps.length > 0}
+    {tour}
+    bind:question
+    bind:microphoneButton
+    {selectionLabel}
+    {elevenLabs}
+    {voiceNotice}
+    micNotice={talk.notice}
+    recording={talk.recording}
+    {asking}
+    onsend={sendQuestion}
+    onremoveselection={() => (selection = undefined)}
+    onmicdown={talk.pointerdown}
+    onmicup={talk.stop}
+  />
 </main>
 
+{#snippet tour()}
+  <Player
+    {steps}
+    {position}
+    {previous}
+    {next}
+    {voiceOn}
+    {playing}
+    canSpeak={speaker !== undefined}
+    onselect={go}
+    onvoice={toggleVoice}
+  />
+{/snippet}
+
 <style>
-  :global(:focus-visible) {
-    outline: 2px solid currentColor;
-    outline-offset: 2px;
+  .app {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 400px;
+    height: 100%;
   }
 
-  .error {
-    color: #b00020;
+  .code-pane {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
   }
 
-  .progress {
-    opacity: 0.7;
+  @media (max-width: 899px) {
+    .app {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    }
   }
 </style>

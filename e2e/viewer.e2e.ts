@@ -16,8 +16,8 @@ test("the code has JS/TS syntax colours and cannot be edited", async ({ page }) 
   await expect(content).toContainText("uploadClip");
   await expect(content).toHaveAttribute("contenteditable", "false");
   const keyword = content.locator(".cm-line span").filter({ hasText: "export" }).first();
-  await expect(content).toHaveCSS("color", "rgb(0, 0, 0)");
-  await expect(keyword).not.toHaveCSS("color", "rgb(0, 0, 0)");
+  await expect(content).toHaveCSS("color", "rgb(230, 232, 235)");
+  await expect(keyword).not.toHaveCSS("color", "rgb(230, 232, 235)");
 });
 
 test("a refused path shows the server's error in place of the code", async ({ page }) => {

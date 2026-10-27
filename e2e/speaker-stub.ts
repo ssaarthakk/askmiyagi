@@ -81,3 +81,24 @@ export async function sendAskEvent(page: Page, event: object) {
 
 export const announced = (page: Page) =>
   page.evaluate<string[]>("window.announced.map((line) => line.text)");
+
+export async function finishTour(page: Page, checkQuestion: string) {
+  const one = stepEvent("Streamed one.");
+  await sendAskEvent(page, {
+    type: "tour",
+    tour: { question: "How are clips saved?", steps: [one.step], checkQuestion },
+    ranges: [one.ranges],
+  });
+  await sendAskEvent(page, { type: "done" });
+}
+
+export async function useElevenLabsVoice(page: Page) {
+  await page.route("/", async (route) => {
+    const response = await route.fetch();
+    const body = (await response.text()).replace(
+      'name="miyagi-voice" content="browser"',
+      'name="miyagi-voice" content="elevenlabs"',
+    );
+    await route.fulfill({ response, body });
+  });
+}

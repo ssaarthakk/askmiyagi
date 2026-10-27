@@ -172,6 +172,35 @@ describe("local server", () => {
     ).resolves.toEqual({ status: 400, body: '{"error":"Request body is not valid JSON"}' });
   });
 
+  it("answers 404 for /api/transcribe with the browser voice and 401 without the token", async () => {
+    const { url, token } = await startServer("test/fixtures/basic", [], {
+      ...process.env,
+      ELEVENLABS_API_KEY: "test-key",
+    });
+
+    await expect(requestPath(url, "/api/transcribe", {}, "POST")).resolves.toEqual({
+      status: 401,
+      body: '{"error":"Unauthorized"}',
+    });
+    await expect(
+      requestPath(url, "/api/transcribe", { "x-miyagi-token": token }, "POST"),
+    ).resolves.toEqual({ status: 404, body: '{"error":"Not found"}' });
+  });
+
+  it("reaches /api/transcribe when started with the elevenlabs voice and a key", async () => {
+    const { url, token } = await startServer("test/fixtures/basic", ["--voice", "elevenlabs"], {
+      ...process.env,
+      ELEVENLABS_API_KEY: "test-key",
+    });
+
+    await expect(
+      requestPath(url, "/api/transcribe", { "x-miyagi-token": token }, "POST"),
+    ).resolves.toEqual({
+      status: 415,
+      body: '{"error":"Recording must be audio/webm or audio/ogg"}',
+    });
+  });
+
   it("prints the build instruction and exits if the built page is missing", async () => {
     const copy = join(root, "dist", `missing-build-${randomUUID()}`);
     await cp(join(root, "src"), join(copy, "src"), { recursive: true });

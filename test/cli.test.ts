@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { closeServer, parseCliArgs, speechOptions } from "../src/server/cli.ts";
 import { builtCli, root, sourceCli, startCli, waitForExit, waitForLine } from "./cli-harness.ts";
@@ -141,6 +141,24 @@ describe("voice flags", () => {
     const childProcess = startCli(sourceCli, ["--no-open", "--port", "0"], root, withoutKey);
     const page = await (await fetch(await waitForLine(childProcess))).text();
     expect(page).toContain('<meta name="miyagi-voice" content="browser">');
+  });
+
+  it("serves the project name, encoded so odd folder names are safe in the page", async () => {
+    const folder = await mkdtemp(join(tmpdir(), "miyagi 100% $&'-"));
+    try {
+      const childProcess = startCli(
+        sourceCli,
+        ["--no-open", "--port", "0", folder],
+        root,
+        withoutKey,
+      );
+      const page = await (await fetch(await waitForLine(childProcess))).text();
+      const name = page.match(/<meta name="miyagi-project" content="([^"]*)">/)?.[1] ?? "";
+      expect(name).toBe(encodeURIComponent(basename(folder)));
+      expect(decodeURIComponent(name)).toBe(basename(folder));
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
   });
 
   it("refuses elevenlabs without the key", async () => {

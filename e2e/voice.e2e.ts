@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { useElevenLabsVoice } from "./speaker-stub.ts";
 
 const noVoices = "speechSynthesis.getVoices = () => [];";
 
@@ -11,15 +12,15 @@ test("the browser voice with no local voice says the page stays in text mode", a
 });
 
 test("the elevenlabs voice is credited on the page", async ({ page }) => {
-  await page.route("/", async (route) => {
-    const response = await route.fetch();
-    const body = (await response.text()).replace(
-      'name="miyagi-voice" content="browser"',
-      'name="miyagi-voice" content="elevenlabs"',
-    );
-    await route.fulfill({ response, body });
-  });
+  await useElevenLabsVoice(page);
   await page.goto("/");
+  const panel = page.getByRole("complementary", { name: "Conversation panel" });
+  const credit = panel.getByText("Voice by ElevenLabs");
 
-  await expect(page.getByText("Voice by ElevenLabs")).toBeVisible();
+  await expect(credit).toBeVisible();
+  const creditBox = await credit.boundingBox();
+  const heading = await panel.getByRole("heading", { name: "Miyagi" }).boundingBox();
+  if (!creditBox || !heading) throw new Error("the panel header is not visible");
+  expect(creditBox.y).toBeLessThan(heading.y + heading.height);
+  expect(creditBox.y + creditBox.height).toBeGreaterThan(heading.y);
 });

@@ -1,8 +1,9 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { ask } from "./ask.ts";
 import {
   announced,
   finishSpeech,
+  finishTour,
   heldAsk,
   sendAskEvent,
   spoken,
@@ -147,16 +148,6 @@ test("progress after the first step is not spoken over the tour", async ({ page 
 test.describe("check question", () => {
   const check = "What does the save method return?";
 
-  async function finishTour(page: Page) {
-    const one = stepEvent("Streamed one.");
-    await sendAskEvent(page, {
-      type: "tour",
-      tour: { question: "How are clips saved?", steps: [one.step], checkQuestion: check },
-      ranges: [one.ranges],
-    });
-    await sendAskEvent(page, { type: "done" });
-  }
-
   test("is shown after the last step, spoken after the last segment, and then playback waits", async ({
     page,
   }) => {
@@ -164,7 +155,7 @@ test.describe("check question", () => {
     await ask(page);
     await sendAskEvent(page, stepEvent("Streamed one."));
     await expect.poll(() => spoken(page)).toEqual(["Streamed one."]);
-    await finishTour(page);
+    await finishTour(page, check);
     await expect(page.getByText(check)).toBeVisible();
     const pageText = await page.getByRole("main").innerText();
     expect(pageText.indexOf(check)).toBeGreaterThan(pageText.lastIndexOf("Step"));
@@ -189,7 +180,7 @@ test.describe("check question", () => {
     await finishSpeech(page);
     await expect(page.getByRole("button", { name: "Resume" })).toBeVisible();
 
-    await finishTour(page);
+    await finishTour(page, check);
 
     await expect.poll(() => spoken(page)).toEqual(["Streamed one.", check]);
   });

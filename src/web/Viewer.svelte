@@ -1,5 +1,6 @@
 <script lang="ts">
 import { javascript } from "@codemirror/lang-javascript";
+import { defaultHighlightStyle, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { EditorState, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet } from "@codemirror/view";
 import { basicSetup, EditorView } from "codemirror";
@@ -35,10 +36,46 @@ const highlightField = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 });
 
-const highlightTheme = EditorView.baseTheme({
-  ".cm-highlight-current": { backgroundColor: "rgba(255, 213, 0, 0.35)" },
-  ".cm-highlight-previous": { backgroundColor: "rgba(128, 128, 128, 0.15)" },
-});
+const highlightTheme = EditorView.theme(
+  {
+    "&": { height: "100%", color: "var(--text)", backgroundColor: "var(--bg)" },
+    ".cm-scroller": { fontFamily: "var(--mono)", fontSize: "0.875rem" },
+    ".cm-gutters": { color: "var(--muted)", backgroundColor: "var(--panel)", border: "none" },
+    ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "transparent" },
+    "&.cm-focused": { outline: "none" },
+    "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground":
+      { backgroundColor: "color-mix(in srgb, var(--accent) 35%, transparent)" },
+    ".cm-highlight-current": { backgroundColor: "var(--accent-soft)" },
+    ".cm-highlight-previous": { backgroundColor: "color-mix(in srgb, var(--muted) 15%, transparent)" },
+  },
+  { dark: true },
+);
+
+const darkColours: Record<string, string> = {
+  "#404740": "var(--muted)",
+  "#708": "#c792ea",
+  "#219": "#f78c6c",
+  "#164": "#f78c6c",
+  "#a11": "#c3e88d",
+  "#e40": "#ffcb6b",
+  "#00f": "#82aaff",
+  "#30a": "#82aaff",
+  "#085": "#4ec9b0",
+  "#167": "#4ec9b0",
+  "#256": "#89ddff",
+  "#00c": "#82aaff",
+  "#940": "#7f8794",
+  "#f00": "var(--error)",
+};
+
+const darkSyntax = syntaxHighlighting(
+  HighlightStyle.define(
+    defaultHighlightStyle.specs.map((spec) => ({
+      ...spec,
+      color: darkColours[spec.color] ?? spec.color,
+    })),
+  ),
+);
 
 function lineDecorations(state: EditorState) {
   const lines = state.doc.lines;
@@ -74,6 +111,7 @@ $effect(() => {
       basicSetup,
       highlightField,
       highlightTheme,
+      darkSyntax,
       javascript({ jsx: true, typescript: true }),
       EditorState.readOnly.of(true),
       EditorView.editable.of(false),
@@ -130,7 +168,29 @@ $effect(() => {
 </section>
 
 <style>
+  section {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  h2 {
+    padding: var(--space) calc(var(--space) * 2);
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  div {
+    flex: 1;
+    min-height: 0;
+  }
+
   .error {
-    color: #b00020;
+    padding: calc(var(--space) * 2);
+    color: var(--error);
   }
 </style>

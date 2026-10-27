@@ -8,11 +8,8 @@ let {
   next,
   voiceOn,
   playing,
-  checkQuestion,
   canSpeak,
   onselect,
-  onpause,
-  onresume,
   onvoice,
 }: {
   steps: PlayerStep[];
@@ -21,34 +18,28 @@ let {
   next: Position | undefined;
   voiceOn: boolean;
   playing: boolean;
-  checkQuestion: string | undefined;
   canSpeak: boolean;
   onselect: (position: Position) => void;
-  onpause: () => void;
-  onresume: () => void;
   onvoice: () => void;
 } = $props();
 </script>
 
 <section aria-label="Tour">
-  <div>
-    <button type="button" disabled={!previous} onclick={() => previous && onselect(previous)}>
-      Previous
-    </button>
-    <button type="button" disabled={!next} onclick={() => next && onselect(next)}>Next</button>
-    <button type="button" aria-pressed={voiceOn} disabled={!canSpeak} onclick={onvoice}>
-      Voice
-    </button>
-    {#if voiceOn}
-      <button type="button" onclick={playing ? onpause : onresume}>
-        {playing ? "Pause" : "Resume"}
+  {#if !voiceOn}
+    <div class="controls">
+      <button type="button" disabled={!previous} onclick={() => previous && onselect(previous)}>
+        Previous
       </button>
-    {/if}
-  </div>
-  <ol>
+      <button type="button" disabled={!next} onclick={() => next && onselect(next)}>Next</button>
+      <button type="button" aria-pressed="false" disabled={!canSpeak} onclick={onvoice}>
+        Voice
+      </button>
+    </div>
+  {/if}
+  <ol class="steps">
     {#each steps as { step }, stepIndex}
       <li>
-        <h2>{step.title}</h2>
+        <h3>{step.title}</h3>
         <ol>
           {#each step.narration as segment, segmentIndex}
             {@const current = position?.step === stepIndex && position.segment === segmentIndex}
@@ -67,15 +58,46 @@ let {
       </li>
     {/each}
   </ol>
-  {#if checkQuestion}
-    <p><strong>Check question:</strong> {checkQuestion}</p>
-  {/if}
 </section>
 
 <style>
-  [aria-pressed="true"],
-  .current {
-    font-weight: bold;
-    background: rgba(255, 213, 0, 0.35);
+  .controls {
+    display: flex;
+    gap: var(--space);
+    margin-bottom: calc(var(--space) * 1.5);
+  }
+
+  .steps {
+    display: grid;
+    gap: calc(var(--space) * 1.5);
+  }
+
+  h3 {
+    font-size: 0.875rem;
+    margin-bottom: calc(var(--space) / 2);
+  }
+
+  ol ol {
+    display: grid;
+    gap: calc(var(--space) / 2);
+  }
+
+  ol ol button {
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+    padding: calc(var(--space) / 2) var(--space);
+    text-align: left;
+    width: 100%;
+  }
+
+  ol ol button:hover:not(:disabled) {
+    border-color: var(--border);
+  }
+
+  ol ol button.current {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--text);
   }
 </style>

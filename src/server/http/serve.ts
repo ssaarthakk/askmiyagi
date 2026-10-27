@@ -4,6 +4,7 @@ import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { type createAskHandler, sendError } from "./ask-route.ts";
 import type { createFileHandler } from "./file-route.ts";
 import type { createSpeechHandler } from "./speech-route.ts";
+import type { createTranscribeHandler } from "./transcribe-route.ts";
 
 const contentTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -30,6 +31,7 @@ export async function serveRequest(
   handleAsk: ReturnType<typeof createAskHandler>,
   handleFile: ReturnType<typeof createFileHandler>,
   handleSpeech: ReturnType<typeof createSpeechHandler>,
+  handleTranscribe: ReturnType<typeof createTranscribeHandler>,
 ) {
   const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`];
   if (!allowedHosts.includes(request.headers.host?.toLowerCase() ?? "")) {
@@ -66,6 +68,10 @@ export async function serveRequest(
   }
   if (pathname === "/api/speech" && request.method === "POST") {
     await handleSpeech(request, response);
+    return;
+  }
+  if (pathname === "/api/transcribe" && request.method === "POST") {
+    await handleTranscribe(request, response);
     return;
   }
   if (request.method !== "GET") {

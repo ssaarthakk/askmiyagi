@@ -79,6 +79,7 @@ export function createAskHandler(options: {
         root: options.root,
         provider: options.provider,
         question: body.question,
+        selection: body.selection,
         ack,
         signal: controller.signal,
         bruteForceTokens: options.bruteForceTokens,

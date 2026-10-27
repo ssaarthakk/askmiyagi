@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { parseCliArgs, speechOptions } from "../src/server/cli.ts";
+import { describe, expect, it, vi } from "vitest";
+import { closeServer, parseCliArgs, speechOptions } from "../src/server/cli.ts";
 import { builtCli, root, sourceCli, startCli, waitForExit, waitForLine } from "./cli-harness.ts";
 
 describe("CLI entry", () => {
@@ -46,6 +47,18 @@ describe("CLI entry", () => {
     }
   });
 
+  it.each([
+    "http://github.com/octo/repo",
+    "https://gitlab.com/octo/repo",
+    "https://github.com/octo",
+  ])("refuses %s and exits with status 1", async (url) => {
+    const childProcess = startCli(sourceCli, ["--no-open", url]);
+    await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
+    expect(childProcess.stderr.trim()).toBe(
+      `Only https://github.com/<owner>/<repo> URLs can be cloned: ${url}`,
+    );
+  });
+
   it("starts from the compiled package entry", async () => {
     const childProcess = startCli(builtCli, ["--no-open", "--port", "0", "test/fixtures/basic"]);
     const line = await waitForLine(childProcess);
@@ -54,6 +67,19 @@ describe("CLI entry", () => {
     expect(response.status).toBe(200);
     expect(response.url).toBe(line);
     expect(await response.text()).toMatch(/<meta name="miyagi-token" content="[a-f0-9]{64}">/);
+  });
+});
+
+describe("closeServer", () => {
+  it("stops listening and disposes the code source", async () => {
+    const server = createServer();
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const dispose = vi.fn(() => Promise.resolve());
+
+    await closeServer(server, { root: "unused", dispose });
+
+    expect(server.listening).toBe(false);
+    expect(dispose).toHaveBeenCalledTimes(1);
   });
 });
 

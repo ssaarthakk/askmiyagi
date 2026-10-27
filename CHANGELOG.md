@@ -18,7 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A browser page to ask questions: it shows the acknowledgement, progress and errors, and a read-only code viewer with JS/TS colours loads the current file through `GET /api/file`.
 - Tours play as text: steps and their narration are listed as they stream in, Previous, Next or a click moves between segments, and the code viewer highlights each segment's lines, dimming the previous highlight.
 - `--voice browser|elevenlabs` and `--voice-id <id>` choose how tours are spoken; the browser voice uses only local voices and ElevenLabs is opt-in with `ELEVENLABS_API_KEY`.
+- Point and ask: select code, or click a symbol, in the viewer to attach it to your next question; a chip shows it and can be removed, and the server drops a selection whose lines or text do not match the file.
 - `POST /api/speech`: with `--voice elevenlabs`, the server turns redacted narration text into spoken audio through ElevenLabs and caches it in memory, so the key never reaches the page.
 - Spoken tours: segments are read aloud in order and each highlight appears as its audio starts. Click a segment to play from there, Pause and Resume at the start of the interrupted segment, and switch Voice off for the text player. The narration text is hidden while it is spoken.
 - Speech starts with the first streamed step, before the whole tour has arrived.
 - The acknowledgement is spoken within 300 ms of asking, and progress lines are spoken briefly without file extensions; with ElevenLabs the acknowledgement phrases are fetched once at page load.
+- `miyagi https://github.com/<owner>/<repo>` shallow-clones a public GitHub repository into a temp folder, explains it, and deletes the clone on exit.

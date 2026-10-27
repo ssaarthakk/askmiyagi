@@ -3,16 +3,24 @@ import { javascript } from "@codemirror/lang-javascript";
 import { EditorState, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet } from "@codemirror/view";
 import { basicSetup, EditorView } from "codemirror";
+import type { Selection } from "../shared/anchor.ts";
 import { fetchFile } from "./file.ts";
 import type { LineRange } from "./highlight.ts";
+import { pickSelection } from "./selection.ts";
 
 let {
   path,
   token,
   current,
   previous,
-}: { path: string; token: string; current: LineRange | null; previous: LineRange | null } =
-  $props();
+  onpick,
+}: {
+  path: string;
+  token: string;
+  current: LineRange | null;
+  previous: LineRange | null;
+  onpick: (selection: Selection) => void;
+} = $props();
 
 const setHighlight = StateEffect.define<DecorationSet>();
 
@@ -69,6 +77,13 @@ $effect(() => {
       javascript({ jsx: true, typescript: true }),
       EditorState.readOnly.of(true),
       EditorView.editable.of(false),
+      EditorView.domEventHandlers({
+        mouseup: (_event, editor) => {
+          if (loadedPath !== path) return;
+          const picked = pickSelection(editor.state, path);
+          if (picked) onpick(picked);
+        },
+      }),
     ],
   });
   return () => view?.destroy();

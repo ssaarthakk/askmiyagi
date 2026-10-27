@@ -154,10 +154,10 @@ Two swappable voices behind one interface: the browser's own local voice (defaul
 
 **Gate:** `npm run check` and `npm run e2e` pass. The e2e tests inject a stub speaker with `page.addInitScript` setting `window.__MIYAGI_SPEAKER__`, and prove segment order, highlight at audio start, pause and resume at segment start, streamed first segment and acknowledgement timing. `/api/speech` is tested with a stubbed `fetch` (key check, redaction, cache, 400, 404, 502). Listening to both voices needs a person.
 
-## Phase 6: Demo extras (Milestone 2: hackathon demo)
+## Phase 6: Demo extras (Milestone 2: hackathon demo) (shipped)
 
-- [ ] **Point and ask.** Selecting code in the viewer, or clicking a symbol (which selects that line with the identifier as `text`), attaches a `Selection` to the next question. A chip shows what is attached and can be removed, and it clears after use. The server checks the lines exist and contain `text`; on a mismatch it drops the selection and sends a `progress` note.
-- [ ] **GitClone source.** `miyagi https://github.com/<owner>/<repo>` (an optional `.git` or trailing `/` is allowed) shallow-clones (depth 1, no submodules, no LFS) into a temp folder that is deleted on exit. Other hosts, `http` and malformed URLs are refused. The URL check is separate from the clone function.
+- [x] **Point and ask.** Selecting code in the viewer, or clicking a symbol (which selects that line with the identifier as `text`), attaches a `Selection` to the next question. A chip shows what is attached and can be removed, and it clears after use. The server checks the lines exist and contain `text`; on a mismatch it drops the selection and sends a `progress` note.
+- [x] **GitClone source.** `miyagi https://github.com/<owner>/<repo>` (an optional `.git` or trailing `/` is allowed) shallow-clones (depth 1, no submodules, no LFS) into a temp folder that is deleted on exit. Other hosts, `http` and malformed URLs are refused. The URL check is separate from the clone function.
 
 **Gate:** `npm run check` and `npm run e2e` pass, with an e2e test that selects fixture lines, sees the chip, asks, and finds the selection in the request, plus GitClone tests (URL rules, and cloning a local bare repo). Recording the demo video needs a person.
 

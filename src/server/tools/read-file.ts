@@ -8,7 +8,7 @@ import {
   signatureDefinitions,
   uniqueDefinition,
 } from "../code/symbols.ts";
-import { readRedactedFile } from "../files/path-guard.ts";
+import { readRedactedFile, sourceLines } from "../files/path-guard.ts";
 import { runTool, toolResult } from "./run-tool.ts";
 
 type ReadFileInput = z.infer<typeof readFileInputSchema>;
@@ -32,8 +32,7 @@ async function read(root: string, input: ReadFileInput): Promise<ToolResult> {
   if (!file.ok) return toolResult(file.error, true);
 
   const { relPath, source } = file.value;
-  const lines = source.split(/\r?\n/);
-  if (lines.at(-1) === "") lines.pop();
+  const lines = sourceLines(source);
   if (lines.length === 0) return toolResult("(empty file)");
   const tree = await parseFile(relPath, source);
 

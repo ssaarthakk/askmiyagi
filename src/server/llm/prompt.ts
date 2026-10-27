@@ -1,7 +1,9 @@
+import type { Selection } from "../../shared/anchor.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
+import { wrapUntrusted } from "../../shared/untrusted.ts";
 import { buildRepoMap } from "../code/repo-map.ts";
 import { listVisibleFiles } from "../files/file-filter.ts";
-import { readRedactedFile } from "../files/path-guard.ts";
+import { readRedactedFile, sourceLines } from "../files/path-guard.ts";
 import { redact } from "../files/redact.ts";
 
 const defaultBruteForceTokens = 60_000;
@@ -39,11 +41,10 @@ async function bruteForceContext(root: string, maxCharacters: number) {
   for (const path of await listVisibleFiles(root)) {
     const file = await readRedactedFile(root, path);
     if (!file.ok) throw new Error(`Cannot read ${path} for the repo context: ${file.error}`);
-    const lines = file.value.source.split(/\r?\n/);
-    if (lines.at(-1) === "") lines.pop();
-    const part = [`=== ${path} ===`, ...lines.map((line, index) => `${index + 1}: ${line}`)].join(
-      "\n",
-    );
+    const part = [
+      `=== ${path} ===`,
+      ...sourceLines(file.value.source).map((line, index) => `${index + 1}: ${line}`),
+    ].join("\n");
     length += part.length + 1;
     if (length - 1 > maxCharacters) return null;
     parts.push(part);
@@ -55,6 +56,7 @@ export async function buildRequest(
   root: string,
   question: string,
   bruteForceTokens = defaultBruteForceTokens,
+  selection?: Selection,
 ) {
   const wholeRepo = await bruteForceContext(root, bruteForceTokens * charactersPerToken);
   const mode = wholeRepo === null ? "agentic" : "brute-force";
@@ -62,7 +64,14 @@ export async function buildRequest(
     system: systemPrompt,
     context: wholeRepo ?? (await buildRepoMap(root)),
     conversation: "",
-    question: redact(question),
+    question: redact(
+      selection
+        ? `${question}
+
+The learner selected lines ${selection.start}-${selection.end} of ${selection.file}:
+${wrapUntrusted("selection", selection.text)}`
+        : question,
+    ),
     root,
     tools: true,
     model: "strong",

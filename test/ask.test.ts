@@ -141,6 +141,17 @@ describe("POST /api/ask", () => {
     expect((await readEvents(response)).at(-1)?.type).toBe("done");
   });
 
+  it("drops a selection that does not match the file and says so", async () => {
+    const { url, token } = await startServer(basic, fake("ask-tour.jsonl"));
+    const selection = { file: "src/upload.ts", start: 1, end: 3, text: "not in the file" };
+    const response = await post(url, token, JSON.stringify({ question: "Why?", selection }));
+    const events = await readEvents(response);
+    expect(events[1]).toEqual({
+      type: "progress",
+      text: "Ignoring the selection: lines 1-3 of src/upload.ts do not contain the selected text",
+    });
+  });
+
   it("streams ack and progress while the provider is still running", async () => {
     const { url, token } = await startServer(basic, fake("ask-slow.jsonl"));
     const controller = new AbortController();

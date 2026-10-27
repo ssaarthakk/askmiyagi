@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import type { ResolvedAnchor } from "../../shared/anchor.ts";
+import type { ResolvedAnchor, Selection } from "../../shared/anchor.ts";
 import type { AskEvent } from "../../shared/events.ts";
 import {
   findSymbolInputSchema,
@@ -10,6 +10,7 @@ import type { Step } from "../../shared/tour.ts";
 import { resolveAnchor } from "../code/anchor-resolver.ts";
 import { buildRequest } from "./prompt.ts";
 import type { LLMProvider } from "./provider.ts";
+import { checkSelection } from "./selection.ts";
 
 function progressText(name: string, input: unknown) {
   if (name === "read_file") {
@@ -32,6 +33,7 @@ export async function* askEvents(options: {
   provider: LLMProvider;
   question: string;
   ack: string;
+  selection?: Selection | undefined;
   signal: AbortSignal;
   bruteForceTokens?: number | undefined;
 }): AsyncGenerator<AskEvent> {
@@ -42,7 +44,20 @@ export async function* askEvents(options: {
   const allRanges: (ResolvedAnchor | null)[][] = [];
   let checkQuestion: string | undefined;
   try {
-    const { request } = await buildRequest(root, options.question, options.bruteForceTokens);
+    let selection = options.selection;
+    if (selection) {
+      const checked = await checkSelection(root, selection);
+      if (!checked.ok) {
+        yield { type: "progress", text: `Ignoring the selection: ${checked.error}` };
+        selection = undefined;
+      }
+    }
+    const { request } = await buildRequest(
+      root,
+      options.question,
+      options.bruteForceTokens,
+      selection,
+    );
     for await (const event of options.provider.ask(request, signal)) {
       if (signal.aborted) return;
       if (event.type === "tool_call") {

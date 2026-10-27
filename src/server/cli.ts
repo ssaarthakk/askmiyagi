@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { createServer } from "node:http";
+import { createServer, type Server } from "node:http";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
@@ -15,12 +15,13 @@ import { claudeHeadless } from "./llm/claude-headless.ts";
 import { loadFakeProvider } from "./llm/fake-provider.ts";
 import type { LLMProvider } from "./llm/provider.ts";
 import { runMcpCommand } from "./mcp/server.ts";
-import { openLocalFolder } from "./source/local-folder.ts";
+import { openGitClone } from "./source/git-clone.ts";
+import { type CodeSource, openLocalFolder } from "./source/local-folder.ts";
 
 const defaultVoiceId = "JBFqnCBsd6RMkjVDRZzb";
 
 const cliArgsSchema = z.object({
-  positionals: z.array(z.string()).max(1, "Only one project path can be provided"),
+  positionals: z.array(z.string()).max(1, "Only one project path or URL can be provided"),
   port: z
     .string()
     .regex(/^\d+$/, "Port must be an integer between 0 and 65535")
@@ -97,6 +98,13 @@ export function speechOptions(options: ReturnType<typeof parseCliArgs>, env: Nod
   };
 }
 
+export function closeServer(server: Server, source: CodeSource) {
+  return new Promise<void>((resolveClose) => {
+    server.close(() => resolveClose());
+    server.closeAllConnections();
+  }).then(() => source.dispose());
+}
+
 function openBrowser(url: string) {
   const [command, args] =
     process.platform === "win32"
@@ -144,7 +152,13 @@ async function runCli() {
     return;
   }
 
-  const source = await openLocalFolder(options.path);
+  const interrupted = new AbortController();
+  process.on("SIGINT", () => interrupted.abort());
+  process.on("SIGTERM", () => interrupted.abort());
+
+  const source = /^[a-z][a-z0-9+.-]*:\/\//i.test(options.path)
+    ? await openGitClone(options.path, interrupted.signal)
+    : await openLocalFolder(options.path);
   if (!source.ok) {
     process.stderr.write(`${source.error}\n`);
     process.exitCode = 1;
@@ -247,21 +261,18 @@ async function runCli() {
   const shutdown = () => {
     if (closing) return;
     closing = true;
-    server.close(() => {
-      void source.value.dispose().then(
-        () => {
-          process.exitCode = 0;
-        },
-        (error: unknown) => {
-          process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-          process.exitCode = 1;
-        },
-      );
-    });
-    server.closeAllConnections();
+    void closeServer(server, source.value).then(
+      () => {
+        process.exitCode = 0;
+      },
+      (error: unknown) => {
+        process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+        process.exitCode = 1;
+      },
+    );
   };
-  process.once("SIGINT", shutdown);
-  process.once("SIGTERM", shutdown);
+  interrupted.signal.addEventListener("abort", shutdown, { once: true });
+  if (interrupted.signal.aborted) shutdown();
   process.stdout.write(`${url}\n`);
   if (!options.noOpen) openBrowser(url);
 }

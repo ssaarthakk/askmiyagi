@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { Selection } from "../shared/anchor.ts";
 import { createAnnouncer, spokenProgress } from "./announcer.ts";
 import { ask } from "./ask.ts";
 import { type Highlight, moveHighlight } from "./highlight.ts";
@@ -34,6 +35,10 @@ function textMode(notice: string) {
 }
 
 let question = $state("");
+let selection = $state<Selection>();
+const selectionLabel = $derived(
+  selection && `${selection.file}:${selection.start}${selection.end > selection.start ? `-${selection.end}` : ""}`,
+);
 let asking = $state(false);
 let highlight = $state<Highlight>();
 let steps = $state<PlayerStep[]>([]);
@@ -115,6 +120,8 @@ async function submit(event: SubmitEvent) {
   const text = question.trim();
   if (!text || asking) return;
   asking = true;
+  const attached = selection;
+  selection = undefined;
   pause();
   interrupted = undefined;
   messages = [];
@@ -123,7 +130,7 @@ async function submit(event: SubmitEvent) {
   tourStarted = false;
   highlight = undefined;
   try {
-    await ask(text, token, (askEvent) => {
+    await ask(text, token, attached, (askEvent) => {
       if (askEvent.type === "ack" || askEvent.type === "progress") {
         messages.push({ kind: askEvent.type, text: askEvent.text });
         announce(askEvent.type === "progress" ? spokenProgress(askEvent.text) : askEvent.text);
@@ -162,6 +169,12 @@ async function submit(event: SubmitEvent) {
     </label>
     <button type="submit" disabled={asking}>Ask</button>
   </form>
+  {#if selection}
+    <p>
+      <span>{selectionLabel}</span>
+      <button type="button" onclick={() => (selection = undefined)}>Remove selection</button>
+    </p>
+  {/if}
   {#if voice === "elevenlabs"}
     <p>Voice by ElevenLabs</p>
   {/if}
@@ -192,6 +205,7 @@ async function submit(event: SubmitEvent) {
       {token}
       current={highlight.current}
       previous={highlight.previous}
+      onpick={(picked) => (selection = picked)}
     />
   {/if}
 </main>

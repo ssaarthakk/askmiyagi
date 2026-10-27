@@ -69,6 +69,12 @@ export async function guardPath(root: string, requested: string): Promise<Result
   return { ok: true, value: { realPath, relPath: normalizedPath } };
 }
 
+export function sourceLines(source: string) {
+  const lines = source.split(/\r?\n/);
+  if (lines.at(-1) === "") lines.pop();
+  return lines;
+}
+
 export async function readRedactedFile(
   root: string,
   requested: string,

@@ -17,7 +17,7 @@ const execFileAsync = promisify(execFile);
 
 const defaultTimeoutMs = 120_000;
 const taskkillNotFound = 128;
-const stderrTailLength = 2000;
+export const stderrTailLength = 2000;
 
 export class ClaudeProcessError extends Error {
   retryable: boolean;
@@ -97,18 +97,23 @@ async function findClaude(env: NodeJS.ProcessEnv) {
   return undefined;
 }
 
-function childEnv(env: NodeJS.ProcessEnv) {
-  const kept = Object.entries(env).filter(
-    ([name, value]) => value !== undefined && name.toUpperCase() !== "ELEVENLABS_API_KEY",
+export function withoutVoiceKey(env: NodeJS.ProcessEnv) {
+  return Object.fromEntries(
+    Object.entries(env).filter(
+      ([name, value]) => value !== undefined && name.toUpperCase() !== "ELEVENLABS_API_KEY",
+    ),
   );
+}
+
+function childEnv(env: NodeJS.ProcessEnv) {
   return {
-    ...Object.fromEntries(kept),
+    ...withoutVoiceKey(env),
     DISABLE_AUTOUPDATER: "1",
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
   };
 }
 
-async function killTree(child: ChildProcess) {
+export async function killTree(child: ChildProcess) {
   const pid = child.pid;
   if (pid === undefined) return;
   try {

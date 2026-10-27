@@ -4,7 +4,8 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { closeServer, parseCliArgs, speechOptions } from "../src/server/cli.ts";
+import { closeServer } from "../src/server/cli.ts";
+import { parseCliArgs, speechOptions } from "../src/server/cli-args.ts";
 import { builtCli, root, sourceCli, startCli, waitForExit, waitForLine } from "./cli-harness.ts";
 
 describe("CLI entry", () => {
@@ -182,6 +183,18 @@ describe("voice flags", () => {
     const childProcess = startCli(sourceCli, ["--no-open", "--voice-id", ""], root, withoutKey);
     await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
     expect(childProcess.stderr.trim()).toBe("--voice-id must not be empty");
+  });
+});
+
+describe("model option", () => {
+  it("passes no model by default and takes a plain model name", () => {
+    expect(parseCliArgs([]).model).toBeUndefined();
+    expect(parseCliArgs(["--model", "claude-sonnet-5-5"]).model).toBe("claude-sonnet-5-5");
+  });
+
+  it("rejects a model name that is not a plain name", () => {
+    expect(() => parseCliArgs(["--model", "sonnet & calc"])).toThrow(/--model/);
+    expect(() => parseCliArgs(["--model=--verbose"])).toThrow(/--model/);
   });
 });
 

@@ -2,6 +2,7 @@ import { ackPhrases } from "../shared/phrases.ts";
 
 export type Speaker = {
   speak(text: string, signal: AbortSignal, onStart?: () => void): Promise<void>;
+  prefetch?(text: string): void;
 };
 
 export const noLocalVoice = "No local voice found; showing text";
@@ -107,18 +108,26 @@ async function fetchSpeech(token: string, text: string, signal?: AbortSignal) {
 
 export function elevenLabsSpeaker(token: string, fallback: Speaker, onFallback: () => void) {
   const preloaded = new Map<string, Promise<Blob>>();
+  const upcoming = new Map<string, Promise<Blob>>();
+  function fetchInto(store: Map<string, Promise<Blob>>, text: string) {
+    const audio = fetchSpeech(token, text);
+    store.set(text, audio);
+    audio.catch(() => store.delete(text));
+  }
   return {
     preload(texts: string[]) {
-      for (const text of texts) {
-        const audio = fetchSpeech(token, text);
-        preloaded.set(text, audio);
-        audio.catch(() => preloaded.delete(text));
-      }
+      for (const text of texts) fetchInto(preloaded, text);
+    },
+    prefetch(text: string) {
+      if (preloaded.has(text) || upcoming.has(text)) return;
+      upcoming.clear();
+      fetchInto(upcoming, text);
     },
     async speak(text: string, signal: AbortSignal, onStart?: () => void) {
       let audio: Blob | undefined;
       try {
-        const pending = preloaded.get(text);
+        const pending = preloaded.get(text) ?? upcoming.get(text);
+        upcoming.delete(text);
         audio = await (pending ? untilAborted(pending, signal) : fetchSpeech(token, text, signal));
       } catch {
         if (signal.aborted) return;

@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, request, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { parseCliArgs } from "../cli.ts";
+import { parseCliArgs } from "../cli-args.ts";
 import { createSpeechHandler } from "./speech-route.ts";
 
 const apiKey = "fake-elevenlabs-key";

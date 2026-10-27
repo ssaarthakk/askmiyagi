@@ -31,8 +31,10 @@ describe("claudeArgs", () => {
     expect(args).toContain("--disable-slash-commands");
   });
 
-  it("never picks a model", () => {
-    expect(claudeArgs("/tmp/mcp.json").join(" ")).not.toMatch(/--model/);
+  it("picks no model unless one is chosen", () => {
+    expect(claudeArgs("/tmp/mcp.json")).not.toContain("--model");
+    const args = claudeArgs("/tmp/mcp.json", "sonnet");
+    expect(args[args.indexOf("--model") + 1]).toBe("sonnet");
   });
 
   it("allows no tools and loads no MCP server when the request has no tools", () => {
@@ -90,6 +92,13 @@ describe("runClaude", () => {
     const record = await recorded(work);
     expect(record.stdin).toBe(renderPrompt(request));
     expect(record.args).toEqual(claudeArgs(record.args[record.args.indexOf("--mcp-config") + 1]));
+  });
+
+  it("hands the chosen model to Claude Code", async () => {
+    const { env, work } = await fakeEnv("ok");
+    await collect(runClaude(request, new AbortController().signal, { env, model: "sonnet" }));
+    const { args } = await recorded(work);
+    expect(args[args.indexOf("--model") + 1]).toBe("sonnet");
   });
 
   it("points the MCP config at the running CLI with mcp <root>", async () => {

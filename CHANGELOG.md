@@ -31,6 +31,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Ask a question in the middle of a spoken explanation: it stops, answers, then says "Now, back to where we were" and continues from the interrupted sentence.
 - Plain spoken replies when a message needs no code, such as "I don't know"; check questions are now rare.
 - The terminal now shows why things fail: refused requests, failed asks, ElevenLabs errors with their reason, and code that could not be highlighted.
+- `--model <name>` picks the Claude model, for example `--model sonnet` for faster answers.
+- With the ElevenLabs voice, the next sentence's audio is fetched while the current one plays, so there is no gap between sentences.
 
 ### Fixed
 

@@ -7,7 +7,7 @@ afterEach(() => {
 });
 
 const ask = () =>
-  collect(claudeHeadless.ask({ ...request, tools: false }, new AbortController().signal));
+  collect(claudeHeadless().ask({ ...request, tools: false }, new AbortController().signal));
 
 describe("claudeHeadless", () => {
   it("gives an error event when Claude Code is not installed", async () => {

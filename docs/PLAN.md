@@ -100,7 +100,7 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
   - Brute-force mode sends the whole filtered, redacted repo as `=== <path> ===` headers each followed by that file's numbered lines (`12: code`). It is chosen when that fits under a token threshold (default 60,000, a parameter of `buildRequest`; the `--brute-force-tokens <n>` flag arrives with the Ask pipeline, which is the first caller); otherwise agentic mode uses the repo map.
   - The same inputs always give the same prefix.
 - [x] **ClaudeHeadless process.**
-  - It spawns `claude -p` on Windows, macOS and Linux with stream JSON output, all built-in tools off, `--strict-mcp-config` pointing only at the MCP server, `--allowedTools` limited to `mcp__miyagi__*`, no user settings or plugins, no `--model` flag (Claude Code's default), and an empty temp working folder.
+  - It spawns `claude -p` on Windows, macOS and Linux with stream JSON output, all built-in tools off, `--strict-mcp-config` pointing only at the MCP server, `--allowedTools` limited to `mcp__miyagi__*`, no user settings or plugins, no `--model` flag unless the user passes `--model <name>` (Claude Code's default otherwise), and an empty temp working folder.
   - The MCP server is started as `process.execPath` with `process.argv[1]` (the running CLI: `src/server/cli.ts` in dev, `dist/server/cli.js` when installed) and `mcp <root>`.
   - A timeout (default 120 s) or abort kills the whole process tree. Claude Code missing or logged out gives a clear `error` event.
   - Spawn, argument and process-tree code is adapted from `claude-loopback` (github.com/ssaarthakk/claude-loopback, MIT). Create `THIRD_PARTY_NOTICES.md` with its license.
@@ -306,7 +306,7 @@ Each one blocks only the phase named. Answer it before that phase starts.
 - **ElevenLabs terms** (Phase 5). Free-tier credits are limited (about 10k) and, as understood, non-commercial with attribution required. Confirm the current terms and the hackathon's rules before recording the demo.
 - **Gemini terms** (Phase 8). Check the free-tier rate limits and data-training terms before any commercial use of `GeminiAPI`.
 - **Code graph features** (Phase 8). Build graph hints and `find_callers` only if the Phase 7 eval results call for them: graph hints when retrieval misses are common, `find_callers` when the flow-order or starting-point checks fail. Otherwise move them out of the plan as unscheduled.
-- **Model IDs** (Phase 8, also Phase 12 routing). Which Claude and Gemini models, `max_tokens`, and whether to keep a price table for cost when the provider doesn't report it.
+- **Model IDs** (Phase 8, also Phase 12 routing). `ClaudeHeadless` takes the model from `--model` and otherwise uses Claude Code's default (settled for the demo). Still open: which Claude and Gemini models the API providers use, `max_tokens`, and whether to keep a price table for cost when the provider doesn't report it.
 - **Local voice engine** (Phase 9). Kokoro (default) vs Piper, and the default voice. Confirm against current browser support and quality.
 - **Whisper** (Phase 9). English-only or multilingual, and which model size (download size vs accuracy).
 - **"Last commit" diff base** (Phase 11). The uncommitted changes since HEAD, or the changes inside HEAD?

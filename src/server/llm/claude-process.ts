@@ -28,7 +28,7 @@ export class ClaudeProcessError extends Error {
   }
 }
 
-export function claudeArgs(mcpConfigPath: string | undefined) {
+export function claudeArgs(mcpConfigPath: string | undefined, model?: string) {
   const args = [
     "-p",
     "--output-format",
@@ -48,6 +48,7 @@ export function claudeArgs(mcpConfigPath: string | undefined) {
   if (mcpConfigPath !== undefined) {
     args.push("--mcp-config", mcpConfigPath, "--allowedTools", "mcp__miyagi__*");
   }
+  if (model !== undefined) args.push("--model", model);
   return args;
 }
 
@@ -193,7 +194,7 @@ async function* streamLines(
 export async function* runClaude(
   request: LLMRequest,
   signal: AbortSignal,
-  options: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {},
+  options: { timeoutMs?: number; env?: NodeJS.ProcessEnv; model?: string } = {},
 ): AsyncGenerator<string> {
   const env = childEnv(options.env ?? process.env);
   const claude = await findClaude(env);
@@ -221,7 +222,7 @@ export async function* runClaude(
     const command = spawnCommand(
       process.platform,
       claude,
-      claudeArgs(mcpConfigPath),
+      claudeArgs(mcpConfigPath, options.model),
       process.env.ComSpec ?? "cmd.exe",
     );
     const child = spawn(command.command, command.args, {

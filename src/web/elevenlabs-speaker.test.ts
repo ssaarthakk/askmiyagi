@@ -215,4 +215,37 @@ describe("elevenLabsSpeaker", () => {
     expect(spoken).toEqual([]);
     expect(onFallback).not.toHaveBeenCalled();
   });
+
+  it("plays a prefetched sentence without asking the server again", async () => {
+    const fetchStub = vi.fn(async () => new Response("audio-bytes"));
+    vi.stubGlobal("fetch", fetchStub);
+    const played = stubAudio();
+    const voice = elevenLabsSpeaker("tok", fallbackSpeaker().speaker, vi.fn());
+
+    voice.prefetch("next sentence");
+    expect(fetchStub).toHaveBeenCalledOnce();
+    await voice.speak("next sentence", signal);
+
+    expect(fetchStub).toHaveBeenCalledOnce();
+    expect(played).toHaveLength(1);
+  });
+
+  it("fetches again instead of falling back when a prefetch failed", async () => {
+    const fetchStub = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 502 }))
+      .mockResolvedValue(new Response("audio-bytes"));
+    vi.stubGlobal("fetch", fetchStub);
+    const played = stubAudio();
+    const onFallback = vi.fn();
+    const voice = elevenLabsSpeaker("tok", fallbackSpeaker().speaker, onFallback);
+    voice.prefetch("next sentence");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    await voice.speak("next sentence", signal);
+
+    expect(fetchStub).toHaveBeenCalledTimes(2);
+    expect(played).toHaveLength(1);
+    expect(onFallback).not.toHaveBeenCalled();
+  });
 });

@@ -13,6 +13,10 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
   let running: AbortController | undefined;
   let current: Position | undefined;
 
+  function segmentAt(position: Position) {
+    return hooks.steps()[position.step]?.step.narration[position.segment];
+  }
+
   async function play(from: Position | undefined) {
     running?.abort();
     const mine = new AbortController();
@@ -35,12 +39,16 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
       if (mine.signal.aborted) return;
       let at: Position | undefined = from;
       while (at) {
-        const segment = hooks.steps()[at.step]?.step.narration[at.segment];
+        const segment = segmentAt(at);
         if (!segment) break;
         const started = at;
         current = at;
         await say(segment.text, mine.signal, () => {
-          if (!mine.signal.aborted) hooks.onStart(started);
+          if (mine.signal.aborted) return;
+          hooks.onStart(started);
+          const after = neighbour(hooks.steps(), started, 1);
+          const upcoming = after ? segmentAt(after)?.text : hooks.closing();
+          if (upcoming) speaker.prefetch?.(upcoming);
         });
         if (mine.signal.aborted) return;
         at = neighbour(hooks.steps(), at, 1);

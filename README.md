@@ -4,6 +4,8 @@ A voice tutor for codebases. Ask a question out loud; Miyagi explains by voice w
 
 Everything runs locally: one command starts a server on `127.0.0.1` and opens the browser. The voice is local by default (ElevenLabs is opt-in), and the model only gets read-only tools.
 
+https://github.com/user-attachments/assets/d1084307-719d-40d0-b382-60831bb6cdea
+
 > Status: early development. See `docs/PLAN.md` for what is built and what is next.
 
 ## Use

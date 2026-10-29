@@ -27,14 +27,14 @@ Technical gaps a smaller model would have to guess at, found by a read-through o
 
 ## Phase 11: Explain my diff and stack traces
 
-- **Read-only git tool:** too big for one session; split into (a) the git tool, (b) diff bases and `miyagi snapshot`. Allowed flags: `--stat`, `--name-only`, `--name-status`, `--oneline`, `-n`, `-U<n>`, `--no-color`, `--`. Always add `--no-ext-diff --no-textconv` (repo config can run commands). Refuse `-c`, `--output` and `--no-index` from model input. Filter diff and show output per file through the file filter, then redact. Default branch: try `origin/HEAD`, then `main`, then `master`, with `git diff <base>...HEAD`. A snapshot copies visible files into `.tutor/private/snapshot/` and is compared with `git diff --no-index` (run by Miyagi, never from model input).
+- **Read-only git tool:** too big for one session; split into (a) the git tool, (b) diff bases and `askmiyagi snapshot`. Allowed flags: `--stat`, `--name-only`, `--name-status`, `--oneline`, `-n`, `-U<n>`, `--no-color`, `--`. Always add `--no-ext-diff --no-textconv` (repo config can run commands). Refuse `-c`, `--output` and `--no-index` from model input. Filter diff and show output per file through the file filter, then redact. Default branch: try `origin/HEAD`, then `main`, then `master`, with `git diff <base>...HEAD`. A snapshot copies visible files into `.tutor/private/snapshot/` and is compared with `git diff --no-index` (run by Miyagi, never from model input).
 - **Diff anchors:** add `side?` to `ResolvedAnchor`; old-side files come from `GET /api/file?path=&side=old`.
 - **Explain-my-diff tour:** too big for one session; split into (a) context sources and flow order, (b) risk flags and test handling. Triggered by an "Explain my diff" action with a base picker. Risk flags become a final step titled "Things to verify", detected in code (removed guards or throws, changed try/catch, deleted tests). Trivial means whitespace, comments, import order or rename-only. "Changed tests as proof of intent" needs a test-to-source link: a test file covers the source files it imports through relative imports (the repo map already computes these). When `find_callers` exists, "Things to verify" also lists callers of changed exported functions outside the diff, at most 5.
 - **Stack trace walkthrough:** too big for one session; split into (a) parse and collapse, (b) anchor verification and source maps, (c) the tour. Pasted text with 2 or more `at ` frames is detected in the question box. Source maps are read through the path guard only, never sent to the model; warn when the frame's function isn't at that line.
 
 ## Phase 12: Teach mode
 
-- **`.tutor/` store:** files `profile.json`, `goal.json`, `learner.json`, `session.json`, `calls.jsonl`. "Reported" means a console warning plus a `.corrupt` backup. Cloned sources store under `~/.miyagi/<owner>-<repo>/`, because the temp folder is deleted.
+- **`.tutor/` store:** files `profile.json`, `goal.json`, `learner.json`, `session.json`, `calls.jsonl`. "Reported" means a console warning plus a `.corrupt` backup. Cloned sources store under `~/.askmiyagi/<owner>-<repo>/`, because the temp folder is deleted.
 - **Learner intent:** inferred by the merged small-model call; an override lasts until reset. Rename to avoid clashing with the repo goal file. Onboarding's architecture emphasis uses graph-hint layers when a graph exists, else the model infers layers from the repo map. Contributing's "tests" emphasis uses the Phase 11 test-to-source link.
 - **Learner record:** add `concepts: { name, important, kind: "repo" | "language" }[]` to the model output. Language concepts come from a fixed list in `src/shared` (async/await, promises, closures, generics, destructuring, spread, optional chaining, classes, modules, error handling, higher-order functions, type narrowing), so the record tracks them across repos. Seen when a step plays, explained when the tour finishes, checked on a passed explain-back, reviewed on a passed review.
 - **Question policy:** 2 skips suppress the next 3 eligible tours. Light, Normal and Frequent mean every 3rd, every 2nd and every eligible tour.
@@ -50,7 +50,7 @@ Technical gaps a smaller model would have to guess at, found by a read-through o
 
 ## Phase 14: Interview prep
 
-- **Question generation:** entry points `miyagi interview` and a UI mode.
+- **Question generation:** entry points `askmiyagi interview` and a UI mode.
 - **Debugging drills:** the model returns a path-to-content edit list held in an in-memory overlay that the file reader and tools consult, cleared at session end.
 - **Debrief:** add `weak: boolean` to the learner record, set from low scores.
 

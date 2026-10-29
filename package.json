@@ -1,5 +1,5 @@
 {
-  "name": "miyagi",
+  "name": "askmiyagi",
   "version": "0.1.0",
   "description": "A voice tutor for codebases: ask out loud, and it explains while highlighting the code it talks about.",
   "keywords": [
@@ -11,7 +11,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ssaarthakk/Miyagi.git"
+    "url": "git+https://github.com/ssaarthakk/askmiyagi.git"
   },
   "license": "AGPL-3.0-only",
   "author": "Sarthak Kumar",
@@ -20,7 +20,7 @@
     "node": ">=24"
   },
   "bin": {
-    "miyagi": "dist/server/cli.js"
+    "askmiyagi": "dist/server/cli.js"
   },
   "files": [
     "dist",

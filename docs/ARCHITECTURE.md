@@ -41,14 +41,14 @@ These may be added when the feature that needs them is built, without asking aga
 src/
   shared/        contracts (zod schemas + types) used by server and browser
   server/
-    cli.ts       `miyagi` entry: start server, open browser, `mcp` subcommand
+    cli.ts       `askmiyagi` entry: start server, open browser, `mcp` subcommand
     cli-args.ts  command-line flags, validated with zod
     http/        security checks and static files (`serve.ts`), the `/api/ask` SSE route (`ask-route.ts`), the `/api/file` route (`file-route.ts`), the `/api/speech` route (`speech-route.ts`), the `/api/transcribe` route (`transcribe-route.ts`)
     source/      CodeSource: LocalFolder, GitClone
     files/       file filter, path guard, secret redaction, watcher
     code/        parse cache, repo map, anchor resolver
     tools/       read_file, grep, find_symbol, git (plain functions)
-    mcp/         stdio MCP server exposing the tools (`miyagi mcp <root>`, `runMcpCommand`)
+    mcp/         stdio MCP server exposing the tools (`askmiyagi mcp <root>`, `runMcpCommand`)
     llm/         LLMProvider, providers, claude-process (spawns `claude -p`, yields stdout lines), agent loop guards, prompt builder, session conversation memory (`conversation.ts`, last 3 turns), context manager
     teach/       .tutor store, intent, learner record, question policy, explain-back
     evals/       eval runner, code checks, judge
@@ -81,13 +81,13 @@ Browser (Svelte)                         Node server (one process)
   selection chip                           LLMProvider -> stream of events
                                               |
                                               +-- ClaudeHeadless: spawns `claude -p`
-                                              |     -> stdio MCP: `miyagi mcp <root>` (read-only tools)
+                                              |     -> stdio MCP: `askmiyagi mcp <root>` (read-only tools)
                                               +-- ClaudeAPI / GeminiAPI: own agent loop, tools called directly
                                            .tutor/ store
 ```
 
 - **Browser to server:** JSON over HTTP; `POST /api/ask` answers with a server-sent event stream. The server injects a random per-session token into `index.html` as `<meta name="miyagi-token" content="<64 hex chars>">`, the chosen voice as `<meta name="miyagi-voice" content="browser|elevenlabs">`, and the project name as `<meta name="miyagi-project" content="<URI-encoded name>">` (the folder name, or the repository name for a GitHub URL; `projectName` in `src/server/source/project-name.ts`); every `/api/*` request sends it as `x-miyagi-token`. API errors are `{ "error": "<reason>" }`.
-- **Server to Claude Code:** `ClaudeHeadless` spawns `claude -p` with stream JSON output, all built-in tools off, `--strict-mcp-config` with only Miyagi's MCP server, `--allowedTools` limited to `mcp__miyagi__*`, user settings and plugins not loaded, and an empty temp working folder. The MCP server is the same binary: `miyagi mcp <root>`.
+- **Server to Claude Code:** `ClaudeHeadless` spawns `claude -p` with stream JSON output, all built-in tools off, `--strict-mcp-config` with only Miyagi's MCP server, `--allowedTools` limited to `mcp__miyagi__*`, user settings and plugins not loaded, and an empty temp working folder. The MCP server is the same binary: `askmiyagi mcp <root>`.
 - **Voice is swappable.** The browser speaks through one `Speaker` interface: `browser` (local `speechSynthesis`, default), `elevenlabs` (opt-in; the server calls ElevenLabs through `POST /api/speech` with redacted text, so the key never reaches the page), and later `kokoro`. Microphone audio never leaves the browser, except push-to-talk with `--voice elevenlabs`, which goes to ElevenLabs speech-to-text through the server. See [ADR 0002](adr/0002-swappable-voice-with-elevenlabs.md) and [ADR 0003](adr/0003-elevenlabs-speech-to-text-for-the-demo.md).
 - **Tour stack is browser state** (playback position), so pause and resume are instant.
 

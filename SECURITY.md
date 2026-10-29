@@ -1,6 +1,6 @@
 # Security policy
 
-Miyagi reads untrusted code and runs a local server, so security reports matter.
+Ask Miyagi reads untrusted code and runs a local server, so security reports matter.
 
 ## Reporting a vulnerability
 

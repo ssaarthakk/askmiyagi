@@ -1,4 +1,4 @@
-# Miyagi
+# Ask Miyagi
 
 A voice tutor for codebases. Ask a question out loud; Miyagi explains by voice while it opens files and highlights the exact code it is talking about, step by step, like a teacher sitting beside you.
 
@@ -9,7 +9,7 @@ Everything runs locally: one command starts a server on `127.0.0.1` and opens th
 ## Use
 
 ```sh
-npx miyagi path/to/your/repo
+npx askmiyagi path/to/your/repo
 ```
 
 Requires Node 24+ and a logged-in [Claude Code](https://claude.com/claude-code) CLI (other providers are planned).
@@ -34,10 +34,10 @@ Docs: `docs/PROJECT.md` (what and why), `docs/ARCHITECTURE.md` (how), `docs/PLAN
 
 ## Deploy
 
-Miyagi ships as the npm package [`miyagi`](https://www.npmjs.com/package/miyagi). To release, bump `version` in `package.json` and run `npm publish`; `prepublishOnly` runs `npm run check`, which builds `dist`, first. At release, rename `[Unreleased]` in `CHANGELOG.md` to the version and date.
+Ask Miyagi ships as the npm package [`askmiyagi`](https://www.npmjs.com/package/askmiyagi). To release, bump `version` in `package.json` and run `npm publish`; `prepublishOnly` runs `npm run check`, which builds `dist`, first. At release, rename `[Unreleased]` in `CHANGELOG.md` to the version and date.
 
 ## License
 
 Copyright (C) 2026 Sarthak Kumar.
 
-Miyagi is free software under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). You may use, study, change and share it. If you share a changed version, or let other people use a changed version over a network, you must make its full source available under the same licence. Code adapted or bundled from other projects is credited in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Ask Miyagi is free software under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). You may use, study, change and share it. If you share a changed version, or let other people use a changed version over a network, you must make its full source available under the same licence. Code adapted or bundled from other projects is credited in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

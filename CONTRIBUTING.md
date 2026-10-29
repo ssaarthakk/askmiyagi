@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. Miyagi is built in small, test-first steps.
+Thanks for helping. Ask Miyagi is built in small, test-first steps.
 
 ## Setup
 
@@ -21,7 +21,7 @@ mise exec -- lefthook install
 
 ## Licence of contributions
 
-Miyagi is licensed under `AGPL-3.0-only`. By opening a pull request, you agree that your contribution is licensed under the same terms.
+Ask Miyagi is licensed under `AGPL-3.0-only`. By opening a pull request, you agree that your contribution is licensed under the same terms.
 
 ## Reporting bugs and security issues
 

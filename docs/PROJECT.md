@@ -1,10 +1,10 @@
-# Miyagi
+# Ask Miyagi
 
 ## What it is
 
 A voice tutor for codebases. You ask a question out loud; Miyagi explains by voice while it opens files and highlights the exact code it is talking about, step by step through a flow, like a teacher sitting beside you.
 
-- One npm package, one command: `npx miyagi [path]` starts a local Node server and opens the browser on `127.0.0.1`.
+- One npm package, one command: `npx askmiyagi [path]` starts a local Node server and opens the browser on `127.0.0.1`.
 - "Jarvis" is a feel, not a feature list: fast first sound, interruptible, remembers context. No wake word.
 - Core principle: a learner has to explain something themselves to understand it. Hearing an explanation is not enough, so teach mode asks them to predict and explain back.
 
@@ -38,4 +38,4 @@ AI tools write code faster than people can understand it. Reading a codebase alo
 - Learner data: profile, intent, learner records, session records and logs under `.tutor/` stay on the user's machine and out of git. Only `.tutor/tours/` is shared.
 - Repo contents never leave the machine except to the LLM provider the user chose, after filtering and secret redaction.
 - Microphone audio never leaves the machine by default. Narration is spoken locally by default. With the opt-in ElevenLabs voice, the redacted narration text and push-to-talk recordings go to ElevenLabs.
-- The code is licensed `AGPL-3.0-only` (ADR 0004) and kept ready to make public (LICENSE, SECURITY.md, CONTRIBUTING.md, templates are in place).
+- The code is licensed `AGPL-3.0-only` (ADR 0004) and public on GitHub.

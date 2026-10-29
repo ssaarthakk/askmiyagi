@@ -15,7 +15,7 @@ import { grepTool } from "../tools/grep.ts";
 import { readFileTool } from "../tools/read-file.ts";
 import { toolResult } from "../tools/run-tool.ts";
 
-const usage = "Usage: miyagi mcp <root>";
+const usage = "Usage: askmiyagi mcp <root>";
 
 const tools: {
   name: string;

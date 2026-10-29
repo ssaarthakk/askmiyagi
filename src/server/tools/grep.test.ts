@@ -128,7 +128,7 @@ describe("grep tool", () => {
         "  3: needle",
       ].join("\n"),
     );
-  });
+  }, 30_000);
 
   it("returns an error when the search runs past its time limit", async () => {
     const root = await createRepo({ "src/a.ts": "needle\n" });

@@ -32,7 +32,7 @@ afterEach(async () => {
   );
 });
 
-describe("miyagi mcp", () => {
+describe("askmiyagi mcp", () => {
   it("exposes read_file, grep and find_symbol and nothing else", async () => {
     const client = await connect(fixture);
 
@@ -143,7 +143,7 @@ describe("miyagi mcp", () => {
     const childProcess = startCli(sourceCli, ["mcp"]);
 
     await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
-    expect(childProcess.stderr.trim()).toBe("Usage: miyagi mcp <root>");
+    expect(childProcess.stderr.trim()).toBe("Usage: askmiyagi mcp <root>");
     expect(childProcess.stdout).toBe("");
   });
 });

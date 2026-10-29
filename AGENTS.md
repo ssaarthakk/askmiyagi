@@ -1,6 +1,6 @@
-# Miyagi
+# Ask Miyagi
 
-A voice tutor for codebases: one `npx miyagi` command starts a local Node server and a browser page that explains code by voice while highlighting it.
+A voice tutor for codebases: one `npx askmiyagi` command starts a local Node server and a browser page that explains code by voice while highlighting it.
 
 ## Docs
 

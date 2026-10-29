@@ -16,5 +16,5 @@ labels: bug
 
 - OS:
 - Node version:
-- Miyagi version:
+- Ask Miyagi version:
 - Provider (claude-headless, claude-api, gemini):

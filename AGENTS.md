@@ -5,7 +5,7 @@ A voice tutor for codebases: one `npx miyagi` command starts a local Node server
 ## Docs
 
 - `docs/PLAN.md`: the build plan, phases, features with acceptance criteria, gates, open questions. Read it before every feature.
-- `docs/plan-gaps.md`: technical gaps in Phases 7–15 with proposed answers. Settle a phase's items into `docs/PLAN.md` before that phase starts.
+- `docs/plan-gaps.md`: technical gaps in Phases 8–15 with proposed answers. Settle a phase's items into `docs/PLAN.md` before that phase starts.
 - `docs/ARCHITECTURE.md`: stack, folder layout, routes, security model, data contracts, approved dependencies, external services. Read the part a feature touches.
 - `docs/PROJECT.md`: what the product is, who it's for, out of scope, what stays private. Read when scope is unclear.
 - `docs/adr/`: recorded decisions. Record real decisions with `/adr`.

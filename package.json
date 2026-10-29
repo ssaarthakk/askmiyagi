@@ -1,9 +1,19 @@
 {
   "name": "miyagi",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "A voice tutor for codebases: ask out loud, and it explains while highlighting the code it talks about.",
-  "license": "MIT",
+  "keywords": [
+    "voice",
+    "tutor",
+    "codebase",
+    "code explanation",
+    "claude"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ssaarthakk/Miyagi.git"
+  },
+  "license": "AGPL-3.0-only",
   "author": "Sarthak Kumar",
   "type": "module",
   "engines": {
@@ -13,10 +23,12 @@
     "miyagi": "dist/server/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run check",
     "format": "biome check --write .",
     "test": "vitest run --passWithNoTests",
     "check": "biome check . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings && knip && vitest run --passWithNoTests",

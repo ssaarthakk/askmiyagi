@@ -1,16 +1,6 @@
-# Plan gaps, Phases 7–15
+# Plan gaps, Phases 8–15
 
-Technical gaps a smaller model would have to guess at, found by a read-through on 20 October 2026. Each has a proposed answer. Before a phase starts, check its items against the code as it is by then, write the settled answers into that phase's features in `docs/PLAN.md`, and delete them here. Owner decisions are in `docs/PLAN.md` under `## Open questions`, not here. Phases 5–6 were settled into `docs/PLAN.md` on 25 October 2026.
-
-## Phase 7: Measurement and evals
-
-- **Call log:** `.tutor/private/` doesn't exist until Phase 12; add a minimal `ensureTutorDir` here. Evals run on a temp copy of the fixture so `.tutor` isn't written into `test/fixtures`. Fields are camelCase. Cost is `Usage.costUsd` or `null` (no price table). "Files opened" includes refused attempts. Outcome is `done | error | aborted`.
-- **Eval cases:** suite keys `repo` and `cases`; relative paths resolve against the project root. `mustHighlight` and `expectedOrder` entries are `path` or `path#Qualified.symbol`. A git URL repo is cloned with the Phase 6 GitClone source. `intent` is prepended to the question line and passed to the judge.
-- **Fixture suites:** "the tour flags the planted text" is a case-insensitive `keyFacts` match in the narration. "No secret leaks" scans all output with the redactor.
-- **Code checks:** latency, cost and tool-call count are report-only. Code symbols are `( ) { } [ ] ; = < >` and backtick, plus `=>` and `::`. Starting point means the first anchor equals `expectedOrder[0]`.
-- **Eval runner:** define the result JSON schema, the timestamp file name, the score table (pass rate per case per check) and `--compare` taking two result file paths.
-- **LLM judge:** opt-in `--judge`, the same provider through the plain completion request (`tools: false`), default learner level "intermediate". `grades.json` is `[{ case, correctness, clarity, questionQuality, intentFit }]`; agreement is exact and within-1, per dimension.
-- **Failure classification:** brute-force mode counts every file as opened. Provider and JSON errors count as reasoning misses.
+Technical gaps a smaller model would have to guess at, found by a read-through on 20 October 2026. Each has a proposed answer. Before a phase starts, check its items against the code as it is by then, write the settled answers into that phase's features in `docs/PLAN.md`, and delete them here. Owner decisions are in `docs/PLAN.md` under `## Open questions`, not here.
 
 ## Phase 8: Providers and conversation
 

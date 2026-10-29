@@ -33,6 +33,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The terminal now shows why things fail: refused requests, failed asks, ElevenLabs errors with their reason, and code that could not be highlighted.
 - `--model <name>` picks the Claude model, for example `--model sonnet` for faster answers.
 - With the ElevenLabs voice, the next sentence's audio is fetched while the current one plays, so there is no gap between sentences.
+- `npx miyagi` installs and runs Miyagi from npm, without cloning the repo.
+
+### Changed
+
+- Miyagi is now licensed under the GNU Affero General Public License v3.0 (`AGPL-3.0-only`) instead of MIT.
 
 ### Fixed
 

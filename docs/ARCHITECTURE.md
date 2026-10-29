@@ -66,7 +66,7 @@ THIRD_PARTY_NOTICES.md  licenses of adapted code
 ## Build and run
 
 - Dev and tests run the TypeScript directly: `node src/server/cli.ts`.
-- `npm run build` runs `vite build` (to `dist/web`) and `tsc -p tsconfig.build.json` (to `dist/server` and `dist/shared`). Node won't strip types under `node_modules`, so the published package runs `dist/server/cli.js` (`bin`), and ships only `dist`.
+- `npm run build` runs `vite build` (to `dist/web`) and `tsc -p tsconfig.build.json` (to `dist/server` and `dist/shared`). Node won't strip types under `node_modules`, so the published package runs `dist/server/cli.js` (`bin`), and ships only `dist` and `THIRD_PARTY_NOTICES.md`.
 - The server finds `dist/web` relative to its own module location, so the same code works from `src/server` and `dist/server`.
 - Anything that starts Miyagi again (the MCP server) uses `process.execPath` plus `process.argv[1]`.
 
@@ -213,7 +213,7 @@ EvalCase { question, intent, mustHighlight: string[], expectedOrder: string[], k
 | Claude Code CLI (`claude -p`) | default provider | the user's own Claude Code login |
 | Anthropic API | `ClaudeAPI` provider (Phase 8) | `ANTHROPIC_API_KEY` |
 | Gemini API | `GeminiAPI` free-tier fallback (Phase 8) | `GEMINI_API_KEY`; check limits and training terms before commercial use |
-| ElevenLabs | opt-in voice, `--voice elevenlabs` (Phase 5) | `ELEVENLABS_API_KEY`; free tier needs attribution |
+| ElevenLabs | opt-in voice, `--voice elevenlabs` (Phase 5) | `ELEVENLABS_API_KEY`; terms and hackathon rules checked by the owner for the demo (October 2026) |
 | GitHub (public) | `GitClone` shallow clones (Phase 6) | none |
 | `gh` CLI | read PR descriptions (Phase 15), optional | the user's own `gh` login |
 | Hugging Face model files | Whisper and voice model downloads in the browser, cached | none |

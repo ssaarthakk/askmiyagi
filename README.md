@@ -34,8 +34,10 @@ Docs: `docs/PROJECT.md` (what and why), `docs/ARCHITECTURE.md` (how), `docs/PLAN
 
 ## Deploy
 
-Miyagi ships as an npm package. Publishing is not set up yet; until then, run it from a clone.
+Miyagi ships as the npm package [`miyagi`](https://www.npmjs.com/package/miyagi). To release, bump `version` in `package.json` and run `npm publish`; `prepublishOnly` runs `npm run check`, which builds `dist`, first. At release, rename `[Unreleased]` in `CHANGELOG.md` to the version and date.
 
 ## License
 
-[MIT](LICENSE)
+Copyright (C) 2026 Sarthak Kumar.
+
+Miyagi is free software under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). You may use, study, change and share it. If you share a changed version, or let other people use a changed version over a network, you must make its full source available under the same licence. Code adapted or bundled from other projects is credited in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

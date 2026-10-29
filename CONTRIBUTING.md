@@ -19,6 +19,10 @@ mise exec -- lefthook install
 - Run `npm run check` before opening a pull request.
 - Commit messages are one line: `type: summary`, lowercase, max 50 characters.
 
+## Licence of contributions
+
+Miyagi is licensed under `AGPL-3.0-only`. By opening a pull request, you agree that your contribution is licensed under the same terms.
+
 ## Reporting bugs and security issues
 
 Use the issue templates for bugs and ideas. Report security issues privately, as described in `SECURITY.md`.

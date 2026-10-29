@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -29,7 +29,7 @@ describe("guardPath", () => {
 
     await expect(guardPath(root, "src\\upload.ts")).resolves.toEqual({
       ok: true,
-      value: { realPath: join(root, "src", "upload.ts"), relPath: "src/upload.ts" },
+      value: { realPath: join(await realpath(root), "src", "upload.ts"), relPath: "src/upload.ts" },
     });
   });
 
@@ -58,7 +58,7 @@ describe("guardPath", () => {
     expect(outside).toEqual({ ok: false, error: "Path escapes project root" });
     await expect(guardPath(root, "src/../notes.md")).resolves.toEqual({
       ok: true,
-      value: { realPath: join(root, "notes.md"), relPath: "notes.md" },
+      value: { realPath: join(await realpath(root), "notes.md"), relPath: "notes.md" },
     });
   });
 
@@ -96,8 +96,9 @@ describe("guardPath", () => {
       throw error;
     }
 
-    const result = await guardPath(root, "external.ts");
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).not.toMatch(/[\r\n]/);
+    await expect(guardPath(root, "external.ts")).resolves.toEqual({
+      ok: false,
+      error: "Path escapes project root",
+    });
   });
 });

@@ -58,6 +58,7 @@ describe("shared file filter", () => {
     const outsideAttributes = join(root, "..", "outside.gitattributes");
     await writeFile(outsideGitignore, "*.ts\n");
     await writeFile(outsideAttributes, "src/external.ts linguist-generated\n");
+    await rm(join(root, ".gitattributes"));
     try {
       await symlink(outsideGitignore, join(root, ".gitignore"), "file");
       await symlink(outsideAttributes, join(root, ".gitattributes"), "file");

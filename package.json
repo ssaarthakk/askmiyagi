@@ -46,7 +46,7 @@
     "@tsconfig/svelte": "5.0.8",
     "@types/node": "24.19.2",
     "codemirror": "6.0.2",
-    "knip": "6.42.1",
+    "knip": "6.43.0",
     "svelte": "5.57.2",
     "svelte-check": "4.7.7",
     "typescript": "6.0.3",

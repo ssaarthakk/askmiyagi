@@ -1,16 +1,16 @@
 import { stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   collect,
   fakeEnv,
   recorded,
   request,
-  tempDir,
   waitForFile,
   waitUntilDead,
 } from "../../../test/fake-claude.ts";
+import { tempDir } from "../../../test/temp-dir.ts";
 import { ClaudeProcessError, claudeArgs, runClaude, spawnCommand } from "./claude-process.ts";
 import { renderPrompt } from "./prompt.ts";
 
@@ -101,13 +101,22 @@ describe("runClaude", () => {
     expect(args[args.indexOf("--model") + 1]).toBe("sonnet");
   });
 
-  it("points the MCP config at the running CLI with mcp <root>", async () => {
+  it("points the MCP config at the Miyagi CLI with mcp <root>, whatever script started Node", async () => {
     const { env, work } = await fakeEnv("ok");
-    await collect(runClaude(request, new AbortController().signal, { env }));
+    const startedScript = process.argv[1];
+    process.argv[1] = resolve(import.meta.dirname, "../evals/cli.ts");
+    try {
+      await collect(runClaude(request, new AbortController().signal, { env }));
+    } finally {
+      process.argv[1] = startedScript ?? "";
+    }
     const record = await recorded(work);
     expect(record.mcpConfig).toEqual({
       mcpServers: {
-        miyagi: { command: process.execPath, args: [process.argv[1], "mcp", "/some/repo"] },
+        miyagi: {
+          command: process.execPath,
+          args: [resolve(import.meta.dirname, "../cli.ts"), "mcp", "/some/repo"],
+        },
       },
     });
   });

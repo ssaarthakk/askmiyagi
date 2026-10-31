@@ -1,8 +1,10 @@
 import { resolve } from "node:path";
 import { type EvalRun, runCodeChecks } from "../src/server/evals/code-checks.ts";
 import type { ResolvedAnchor } from "../src/shared/anchor.ts";
-import type { AskEvent } from "../src/shared/events.ts";
+import type { EvalResult } from "../src/shared/eval-result.ts";
+import type { AskEvent, ProviderEvent } from "../src/shared/events.ts";
 import type { Step } from "../src/shared/tour.ts";
+import { usage } from "./ask-helpers.ts";
 
 const root = resolve(import.meta.dirname, "fixtures/basic");
 
@@ -82,4 +84,28 @@ const testCase = {
 
 export function check(evalRun: EvalRun, overrides: Partial<typeof testCase> = {}) {
   return runCodeChecks(root, { ...testCase, ...overrides }, evalRun);
+}
+
+export const gradeLines: ProviderEvent[] = [
+  { type: "text", text: "correctness: 5" },
+  { type: "text", text: "clarity: 4" },
+  { type: "text", text: "questionQuality: 3" },
+  { type: "text", text: "intentFit: 2" },
+  { type: "done", usage },
+];
+
+export function resultOf(cases: EvalResult["cases"]): EvalResult {
+  return {
+    suite: "fixtures",
+    provider: "fake",
+    runs: Math.max(...cases.map((item) => item.runs.length)),
+    startedAt: "2026-10-31T12:00:00.000Z",
+    cases,
+  };
+}
+
+export function lineWith(text: string, word: string) {
+  const line = text.split("\n").find((candidate) => candidate.includes(word));
+  if (!line) throw new Error(`no line with ${word} in\n${text}`);
+  return line;
 }

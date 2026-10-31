@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { z } from "zod";
+import { isUrl } from "./source/github-url.ts";
 
 const defaultVoiceId = "JBFqnCBsd6RMkjVDRZzb";
 
@@ -71,7 +72,7 @@ export function parseCliArgs(args: string[]) {
   const path = validated.data.positionals[0] ?? ".";
   return {
     path,
-    isUrl: /^[a-z][a-z0-9+.-]*:\/\//i.test(path),
+    isUrl: isUrl(path),
     port: validated.data.port ?? 0,
     noOpen: validated.data.noOpen,
     provider,

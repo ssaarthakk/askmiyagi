@@ -1,5 +1,9 @@
 import type { Result } from "../../shared/result.ts";
 
+export function isUrl(text: string) {
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(text);
+}
+
 const pathPattern = /^\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+?)(?:\.git)?\/?$/;
 
 export function parseGitHubUrl(input: string): Result<string> {

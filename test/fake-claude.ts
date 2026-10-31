@@ -1,9 +1,8 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { afterEach } from "vitest";
 import type { LLMRequest } from "../src/shared/llm-request.ts";
+import { tempDir } from "./temp-dir.ts";
 
 export const request: LLMRequest = {
   system: "You are Miyagi.",
@@ -58,14 +57,6 @@ process.stdin.on("end", () => {
   }
 });
 `;
-
-const dirs: string[] = [];
-
-export async function tempDir() {
-  const dir = await mkdtemp(join(tmpdir(), "miyagi-claude-test-"));
-  dirs.push(dir);
-  return dir;
-}
 
 async function installFakeClaude() {
   const dir = await tempDir();
@@ -132,7 +123,3 @@ export async function waitUntilDead(pid: number) {
   for (let attempt = 0; attempt < 100 && isAlive(pid); attempt++) await sleep(50);
   return !isAlive(pid);
 }
-
-afterEach(async () => {
-  await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
-});

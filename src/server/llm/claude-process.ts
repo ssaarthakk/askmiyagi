@@ -7,7 +7,7 @@ import {
 import { once } from "node:events";
 import { access, constants, mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { delimiter, isAbsolute, join } from "node:path";
+import { delimiter, extname, isAbsolute, join } from "node:path";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import type { LLMRequest } from "../../shared/llm-request.ts";
@@ -18,6 +18,7 @@ const execFileAsync = promisify(execFile);
 const defaultTimeoutMs = 120_000;
 const taskkillNotFound = 128;
 export const stderrTailLength = 2000;
+const miyagiCli = join(import.meta.dirname, "..", `cli${extname(import.meta.filename)}`);
 
 export class ClaudeProcessError extends Error {
   retryable: boolean;
@@ -214,7 +215,7 @@ export async function* runClaude(
       mcpConfigPath = join(directory, "mcp.json");
       const config = {
         mcpServers: {
-          miyagi: { command: process.execPath, args: [process.argv[1], "mcp", request.root] },
+          miyagi: { command: process.execPath, args: [miyagiCli, "mcp", request.root] },
         },
       };
       await writeFile(mcpConfigPath, JSON.stringify(config));

@@ -36,6 +36,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `npx askmiyagi` installs and runs Miyagi from npm, without cloning the repo.
 - Every question appends one line to `.tutor/private/calls.jsonl` in the project (provider, mode, timings, tokens, cost, files opened and outcome), kept out of git by `.tutor/.gitignore`. Cloned GitHub repos write no log.
 - Eval suites in `evals/` (a repo plus cases with the files and symbols to highlight, the expected order and key facts), with a fixtures suite and a prompt-injection suite, and code checks that score a run on highlights, flow order, valid JSON, anchor failures, code-free narration, question placement, blocked reads and leaked secrets.
+- `npm run eval -- --suite <name> --provider <fake|claude-headless> --runs <n>` runs an eval suite, saves the result in `evals/results/` and prints a score table; `--compare <a> <b>` prints a before/after table of two results.
+- `--judge` grades every eval run 1 to 5 on correctness, clarity, question quality and intent fit with the same model, and `--calibrate <result> <grades>` prints how often the judge agrees with human grades.
+- Every failed eval run is labelled a retrieval miss (a file to highlight was never opened) or a reasoning miss, and the score table counts both per case.
 
 ### Changed
 

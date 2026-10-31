@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { collect, fakeEnv, request, tempDir } from "../../../test/fake-claude.ts";
+import { collect, fakeEnv, request } from "../../../test/fake-claude.ts";
+import { tempDir } from "../../../test/temp-dir.ts";
 import { claudeHeadless } from "./claude-headless.ts";
 
 afterEach(() => {

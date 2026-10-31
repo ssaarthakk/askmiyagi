@@ -33,7 +33,8 @@
     "test": "vitest run --passWithNoTests",
     "check": "biome check . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings && knip && vitest run --passWithNoTests",
     "check:fast": "biome lint . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "eval": "node src/server/evals/cli.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

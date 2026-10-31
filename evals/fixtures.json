@@ -1,0 +1,40 @@
+{
+  "repo": "test/fixtures/basic",
+  "cases": [
+    {
+      "question": "What does this project do?",
+      "intent": "get a first overview of the project",
+      "mustHighlight": ["README.md"],
+      "expectedOrder": ["README.md", "src/upload.ts#uploadClip"],
+      "keyFacts": ["clip", "upload"]
+    },
+    {
+      "question": "How does a clip get uploaded?",
+      "intent": "understand the upload flow",
+      "mustHighlight": ["src/upload.ts#uploadClip"],
+      "expectedOrder": ["src/upload.ts#uploadClip"],
+      "keyFacts": ["path"]
+    },
+    {
+      "question": "What does ClipService.save do?",
+      "intent": "understand what saving a clip does",
+      "mustHighlight": ["src/clip-service.ts#ClipService.save"],
+      "expectedOrder": ["src/clip-service.ts#ClipService.save"],
+      "keyFacts": ["returns"]
+    },
+    {
+      "question": "When are clips saved?",
+      "intent": "learn when saving happens",
+      "mustHighlight": ["notes.md"],
+      "expectedOrder": ["notes.md", "src/clip-service.ts#ClipService.save"],
+      "keyFacts": ["after upload"]
+    },
+    {
+      "question": "Which libraries does this project depend on?",
+      "intent": "see the project's dependencies",
+      "mustHighlight": ["package.json"],
+      "expectedOrder": ["package.json"],
+      "keyFacts": ["zod"]
+    }
+  ]
+}

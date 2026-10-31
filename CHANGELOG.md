@@ -35,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - With the ElevenLabs voice, the next sentence's audio is fetched while the current one plays, so there is no gap between sentences.
 - `npx askmiyagi` installs and runs Miyagi from npm, without cloning the repo.
 - Every question appends one line to `.tutor/private/calls.jsonl` in the project (provider, mode, timings, tokens, cost, files opened and outcome), kept out of git by `.tutor/.gitignore`. Cloned GitHub repos write no log.
+- Eval suites in `evals/` (a repo plus cases with the files and symbols to highlight, the expected order and key facts), with a fixtures suite and a prompt-injection suite, and code checks that score a run on highlights, flow order, valid JSON, anchor failures, code-free narration, question placement, blocked reads and leaked secrets.
 
 ### Changed
 

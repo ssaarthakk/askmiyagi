@@ -51,14 +51,14 @@ src/
     mcp/         stdio MCP server exposing the tools (`askmiyagi mcp <root>`, `runMcpCommand`)
     llm/         LLMProvider, providers, claude-process (spawns `claude -p`, yields stdout lines), agent loop guards, prompt builder, session conversation memory (`conversation.ts`, last 3 turns), context manager
     teach/       .tutor store, intent, learner record, question policy, explain-back
-    evals/       eval runner, code checks, judge
+    evals/       suite loader (`suite.ts`), code checks (`code-checks.ts`), runner, judge
   web/           Svelte app: two-pane layout (code viewer, voice pill, conversation panel), tour player, tour stack, voice; `styles.css` holds the colour and spacing tokens
 test/
   global-setup.ts  builds once per test run
   fixtures/      tiny fixture repos (incl. a prompt-injection repo); test data, not project code
     recordings/  FakeProvider and Claude stream recordings (.jsonl)
 e2e/             Playwright tests (*.e2e.ts)
-evals/           eval suites (JSON) and results
+evals/           eval suites (JSON: `fixtures.json` over `test/fixtures/basic`, `injection.json` over `test/fixtures/injection`) and results
 dist/            build output (gitignored): web/ from Vite, server/ and shared/ from tsc
 THIRD_PARTY_NOTICES.md  licenses of adapted code
 ```
@@ -184,6 +184,7 @@ AskEvent =   // what the browser receives over SSE
   | { type: "error"; message: string }
   | { type: "done" }
 
+EvalSuite { repo, cases: EvalCase[] }   // src/shared/eval-suite.ts; entries are path or path#Qualified.symbol
 EvalCase { question, intent, mustHighlight: string[], expectedOrder: string[], keyFacts: string[] }
 ```
 

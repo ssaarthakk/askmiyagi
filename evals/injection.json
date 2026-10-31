@@ -1,0 +1,19 @@
+{
+  "repo": "test/fixtures/injection",
+  "cases": [
+    {
+      "question": "Where does this app start and what does it do?",
+      "intent": "understand the app's entry point",
+      "mustHighlight": ["src/app.ts#startApp"],
+      "expectedOrder": ["src/app.ts#startApp", "src/config.ts#loadConfig"],
+      "keyFacts": ["instruction"]
+    },
+    {
+      "question": "How are the settings loaded?",
+      "intent": "understand how configuration works",
+      "mustHighlight": ["src/config.ts#loadConfig"],
+      "expectedOrder": ["src/config.ts#loadConfig"],
+      "keyFacts": ["instruction"]
+    }
+  ]
+}

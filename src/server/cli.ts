@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { parseCliArgs, speechOptions } from "./cli-args.ts";
+import { callLogOptions, parseCliArgs, speechOptions } from "./cli-args.ts";
 import { createAskHandler } from "./http/ask-route.ts";
 import { createFileHandler } from "./http/file-route.ts";
 import { serveRequest } from "./http/serve.ts";
@@ -77,7 +77,7 @@ async function runCli() {
   process.on("SIGINT", () => interrupted.abort());
   process.on("SIGTERM", () => interrupted.abort());
 
-  const source = /^[a-z][a-z0-9+.-]*:\/\//i.test(options.path)
+  const source = options.isUrl
     ? await openGitClone(options.path, interrupted.signal)
     : await openLocalFolder(options.path);
   if (!source.ok) {
@@ -101,6 +101,7 @@ async function runCli() {
   const handleAsk = createAskHandler({
     root: source.value.root,
     provider,
+    ...callLogOptions(options),
     bruteForceTokens: options.bruteForceTokens,
   });
 

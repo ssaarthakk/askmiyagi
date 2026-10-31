@@ -1,0 +1,129 @@
+import { execFileSync } from "node:child_process";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { CallRecord } from "../shared/call-log.ts";
+import { appendCallLog } from "./call-log.ts";
+
+const record: CallRecord = {
+  callType: "ask",
+  provider: "fake",
+  mode: "brute-force",
+  startedAt: "2026-10-31T10:00:00.000Z",
+  ackMs: 1,
+  firstContentMs: 20,
+  inputTokens: 10,
+  outputTokens: 5,
+  cacheReadTokens: 2,
+  cacheWriteTokens: 3,
+  costUsd: null,
+  filesOpened: ["src/upload.ts", ".env"],
+  outcome: "done",
+};
+
+const temporaryFolders: string[] = [];
+
+afterEach(async () => {
+  vi.restoreAllMocks();
+  await Promise.all(
+    temporaryFolders.splice(0).map((folder) => rm(folder, { recursive: true, force: true })),
+  );
+});
+
+async function makeFolders() {
+  const parent = await mkdtemp(join(tmpdir(), "miyagi-call-log-"));
+  temporaryFolders.push(parent);
+  const root = join(parent, "project");
+  const outside = join(parent, "outside");
+  await mkdir(root);
+  await mkdir(outside);
+  return { root, outside };
+}
+
+function terminal() {
+  const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+  return () => write.mock.calls.map(([text]) => String(text)).join("");
+}
+
+describe("appendCallLog", () => {
+  it("writes one JSON line per call to .tutor/private/calls.jsonl", async () => {
+    const { root } = await makeFolders();
+
+    await appendCallLog(root, record);
+    await appendCallLog(root, { ...record, outcome: "error" });
+
+    const text = await readFile(join(root, ".tutor", "private", "calls.jsonl"), "utf8");
+    const written = text
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    expect(written).toEqual([record, { ...record, outcome: "error" }]);
+  });
+
+  it("keeps the log out of git but not the tours", async () => {
+    const { root } = await makeFolders();
+    execFileSync("git", ["init", "--quiet"], { cwd: root });
+
+    await appendCallLog(root, record);
+    await mkdir(join(root, ".tutor", "tours"));
+    await writeFile(join(root, ".tutor", "tours", "a.json"), "{}");
+
+    const status = execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    expect(status).toContain("?? .tutor/.gitignore");
+    expect(status).toContain("?? .tutor/tours/a.json");
+    expect(status).not.toContain("calls.jsonl");
+  });
+
+  it.each([
+    { link: ".tutor", name: ".tutor" },
+    { link: join(".tutor", "private"), name: ".tutor/private" },
+  ])("logs nothing when $name is a link to another folder", async ({ link }) => {
+    const { root, outside } = await makeFolders();
+    if (link !== ".tutor") await mkdir(join(root, ".tutor"));
+    await symlink(outside, join(root, link), "junction");
+    const printed = terminal();
+
+    await appendCallLog(root, record);
+
+    await expect(readdir(outside)).resolves.toEqual([]);
+    expect(printed()).toMatch(/^miyagi: .*\.tutor/);
+    expect(printed().trim().split("\n")).toHaveLength(1);
+  });
+
+  it("logs one line and does not fail when the write throws", async () => {
+    const { root } = await makeFolders();
+    await rm(root, { recursive: true });
+    const printed = terminal();
+
+    await expect(appendCallLog(root, record)).resolves.toBeUndefined();
+
+    expect(printed()).toMatch(/^miyagi: Call not logged: /);
+    expect(printed().trim().split("\n")).toHaveLength(1);
+  });
+
+  it("logs nothing when calls.jsonl is a link to another file", async ({ skip }) => {
+    const { root, outside } = await makeFolders();
+    await mkdir(join(root, ".tutor", "private"), { recursive: true });
+    const target = join(outside, "stolen.jsonl");
+    await writeFile(target, "");
+    try {
+      await symlink(target, join(root, ".tutor", "private", "calls.jsonl"), "file");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EPERM") {
+        skip();
+        return;
+      }
+      throw error;
+    }
+    const printed = terminal();
+
+    await appendCallLog(root, record);
+
+    expect(await readFile(target, "utf8")).toBe("");
+    expect(printed()).toContain("calls.jsonl");
+  });
+});

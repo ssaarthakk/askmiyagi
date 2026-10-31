@@ -68,8 +68,10 @@ export function parseCliArgs(args: string[]) {
   if (recording && provider !== "fake") {
     throw new Error("--recording only works with --provider fake");
   }
+  const path = validated.data.positionals[0] ?? ".";
   return {
-    path: validated.data.positionals[0] ?? ".",
+    path,
+    isUrl: /^[a-z][a-z0-9+.-]*:\/\//i.test(path),
     port: validated.data.port ?? 0,
     noOpen: validated.data.noOpen,
     provider,
@@ -85,5 +87,12 @@ export function speechOptions(options: ReturnType<typeof parseCliArgs>, env: Nod
   return {
     apiKey: options.voice === "elevenlabs" ? env.ELEVENLABS_API_KEY : undefined,
     voiceId: options.voiceId,
+  };
+}
+
+export function callLogOptions(options: ReturnType<typeof parseCliArgs>) {
+  return {
+    providerName: options.provider ?? "claude-headless",
+    logCalls: !options.isUrl,
   };
 }

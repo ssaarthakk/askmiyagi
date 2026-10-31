@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
+import { cp, mkdtemp, rm } from "node:fs/promises";
 import { request } from "node:http";
-import { networkInterfaces } from "node:os";
-import { join, resolve } from "node:path";
+import { networkInterfaces, tmpdir } from "node:os";
+import { basename, join, resolve } from "node:path";
 import { afterEach } from "vitest";
 
 export const root = resolve(import.meta.dirname, "..");
@@ -12,6 +13,7 @@ export const nonLoopbackIPv4 = Object.values(networkInterfaces())
   .find((address) => address.family === "IPv4" && !address.internal)?.address;
 
 const children: ReturnType<typeof spawn>[] = [];
+const copies: string[] = [];
 
 export function startCli(cli: string, args: string[], cwd = root, env?: NodeJS.ProcessEnv) {
   const child = spawn(process.execPath, [cli, ...args], {
@@ -65,11 +67,15 @@ export function waitForLine(childProcess: ReturnType<typeof startCli>) {
 }
 
 export async function startServer(folder: string, args: string[] = [], env?: NodeJS.ProcessEnv) {
-  const server = startCli(sourceCli, ["--no-open", "--port", "0", ...args, folder], undefined, env);
+  const copyParent = await mkdtemp(join(tmpdir(), "miyagi-server-"));
+  copies.push(copyParent);
+  const copy = join(copyParent, basename(resolve(folder)));
+  await cp(folder, copy, { recursive: true });
+  const server = startCli(sourceCli, ["--no-open", "--port", "0", ...args, copy], undefined, env);
   const url = await waitForLine(server);
   const page = await (await fetch(url)).text();
   const token = page.match(/<meta name="miyagi-token" content="([a-f0-9]{64})">/)?.[1] ?? "";
-  return { server, url, token };
+  return { server, url, token, folder: copy };
 }
 
 export function waitForExit(child: ReturnType<typeof spawn>) {
@@ -117,4 +123,5 @@ afterEach(async () => {
       await exit;
     }),
   );
+  await Promise.all(copies.splice(0).map((copy) => rm(copy, { recursive: true, force: true })));
 });

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { selectionSchema } from "../../shared/anchor.ts";
 import { parseContract } from "../../shared/parse.ts";
 import { ackPhrases } from "../../shared/phrases.ts";
+import { appendCallLog } from "../call-log.ts";
 import { askEvents } from "../llm/ask.ts";
 import { createConversation } from "../llm/conversation.ts";
 import type { LLMProvider } from "../llm/provider.ts";
@@ -59,6 +60,8 @@ export async function readJsonBody<T>(
 export function createAskHandler(options: {
   root: string;
   provider: LLMProvider;
+  providerName: string;
+  logCalls: boolean;
   bruteForceTokens?: number | undefined;
 }) {
   let running = false;
@@ -88,6 +91,12 @@ export function createAskHandler(options: {
         ack,
         signal: controller.signal,
         bruteForceTokens: options.bruteForceTokens,
+        callLog: options.logCalls
+          ? {
+              provider: options.providerName,
+              write: (record) => appendCallLog(options.root, record),
+            }
+          : undefined,
       })) {
         response.write(`data: ${JSON.stringify(event)}\n\n`);
       }

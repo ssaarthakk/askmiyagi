@@ -1,4 +1,4 @@
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { lostThread } from "../src/server/llm/provider.ts";
@@ -245,5 +245,31 @@ describe("--brute-force-tokens", () => {
     await (await post(url, token, question)).text();
     const { stdin } = await recorded(work);
     expect(stdin.includes("=== src/clip-service.ts ===")).toBe(mode === "the whole repo");
+  });
+});
+
+describe("call log", () => {
+  it("appends one line per ask to .tutor/private/calls.jsonl in the project", async () => {
+    const { folder, url, token } = await startServer(basic, fake("ask-tour.jsonl"));
+    await readEvents(await post(url, token, question));
+    await readEvents(await post(url, token, question));
+
+    const text = await readFile(join(folder, ".tutor", "private", "calls.jsonl"), "utf8");
+    const records = text
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({
+      callType: "ask",
+      provider: "fake",
+      mode: "brute-force",
+      inputTokens: 10,
+      outputTokens: 5,
+      costUsd: null,
+      filesOpened: ["src/clip-service.ts"],
+      outcome: "done",
+    });
+    await expect(stat(join(basic, ".tutor"))).rejects.toThrow();
   });
 });

@@ -71,7 +71,7 @@ export async function buildRequest(
   conversation = "",
 ) {
   const wholeRepo = await bruteForceContext(root, bruteForceTokens * charactersPerToken);
-  const mode = wholeRepo === null ? "agentic" : "brute-force";
+  const mode = wholeRepo === null ? ("agentic" as const) : ("brute-force" as const);
   const request: LLMRequest = {
     system: systemPrompt,
     context: wholeRepo ?? (await buildRepoMap(root)),

@@ -34,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `--model <name>` picks the Claude model, for example `--model sonnet` for faster answers.
 - With the ElevenLabs voice, the next sentence's audio is fetched while the current one plays, so there is no gap between sentences.
 - `npx askmiyagi` installs and runs Miyagi from npm, without cloning the repo.
+- Every question appends one line to `.tutor/private/calls.jsonl` in the project (provider, mode, timings, tokens, cost, files opened and outcome), kept out of git by `.tutor/.gitignore`. Cloned GitHub repos write no log.
 
 ### Changed
 

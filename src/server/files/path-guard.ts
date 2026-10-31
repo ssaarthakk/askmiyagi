@@ -6,7 +6,7 @@ import { redact } from "./redact.ts";
 
 export type GuardedPath = { realPath: string; relPath: string };
 
-function isOutsideRoot(root: string, path: string) {
+export function isOutsideRoot(root: string, path: string) {
   if (process.platform === "win32" || process.platform === "darwin") {
     const normalizedRoot = root.toLowerCase();
     const normalizedPath = path.toLowerCase();

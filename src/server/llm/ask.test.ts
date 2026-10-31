@@ -1,5 +1,5 @@
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { root, saveStep, scripted, terminal, usage } from "../../../test/ask-helpers.ts";
 import { collect } from "../../../test/fake-claude.ts";
 import type { ProviderEvent } from "../../shared/events.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
@@ -12,27 +12,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function terminal() {
-  const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-  return () => write.mock.calls.map(([text]) => String(text)).join("");
-}
-
-const root = resolve(import.meta.dirname, "../../../test/fixtures/basic");
-
-const usage = {
-  inputTokens: 1,
-  outputTokens: 1,
-  cacheReadTokens: 0,
-  cacheWriteTokens: 0,
-  costUsd: null,
-};
-
-const saveStep: Step = {
-  title: "Saving a clip",
-  anchors: [{ file: "src/clip-service.ts", symbol: "ClipService.save" }],
-  narration: [{ text: "Clips are saved here.", anchor: 0 }],
-};
-
 const uploadStep: Step = {
   title: "Uploading",
   anchors: [
@@ -41,15 +20,6 @@ const uploadStep: Step = {
   ],
   narration: [{ text: "Then the clip is uploaded." }],
 };
-
-function scripted(events: ProviderEvent[], seen: LLMRequest[] = []): LLMProvider {
-  return {
-    async *ask(request) {
-      seen.push(request);
-      yield* events;
-    },
-  };
-}
 
 function stream(
   provider: LLMProvider,

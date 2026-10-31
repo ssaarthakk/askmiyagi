@@ -116,7 +116,7 @@ Browser (Svelte)                         Node server (one process)
 
 ## Data contracts (`src/shared`)
 
-Each contract is a zod schema with its type inferred from it, one file per area (`anchor.ts`, `tour.ts`, `events.ts`, `usage.ts`, `llm-request.ts`, `tool-result.ts`, `result.ts`, `file.ts`), and the tool input schemas are in `tool-inputs.ts`. `parseContract(schema, data)` returns a `Result` whose error lists each problem on its own line as `path: message`.
+Each contract is a zod schema with its type inferred from it, one file per area (`anchor.ts`, `tour.ts`, `events.ts`, `usage.ts`, `call-log.ts`, `llm-request.ts`, `tool-result.ts`, `result.ts`, `file.ts`), and the tool input schemas are in `tool-inputs.ts`. `parseContract(schema, data)` returns a `Result` whose error lists each problem on its own line as `path: message`.
 
 Paths everywhere (tool inputs and results, anchors, selections, routes, events) are relative to the project root with `/` separators. Only the path guard turns them into real paths.
 
@@ -126,6 +126,13 @@ Result<T> = { ok: true; value: T } | { ok: false; error: string }   // recoverab
 ToolResult { text: string; isError: boolean }   // every tool: (root, input) => Promise<ToolResult>, already redacted
 
 Usage { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; costUsd: number | null }
+
+CallRecord = Usage & {   // one line of .tutor/private/calls.jsonl
+  callType: "ask"; provider: string; mode: "brute-force" | "agentic" | null
+  startedAt: string       // ISO 8601
+  ackMs: number; firstContentMs: number | null
+  filesOpened: string[]; outcome: "done" | "error" | "aborted"
+}
 
 LLMRequest {
   system: string
@@ -205,6 +212,8 @@ EvalCase { question, intent, mustHighlight: string[], expectedOrder: string[], k
   tours/         saved tours: committed and shared
   private/       profile, intent, learner record, session record, call logs (never committed)
 ```
+
+`askEvents` reports one `CallRecord` (`src/shared/call-log.ts`) per ask to its `callLog` writer; `/api/ask` passes `appendCallLog` (`src/server/call-log.ts`), which creates `.tutor/`, its `.gitignore` and `.tutor/private/`, checks `.tutor`, `.tutor/private` and `calls.jsonl` with `lstat` and `realpath`, and appends one JSON line to `calls.jsonl`. A failed check or write logs one `Call not logged: <reason>` line and never fails the ask. A GitClone source (a URL argument) writes no call log. Integration and e2e tests run on a temp copy of the fixture so no `.tutor/` appears in `test/fixtures`.
 
 ## External services
 

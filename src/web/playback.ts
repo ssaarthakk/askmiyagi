@@ -1,13 +1,30 @@
-import { neighbour, type PlayerStep, type Position } from "./player.ts";
+import { anchorTarget, neighbour, type PlayerStep, type Position } from "./player.ts";
 import { noLocalVoice, type Speaker } from "./speaker.ts";
 
 type PlaybackHooks = {
   steps: () => PlayerStep[];
   ready: () => Promise<void>;
   closing: () => string | undefined;
+  onLead: (position: Position) => void;
   onStart: (position: Position) => void;
   onEnd: (error?: Error) => void;
 };
+
+const scrollLeadMs = 200;
+
+function wait(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
+  });
+}
 
 export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
   let running: AbortController | undefined;
@@ -15,6 +32,11 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
 
   function segmentAt(position: Position) {
     return hooks.steps()[position.step]?.step.narration[position.segment];
+  }
+
+  function fileAt(position: Position) {
+    const entry = hooks.steps()[position.step];
+    return entry && anchorTarget(entry, position.segment)?.file;
   }
 
   async function play(from: Position | undefined) {
@@ -38,11 +60,18 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
       await hooks.ready();
       if (mine.signal.aborted) return;
       let at: Position | undefined = from;
+      let previous: Position | undefined;
       while (at) {
         const segment = segmentAt(at);
         if (!segment) break;
         const started = at;
         current = at;
+        const file = fileAt(at);
+        if (previous && file && file !== fileAt(previous)) {
+          hooks.onLead(at);
+          await wait(scrollLeadMs, mine.signal);
+          if (mine.signal.aborted) return;
+        }
         await say(segment.text, mine.signal, () => {
           if (mine.signal.aborted) return;
           hooks.onStart(started);
@@ -51,6 +80,7 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
           if (upcoming) speaker.prefetch?.(upcoming);
         });
         if (mine.signal.aborted) return;
+        previous = at;
         at = neighbour(hooks.steps(), at, 1);
       }
       const closing = hooks.closing();

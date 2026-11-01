@@ -13,8 +13,10 @@ import { watchFolder } from "./files/watcher.ts";
 import { createAskHandler } from "./http/ask-route.ts";
 import { createEventsHandler } from "./http/events-route.ts";
 import { createFileHandler } from "./http/file-route.ts";
+import { createFirstSoundHandler } from "./http/first-sound-route.ts";
 import { serveRequest } from "./http/serve.ts";
 import { createSpeechHandler } from "./http/speech-route.ts";
+import { createSymbolsHandler } from "./http/symbols-route.ts";
 import { createTranscribeHandler } from "./http/transcribe-route.ts";
 import { chooseProvider } from "./llm/choose-provider.ts";
 import { logError } from "./log.ts";
@@ -140,6 +142,8 @@ async function runCli() {
   });
 
   const handleFile = createFileHandler(source.value.root);
+  const handleSymbols = createSymbolsHandler(source.value.root);
+  const handleFirstSound = createFirstSoundHandler(source.value.root, !options.isUrl);
   const speech = speechOptions(options, process.env);
   const handleSpeech = createSpeechHandler(speech);
   const handleTranscribe = createTranscribeHandler({ apiKey: speech.apiKey });
@@ -185,6 +189,8 @@ async function runCli() {
       handleSpeech,
       handleTranscribe,
       events,
+      handleSymbols,
+      handleFirstSound,
     ).catch((error: unknown) => {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       if (!response.headersSent) response.writeHead(500);

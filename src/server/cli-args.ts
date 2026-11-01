@@ -21,7 +21,9 @@ const cliArgsSchema = z.object({
   recording: z.string().min(1).optional(),
   app: z.string().min(1, "--app must not be empty").optional(),
   voice: z
-    .enum(["browser", "elevenlabs"], { error: (issue) => `Unknown voice: ${String(issue.input)}` })
+    .enum(["browser", "elevenlabs", "kokoro"], {
+      error: (issue) => `Unknown voice: ${String(issue.input)}`,
+    })
     .optional(),
   voiceId: z.string().min(1, "--voice-id must not be empty").optional(),
   model: z

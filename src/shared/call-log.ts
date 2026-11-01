@@ -3,7 +3,7 @@ import { usageSchema } from "./usage.ts";
 
 const milliseconds = z.number().nonnegative();
 
-const callRecordSchema = usageSchema.extend({
+export const callRecordSchema = usageSchema.extend({
   callType: z.literal("ask"),
   provider: z.string().min(1),
   mode: z.enum(["brute-force", "agentic"]).nullable(),
@@ -12,6 +12,9 @@ const callRecordSchema = usageSchema.extend({
   firstContentMs: milliseconds.nullable(),
   filesOpened: z.array(z.string()),
   outcome: z.enum(["done", "error", "aborted"]),
+  firstSoundMs: milliseconds.optional(),
 });
+
+export const firstSoundSchema = z.object({ ms: milliseconds });
 
 export type CallRecord = z.infer<typeof callRecordSchema>;

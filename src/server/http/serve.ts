@@ -4,7 +4,9 @@ import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { type createAskHandler, sendError } from "./ask-route.ts";
 import type { createEventsHandler } from "./events-route.ts";
 import type { createFileHandler } from "./file-route.ts";
+import type { createFirstSoundHandler } from "./first-sound-route.ts";
 import type { createSpeechHandler } from "./speech-route.ts";
+import type { createSymbolsHandler } from "./symbols-route.ts";
 import type { createTranscribeHandler } from "./transcribe-route.ts";
 
 const contentTypes: Record<string, string> = {
@@ -34,6 +36,8 @@ export async function serveRequest(
   handleSpeech: ReturnType<typeof createSpeechHandler>,
   handleTranscribe: ReturnType<typeof createTranscribeHandler>,
   events: ReturnType<typeof createEventsHandler>,
+  handleSymbols: ReturnType<typeof createSymbolsHandler>,
+  handleFirstSound: ReturnType<typeof createFirstSoundHandler>,
 ) {
   const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`];
   if (!allowedHosts.includes(request.headers.host?.toLowerCase() ?? "")) {
@@ -66,6 +70,14 @@ export async function serveRequest(
   }
   if (pathname === "/api/file" && request.method === "GET") {
     await handleFile(request, response);
+    return;
+  }
+  if (pathname === "/api/symbols" && request.method === "GET") {
+    await handleSymbols(response);
+    return;
+  }
+  if (pathname === "/api/first-sound" && request.method === "POST") {
+    await handleFirstSound(request, response);
     return;
   }
   if (pathname === "/api/events" && request.method === "GET") {

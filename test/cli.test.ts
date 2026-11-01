@@ -212,6 +212,10 @@ describe("voice options", () => {
     });
   });
 
+  it("takes the local kokoro voice", () => {
+    expect(parseCliArgs(["--voice", "kokoro"]).voice).toBe("kokoro");
+  });
+
   it("hands the chosen voice id and the key to the speech route with the elevenlabs voice", () => {
     const options = parseCliArgs(["--voice", "elevenlabs", "--voice-id", "abc123"]);
     expect(speechOptions(options, { ELEVENLABS_API_KEY: "test-key" })).toEqual({

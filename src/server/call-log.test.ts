@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { terminal } from "../../test/ask-helpers.ts";
 import type { CallRecord } from "../shared/call-log.ts";
-import { appendCallLog } from "./call-log.ts";
+import { addFirstSound, appendCallLog } from "./call-log.ts";
 
 const record: CallRecord = {
   callType: "ask",
@@ -120,6 +120,77 @@ describe("appendCallLog", () => {
     await appendCallLog(root, record);
 
     expect(await readFile(target, "utf8")).toBe("");
+    expect(printed()).toContain("calls.jsonl");
+  });
+});
+
+describe("addFirstSound", () => {
+  async function lines(root: string) {
+    const text = await readFile(join(root, ".tutor", "private", "calls.jsonl"), "utf8");
+    return text
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  }
+
+  it("adds the time to the last call and leaves earlier calls alone", async () => {
+    const { root } = await makeFolders();
+    await appendCallLog(root, record);
+    await appendCallLog(root, { ...record, outcome: "error" });
+
+    await addFirstSound(root, 850);
+
+    expect(await lines(root)).toEqual([record, { ...record, outcome: "error", firstSoundMs: 850 }]);
+  });
+
+  it("logs one line and keeps the log when its last line is not a call", async () => {
+    const { root } = await makeFolders();
+    await appendCallLog(root, record);
+    const file = join(root, ".tutor", "private", "calls.jsonl");
+    await writeFile(file, `${await readFile(file, "utf8")}not json\n`);
+    const printed = terminal();
+
+    await addFirstSound(root, 850);
+
+    expect(printed()).toMatch(/^miyagi: First sound not logged: /);
+    expect(printed().trim().split("\n")).toHaveLength(1);
+    expect((await readFile(file, "utf8")).endsWith("not json\n")).toBe(true);
+  });
+
+  it("logs one line and does not fail when no call was logged yet", async () => {
+    const { root } = await makeFolders();
+    const printed = terminal();
+
+    await expect(addFirstSound(root, 850)).resolves.toBeUndefined();
+
+    expect(printed()).toMatch(/^miyagi: First sound not logged: /);
+    expect(printed().trim().split("\n")).toHaveLength(1);
+  });
+
+  it("writes nothing when calls.jsonl is a link to another file", async ({ skip }) => {
+    const { root, outside } = await makeFolders();
+    await mkdir(join(root, ".tutor", "private"), { recursive: true });
+    const target = join(outside, "stolen.jsonl");
+    await writeFile(
+      target,
+      `${JSON.stringify(record)}
+`,
+    );
+    try {
+      await symlink(target, join(root, ".tutor", "private", "calls.jsonl"), "file");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EPERM") {
+        skip();
+        return;
+      }
+      throw error;
+    }
+    const printed = terminal();
+
+    await addFirstSound(root, 850);
+
+    expect(await readFile(target, "utf8")).toBe(`${JSON.stringify(record)}
+`);
     expect(printed()).toContain("calls.jsonl");
   });
 });

@@ -1,11 +1,11 @@
 import { startRecording } from "./recorder.ts";
-import { transcribe } from "./transcribe.ts";
 
 const microphoneUnavailable = "Microphone unavailable. Type your question instead.";
 
+export type Transcriber = (recording: Blob, notify: (text: string) => void) => Promise<string>;
+
 export function createTalk(options: {
-  enabled: boolean;
-  token: string;
+  transcribe: Transcriber;
   busy: () => boolean;
   button: () => HTMLButtonElement | undefined;
   onstart: () => void;
@@ -18,7 +18,7 @@ export function createTalk(options: {
   let transcribing = false;
 
   function start() {
-    if (!options.enabled || recording || transcribing || options.busy()) return;
+    if (recording || transcribing || options.busy()) return;
     recording = true;
     opened = false;
     notice = "";
@@ -49,7 +49,7 @@ export function createTalk(options: {
         return;
       }
       notice = "Transcribing...";
-      const text = audio.size > 0 ? await transcribe(audio, options.token) : "";
+      const text = audio.size > 0 ? await options.transcribe(audio, (text) => (notice = text)) : "";
       notice = text ? "" : "Didn't catch that";
       if (text) await options.onquestion(text);
     } catch (error) {
@@ -63,7 +63,7 @@ export function createTalk(options: {
 
   function spaceTalks(event: KeyboardEvent) {
     const target = event.target as HTMLElement;
-    if (!options.enabled || event.code !== "Space") return false;
+    if (event.code !== "Space") return false;
     if (target === options.button()) return true;
     if (target.closest("input, textarea, select, [contenteditable]")) return false;
     const control = target.closest("button, a");

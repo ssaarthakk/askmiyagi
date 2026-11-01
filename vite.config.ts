@@ -4,6 +4,7 @@ import { configDefaults, defineConfig } from "vitest/config";
 export default defineConfig({
   root: "src/web",
   plugins: [svelte()],
+  worker: { format: "es" },
   build: {
     outDir: "../../dist/web",
     emptyOutDir: true,

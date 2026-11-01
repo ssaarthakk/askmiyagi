@@ -122,3 +122,57 @@ test("Voice off stops the audio and falls back to the text player", async ({ pag
   await expect(page.getByRole("button", { name: fourth })).toHaveAttribute("aria-current", "true");
   expect(await spoken(page)).toEqual([first]);
 });
+
+test("the next file is shown about 200 ms before its segment is spoken", async ({ page }) => {
+  await ask(page);
+  await expect.poll(() => spoken(page)).toEqual([first]);
+  await finishSpeech(page);
+  await expect.poll(() => spoken(page)).toEqual([first, second]);
+  await finishSpeech(page);
+  await expect.poll(() => spoken(page)).toEqual([first, second, third]);
+
+  const [shownAt, spokenAt] = await page.evaluate<number[]>(
+    "[window.fileShownAt['src/clip-service.ts'], window.spokenAt[2]]",
+  );
+  expect((spokenAt ?? 0) - (shownAt ?? 0)).toBeGreaterThanOrEqual(150);
+  expect((spokenAt ?? 0) - (shownAt ?? 0)).toBeLessThan(600);
+});
+
+test("an earlier tour replayed after an answer without narration reports no new first sound", async ({
+  page,
+}) => {
+  const reported: unknown[] = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/first-sound")) reported.push(request.postDataJSON());
+  });
+  await ask(page);
+  await expect.poll(() => reported.length).toBe(1);
+
+  await page.route("**/api/ask", (route) =>
+    route.fulfill({
+      contentType: "text/event-stream",
+      body: 'data: {"type":"error","message":"Claude Code is not logged in"}\n\ndata: {"type":"done"}\n\n',
+    }),
+  );
+  const box = page.getByLabel("Question");
+  await box.fill("And then?");
+  await box.press("Enter");
+
+  await expect(page.getByText("Back to where we were")).toBeVisible();
+  await expect.poll(() => spoken(page)).toEqual([first, first]);
+  await page.waitForTimeout(300);
+  expect(reported).toHaveLength(1);
+});
+
+test("the time from the question to the first narration sound is reported once", async ({
+  page,
+}) => {
+  const reported = page.waitForRequest((request) => request.url().endsWith("/api/first-sound"));
+
+  await ask(page);
+
+  const request = await reported;
+  expect(request.method()).toBe("POST");
+  expect(request.headers()["x-miyagi-token"]).toBeTruthy();
+  expect(request.postDataJSON().ms).toBeGreaterThan(0);
+});

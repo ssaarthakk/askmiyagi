@@ -2,14 +2,6 @@
 
 Technical gaps a smaller model would have to guess at, found by a read-through on 20 October 2026. Each has a proposed answer. Before a phase starts, check its items against the code as it is by then, write the settled answers into that phase's features in `docs/PLAN.md`, and delete them here. Owner decisions are in `docs/PLAN.md` under `## Open questions`, not here.
 
-## Phase 9: Local voice and speech input
-
-- **Local voice:** show model download progress; `kokoro` joins the `--voice` choices and the `miyagi-voice` meta values.
-- **Push-to-talk:** Space fires only when focus isn't on an input or button. The transcript auto-submits after cleanup and is shown.
-- **Whisper speech-to-text:** add `GET /api/symbols` (token-guarded) for symbol hints. If Transformers.js doesn't support prompt hints, use the symbols only in transcript cleanup.
-- **Transcript cleanup:** fillers um, uh, er, ah, hmm (not "like"). Fuzzy match joins adjacent words and compares normalised symbol names, Levenshtein ≤ 1 for names of 6 or more characters.
-- **Time to first sound:** the browser posts `POST /api/first-sound { ms }`, which adds it to the last call's log line.
-
 ## Phase 10: Interaction
 
 - **Local commands:** whole-utterance match after cleanup. Go back is the previous segment, skip the next, repeat replays the current one, slower and faster change speed by 0.25 within 0.5–2.0.

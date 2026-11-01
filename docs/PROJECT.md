@@ -37,5 +37,5 @@ AI tools write code faster than people can understand it. Reading a codebase alo
 - The original design notes (`voice-tutor-design-notes.md`): interview prep and business notes. Gitignored, never committed.
 - Learner data: profile, intent, learner records, session records and logs under `.tutor/` stay on the user's machine and out of git. Only `.tutor/tours/` is shared.
 - Repo contents never leave the machine except to the LLM provider the user chose, after filtering and secret redaction.
-- Microphone audio never leaves the machine by default. Narration is spoken locally by default. With the opt-in ElevenLabs voice, the redacted narration text and push-to-talk recordings go to ElevenLabs.
+- Microphone audio never leaves the machine by default: it is transcribed in the browser with Whisper. Narration is spoken locally by default. With the opt-in ElevenLabs voice, the redacted narration text and push-to-talk recordings go to ElevenLabs.
 - The code is licensed `AGPL-3.0-only` (ADR 0004) and public on GitHub.

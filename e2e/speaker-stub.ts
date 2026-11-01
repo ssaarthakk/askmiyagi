@@ -2,6 +2,12 @@ import type { Page } from "@playwright/test";
 
 export const stubSpeaker = `
   window.spoken = [];
+  window.spokenAt = [];
+  window.fileShownAt = {};
+  new MutationObserver(() => {
+    const name = document.querySelector("section[aria-label='Code'] h2")?.textContent;
+    if (name && !(name in window.fileShownAt)) window.fileShownAt[name] = performance.now();
+  }).observe(document, { childList: true, subtree: true, characterData: true });
   window.aborted = [];
   window.announced = [];
   window.holdAnnouncements = false;
@@ -24,6 +30,7 @@ export const stubSpeaker = `
       return new Promise((resolve) => {
         let finished = false;
         window.spoken.push(text);
+        window.spokenAt.push(performance.now());
         if (window.holdStarts) window.startSpeech = onStart;
         else onStart();
         window.finishSpeech = () => {

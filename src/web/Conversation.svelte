@@ -110,17 +110,15 @@ function keydown(event: KeyboardEvent) {
       onkeydown={keydown}
     ></textarea>
     <div class="actions">
-      {#if elevenLabs}
-        <button
-          type="button"
-          bind:this={microphoneButton}
-          aria-pressed={recording}
-          disabled={asking}
-          onpointerdown={onmicdown}
-          onpointerup={onmicup}
-          onpointercancel={onmicup}
-        >Hold to talk</button>
-      {/if}
+      <button
+        type="button"
+        bind:this={microphoneButton}
+        aria-pressed={recording}
+        disabled={asking}
+        onpointerdown={onmicdown}
+        onpointerup={onmicup}
+        onpointercancel={onmicup}
+      >Hold to talk</button>
       <button type="submit" class="primary" disabled={asking}>Send</button>
     </div>
   </form>

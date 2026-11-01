@@ -1,33 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { ask } from "./ask.ts";
+import { holdMicrophone, pressMicrophone, stubMicrophone } from "./microphone-stub.ts";
 import { stubSpeaker, useElevenLabsVoice } from "./speaker-stub.ts";
-
-const stubMicrophone = `
-  window.micRequests = 0;
-  navigator.mediaDevices.getUserMedia = async () => {
-    window.micRequests += 1;
-    if (window.micDenied) throw new DOMException("denied", "NotAllowedError");
-    if (window.holdMic) await new Promise((resolve) => { window.openMic = resolve; });
-    return { getTracks: () => [{ stop() {} }] };
-  };
-  window.MediaRecorder = class {
-    static isTypeSupported() {
-      return true;
-    }
-    mimeType = "audio/webm";
-    listeners = {};
-    addEventListener(name, listener) {
-      (this.listeners[name] ??= []).push(listener);
-    }
-    start() {}
-    stop() {
-      for (const listener of this.listeners.dataavailable ?? []) {
-        listener({ data: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" }) });
-      }
-      for (const listener of this.listeners.stop ?? []) listener({});
-    }
-  };
-`;
 
 async function openWithElevenLabs(page: Page, transcript: string) {
   await page.addInitScript(stubSpeaker);
@@ -45,22 +19,6 @@ async function openWithElevenLabs(page: Page, transcript: string) {
   });
   await page.goto("/");
   return uploads;
-}
-
-async function pressMicrophone(page: Page) {
-  const box = await page.getByRole("button", { name: "Hold to talk" }).boundingBox();
-  if (!box) throw new Error("the microphone button is not visible");
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-}
-
-async function holdMicrophone(page: Page) {
-  await pressMicrophone(page);
-  await expect(page.getByRole("button", { name: "Hold to talk" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-  await page.mouse.up();
 }
 
 test("holding the microphone button records and sends the transcript as a question", async ({
@@ -217,30 +175,6 @@ test("leaving the window while holding Space stops recording and sends it", asyn
   await expect(microphone).toHaveAttribute("aria-pressed", "false");
   expect((await asked).postDataJSON()).toEqual({ question: "Where does it start?" });
   await page.keyboard.up("Space");
-});
-
-test("with the browser voice there is no microphone button", async ({ page }) => {
-  await page.goto("/");
-
-  await expect(page.getByRole("button", { name: "Hold to talk" })).toBeHidden();
-});
-
-test("with the browser voice holding Space never opens the microphone", async ({ page }) => {
-  await page.addInitScript(stubSpeaker);
-  await page.addInitScript(stubMicrophone);
-  let transcribes = 0;
-  await page.route("**/api/transcribe", (route) => {
-    transcribes += 1;
-    return route.abort();
-  });
-  await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-
-  await page.keyboard.down("Space");
-  await page.keyboard.up("Space");
-
-  expect(await page.evaluate("window.micRequests")).toBe(0);
-  expect(transcribes).toBe(0);
 });
 
 test("after pausing with the mouse, holding Space asks instead of resuming", async ({ page }) => {

@@ -1,10 +1,8 @@
 import type { z } from "zod";
 import { findSymbolInputSchema } from "../../shared/tool-inputs.ts";
 import type { ToolResult } from "../../shared/tool-result.ts";
-import { hasParser, parseFile } from "../code/parse-cache.ts";
-import { findDefinitions, lineRange, matchesName } from "../code/symbols.ts";
-import { listVisibleFiles } from "../files/file-filter.ts";
-import { readRedactedFile } from "../files/path-guard.ts";
+import { lineRange, matchesName } from "../code/symbols.ts";
+import { visibleDefinitions } from "../code/visible-definitions.ts";
 import { runTool, toolResult } from "./run-tool.ts";
 
 async function find(
@@ -12,16 +10,11 @@ async function find(
   { name, kind }: z.infer<typeof findSymbolInputSchema>,
 ): Promise<ToolResult> {
   const matches: string[] = [];
-  for (const path of (await listVisibleFiles(root)).filter(hasParser)) {
-    const file = await readRedactedFile(root, path);
-    if (!file.ok) continue;
-    const tree = await parseFile(file.value.relPath, file.value.source);
-    for (const definition of tree ? findDefinitions(tree.rootNode, file.value.relPath) : []) {
-      if (matchesName(definition, name) && (kind === undefined || definition.kind === kind)) {
-        matches.push(
-          `${definition.kind} ${definition.qualifiedName} ${file.value.relPath}:${lineRange(definition.node)}`,
-        );
-      }
+  for await (const { path, definition } of visibleDefinitions(root)) {
+    if (matchesName(definition, name) && (kind === undefined || definition.kind === kind)) {
+      matches.push(
+        `${definition.kind} ${definition.qualifiedName} ${path}:${lineRange(definition.node)}`,
+      );
     }
   }
   if (matches.length === 0) {

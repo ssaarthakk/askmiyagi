@@ -1,44 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createPlayback } from "./playback.ts";
-import type { PlayerStep } from "./player.ts";
+import { controlledSpeaker, oneStep, steps } from "./playback-helpers.ts";
 import { noLocalVoice, type Speaker } from "./speaker.ts";
-
-function oneStep(...texts: string[]): PlayerStep {
-  return {
-    step: {
-      title: "Step",
-      anchors: [{ file: "a.ts", symbol: "A" }],
-      narration: texts.map((text) => ({ text })),
-    },
-    ranges: [null],
-  };
-}
-
-const steps = [oneStep("one", "two"), oneStep("three")];
-
-function controlledSpeaker() {
-  const spoken: string[] = [];
-  const signals: AbortSignal[] = [];
-  const finishers: (() => void)[] = [];
-  const failers: ((error: Error) => void)[] = [];
-  const speaker: Speaker = {
-    speak: (text, signal, onStart) =>
-      new Promise<void>((resolve, reject) => {
-        onStart?.();
-        spoken.push(text);
-        signals.push(signal);
-        finishers.push(resolve);
-        failers.push(reject);
-      }),
-  };
-  return {
-    speaker,
-    spoken,
-    signals,
-    finishLast: () => finishers.at(-1)?.(),
-    failLast: (error: Error) => failers.at(-1)?.(error),
-  };
-}
 
 function setup(list = steps, closing?: string) {
   const fake = controlledSpeaker();
@@ -48,6 +11,7 @@ function setup(list = steps, closing?: string) {
     steps: () => list,
     ready: () => Promise.resolve(),
     closing: () => closing,
+    onLead: vi.fn(),
     onStart: (position) => started.push(position),
     onEnd,
   });
@@ -128,6 +92,7 @@ describe("createPlayback", () => {
       steps: () => steps,
       ready: () => Promise.resolve(),
       closing: () => undefined,
+      onLead: vi.fn(),
       onStart: (position) => started.push(position),
       onEnd: vi.fn(),
     });
@@ -147,6 +112,7 @@ describe("createPlayback", () => {
       steps: () => steps,
       ready: () => Promise.resolve(),
       closing: () => undefined,
+      onLead: vi.fn(),
       onStart,
       onEnd: vi.fn(),
     });
@@ -251,56 +217,5 @@ describe("createPlayback", () => {
 
     await vi.waitFor(() => expect(onEnd).toHaveBeenCalledWith(new Error(noLocalVoice)));
     expect(spoken).toEqual(["one"]);
-  });
-});
-
-describe("createPlayback ready", () => {
-  function setupReady() {
-    const fake = controlledSpeaker();
-    let release = () => {};
-    const ready = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const started: { step: number; segment: number }[] = [];
-    const playback = createPlayback(fake.speaker, {
-      steps: () => steps,
-      ready: () => ready,
-      closing: () => undefined,
-      onStart: (position) => started.push(position),
-      onEnd: vi.fn(),
-    });
-    return { ...fake, started, playback, release };
-  }
-
-  it("stop while waiting gives the segment it was asked to play", async () => {
-    const { playback } = setupReady();
-
-    playback.play({ step: 1, segment: 0 });
-
-    expect(playback.stop()).toEqual({ step: 1, segment: 0 });
-  });
-
-  it("waits until ready before starting the first segment", async () => {
-    const { playback, spoken, started, release } = setupReady();
-
-    playback.play({ step: 0, segment: 0 });
-    await new Promise((resolve) => setTimeout(resolve, 20));
-
-    expect(spoken).toEqual([]);
-    expect(started).toEqual([]);
-    release();
-    await vi.waitFor(() => expect(spoken).toEqual(["one"]));
-    expect(started).toEqual([{ step: 0, segment: 0 }]);
-  });
-
-  it("speaks nothing when stopped while waiting", async () => {
-    const { playback, spoken, release } = setupReady();
-    playback.play({ step: 0, segment: 0 });
-
-    playback.stop();
-    release();
-    await new Promise((resolve) => setTimeout(resolve, 20));
-
-    expect(spoken).toEqual([]);
   });
 });

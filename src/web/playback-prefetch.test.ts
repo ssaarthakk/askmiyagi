@@ -30,6 +30,7 @@ describe("playback prefetch", () => {
       steps: () => steps,
       ready: () => Promise.resolve(),
       closing: () => "What does A return?",
+      onLead: vi.fn(),
       onStart: vi.fn(),
       onEnd: vi.fn(),
     });

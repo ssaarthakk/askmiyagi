@@ -1,4 +1,5 @@
 import { ackPhrases } from "../shared/phrases.ts";
+import { createModelEngine, type ModelEngine } from "./model-download.ts";
 
 export type Speaker = {
   speak(text: string, signal: AbortSignal, onStart?: () => void): Promise<void>;
@@ -7,6 +8,9 @@ export type Speaker = {
 
 export const noLocalVoice = "No local voice found; showing text";
 const elevenLabsFailed = "ElevenLabs failed, using the browser voice";
+const kokoroFailed = "Local voice failed, using the browser voice";
+const kokoroLoadFailed = "Local voice failed to load, using the browser voice";
+const kokoroReady = "Local voice ready";
 
 const voicesWaitMs = 1000;
 
@@ -106,29 +110,33 @@ async function fetchSpeech(token: string, text: string, signal?: AbortSignal) {
   return response.blob();
 }
 
-export function elevenLabsSpeaker(token: string, fallback: Speaker, onFallback: () => void) {
+function audioSpeaker(
+  load: (text: string, signal?: AbortSignal) => Promise<Blob>,
+  fallback: Speaker,
+  onFallback: () => void,
+) {
   const preloaded = new Map<string, Promise<Blob>>();
   const upcoming = new Map<string, Promise<Blob>>();
-  function fetchInto(store: Map<string, Promise<Blob>>, text: string) {
-    const audio = fetchSpeech(token, text);
+  function loadInto(store: Map<string, Promise<Blob>>, text: string) {
+    const audio = load(text);
     store.set(text, audio);
     audio.catch(() => store.delete(text));
   }
   return {
     preload(texts: string[]) {
-      for (const text of texts) fetchInto(preloaded, text);
+      for (const text of texts) loadInto(preloaded, text);
     },
     prefetch(text: string) {
       if (preloaded.has(text) || upcoming.has(text)) return;
       upcoming.clear();
-      fetchInto(upcoming, text);
+      loadInto(upcoming, text);
     },
     async speak(text: string, signal: AbortSignal, onStart?: () => void) {
       let audio: Blob | undefined;
       try {
         const pending = preloaded.get(text) ?? upcoming.get(text);
         upcoming.delete(text);
-        audio = await (pending ? untilAborted(pending, signal) : fetchSpeech(token, text, signal));
+        audio = await (pending ? untilAborted(pending, signal) : load(text, signal));
       } catch {
         if (signal.aborted) return;
         onFallback();
@@ -141,8 +149,47 @@ export function elevenLabsSpeaker(token: string, fallback: Speaker, onFallback: 
   };
 }
 
+export function elevenLabsSpeaker(token: string, fallback: Speaker, onFallback: () => void) {
+  return audioSpeaker((text, signal) => fetchSpeech(token, text, signal), fallback, onFallback);
+}
+
+export function kokoroSpeaker(
+  engine: ModelEngine<string, Blob>,
+  fallback: Speaker,
+  notify: (text: string) => void,
+): Speaker {
+  const local = audioSpeaker(
+    (text) => engine.run(text),
+    fallback,
+    () => notify(kokoroFailed),
+  );
+  let loaded = false;
+  engine.ready.then(
+    () => {
+      loaded = true;
+      local.preload(ackPhrases);
+      notify(kokoroReady);
+    },
+    () => notify(kokoroLoadFailed),
+  );
+  return {
+    prefetch(text) {
+      if (loaded) local.prefetch(text);
+    },
+    speak(text, signal, onStart) {
+      return (loaded ? local : fallback).speak(text, signal, onStart);
+    },
+  };
+}
+
 export function chooseSpeaker(voice: string, token: string, notify: (text: string) => void) {
   const browser = browserSpeaker(speechSynthesis);
+  if (voice === "kokoro") {
+    const worker = new Worker(new URL("./kokoro-worker.ts", import.meta.url), { type: "module" });
+    const onProgress = (percent: number) => notify(`Downloading the local voice: ${percent}%`);
+    const engine = createModelEngine<string, Blob>(worker, onProgress, "The local voice stopped");
+    return kokoroSpeaker(engine, browser, notify);
+  }
   if (voice !== "elevenlabs") return browser;
   const elevenLabs = elevenLabsSpeaker(token, browser, () => notify(elevenLabsFailed));
   elevenLabs.preload(ackPhrases);

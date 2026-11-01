@@ -27,14 +27,12 @@ export function createLocalTranscriber(
   let notify: (text: string) => void = () => {};
   return async (recording: Blob, notifyCaller: (text: string) => void) => {
     notify = notifyCaller;
-    engine ??= start((percent) => notify(`Downloading the speech model: ${percent}%`));
-    try {
-      await engine.ready;
-    } catch (error) {
-      engine = undefined;
-      throw error;
+    if (!engine || engine.stopped) {
+      engine = start((percent) => notify(`Downloading the speech model: ${percent}%`));
     }
+    const current = engine;
+    await current.ready;
     const samples = await decode(recording);
-    return engine.run(samples, [samples.buffer]);
+    return current.run(samples, [samples.buffer]);
   };
 }

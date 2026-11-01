@@ -116,27 +116,37 @@ function audioSpeaker(
   onFallback: () => void,
 ) {
   const preloaded = new Map<string, Promise<Blob>>();
-  const upcoming = new Map<string, Promise<Blob>>();
-  function loadInto(store: Map<string, Promise<Blob>>, text: string) {
-    const audio = load(text);
-    store.set(text, audio);
-    audio.catch(() => store.delete(text));
+  let upcoming: { text: string; audio: Promise<Blob>; cancel: AbortController } | undefined;
+  function dropUpcoming() {
+    upcoming?.cancel.abort();
+    upcoming = undefined;
   }
   return {
     preload(texts: string[]) {
-      for (const text of texts) loadInto(preloaded, text);
+      for (const text of texts) {
+        const audio = load(text);
+        preloaded.set(text, audio);
+        audio.catch(() => preloaded.delete(text));
+      }
     },
     prefetch(text: string) {
-      if (preloaded.has(text) || upcoming.has(text)) return;
-      upcoming.clear();
-      loadInto(upcoming, text);
+      if (preloaded.has(text) || upcoming?.text === text) return;
+      dropUpcoming();
+      const cancel = new AbortController();
+      const audio = load(text, cancel.signal);
+      upcoming = { text, audio, cancel };
+      audio.catch(() => {
+        if (upcoming?.audio === audio) upcoming = undefined;
+      });
     },
     async speak(text: string, signal: AbortSignal, onStart?: () => void) {
       let audio: Blob | undefined;
       try {
-        const pending = preloaded.get(text) ?? upcoming.get(text);
-        upcoming.delete(text);
-        audio = await (pending ? untilAborted(pending, signal) : load(text, signal));
+        const next = upcoming?.text === text ? upcoming.audio : undefined;
+        if (next) upcoming = undefined;
+        else dropUpcoming();
+        const pending = preloaded.get(text) ?? next ?? load(text, signal);
+        audio = await untilAborted(pending, signal);
       } catch {
         if (signal.aborted) return;
         onFallback();
@@ -159,7 +169,7 @@ export function kokoroSpeaker(
   notify: (text: string) => void,
 ): Speaker {
   const local = audioSpeaker(
-    (text) => engine.run(text),
+    (text, signal) => engine.run(text, [], signal),
     fallback,
     () => notify(kokoroFailed),
   );
@@ -172,12 +182,28 @@ export function kokoroSpeaker(
     },
     () => notify(kokoroLoadFailed),
   );
+
+  async function speakOnceLoaded(text: string, signal: AbortSignal, onStart?: () => void) {
+    try {
+      await untilAborted(engine.ready, signal);
+    } catch {
+      throw new Error(noLocalVoice);
+    }
+    if (!signal.aborted) await local.speak(text, signal, onStart);
+  }
+
   return {
     prefetch(text) {
       if (loaded) local.prefetch(text);
     },
-    speak(text, signal, onStart) {
-      return (loaded ? local : fallback).speak(text, signal, onStart);
+    async speak(text, signal, onStart) {
+      if (loaded) return local.speak(text, signal, onStart);
+      try {
+        await fallback.speak(text, signal, onStart);
+      } catch (error) {
+        if (!(error instanceof Error && error.message === noLocalVoice)) throw error;
+        await speakOnceLoaded(text, signal, onStart);
+      }
     },
   };
 }

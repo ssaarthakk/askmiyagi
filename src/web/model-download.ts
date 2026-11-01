@@ -31,7 +31,9 @@ export function createProgressReporter(report: (percent: number) => void) {
   };
 }
 
-export type ModelRequest<Input> = { id: number; input: Input };
+export type ModelRequest<Input> =
+  | { type: "run"; id: number; input: Input }
+  | { type: "cancel"; id: number };
 
 export type ModelReply<Result> =
   | { type: "progress"; percent: number }
@@ -42,10 +44,11 @@ export type ModelReply<Result> =
 
 export type ModelEngine<Input, Result> = {
   ready: Promise<void>;
-  run(input: Input, transfer?: Transferable[]): Promise<Result>;
+  readonly stopped: boolean;
+  run(input: Input, transfer?: Transferable[], signal?: AbortSignal): Promise<Result>;
 };
 
-type ModelWorker = Pick<Worker, "addEventListener"> & {
+type ModelWorker = Pick<Worker, "addEventListener" | "terminate"> & {
   postMessage(message: unknown, transfer: Transferable[]): void;
 };
 
@@ -54,18 +57,34 @@ export function createModelEngine<Input, Result>(
   onProgress: (percent: number) => void,
   stoppedMessage: string,
 ): ModelEngine<Input, Result> {
-  const waiting = new Map<number, { resolve(result: Result): void; reject(error: Error): void }>();
+  const waiting = new Map<
+    number,
+    { resolve(result: Result): void; reject(error: unknown): void }
+  >();
   let nextId = 0;
+  let stopped: Error | undefined;
   let loaded: { resolve(): void; reject(error: Error): void } | undefined;
   const ready = new Promise<void>((resolve, reject) => {
     loaded = { resolve, reject };
   });
 
+  function stop(error: Error) {
+    stopped = error;
+    worker.terminate();
+    loaded?.reject(error);
+    for (const request of waiting.values()) request.reject(error);
+    waiting.clear();
+  }
+
+  function send(request: ModelRequest<Input>, transfer: Transferable[] = []) {
+    worker.postMessage(request, transfer);
+  }
+
   worker.addEventListener("message", (event: MessageEvent<ModelReply<Result>>) => {
     const reply = event.data;
     if (reply.type === "progress") onProgress(reply.percent);
     else if (reply.type === "ready") loaded?.resolve();
-    else if (reply.type === "failed") loaded?.reject(new Error(reply.message));
+    else if (reply.type === "failed") stop(new Error(reply.message));
     else {
       const request = waiting.get(reply.id);
       waiting.delete(reply.id);
@@ -74,20 +93,29 @@ export function createModelEngine<Input, Result>(
     }
   });
 
-  worker.addEventListener("error", () => {
-    const stopped = new Error(stoppedMessage);
-    loaded?.reject(stopped);
-    for (const request of waiting.values()) request.reject(stopped);
-    waiting.clear();
-  });
+  worker.addEventListener("error", () => stop(new Error(stoppedMessage)));
 
   return {
     ready,
-    run(input, transfer = []) {
+    get stopped() {
+      return stopped !== undefined;
+    },
+    run(input, transfer = [], signal) {
+      if (stopped) return Promise.reject(stopped);
+      if (signal?.aborted) return Promise.reject(signal.reason);
       const id = nextId++;
       return new Promise<Result>((resolve, reject) => {
         waiting.set(id, { resolve, reject });
-        worker.postMessage({ id, input } satisfies ModelRequest<Input>, transfer);
+        send({ type: "run", id, input }, transfer);
+        signal?.addEventListener(
+          "abort",
+          () => {
+            if (!waiting.delete(id)) return;
+            send({ type: "cancel", id });
+            reject(signal.reason);
+          },
+          { once: true },
+        );
       });
     },
   };

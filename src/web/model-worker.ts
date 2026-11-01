@@ -18,7 +18,7 @@ function messageOf(error: unknown) {
 
 export function serveModel<Model, Input, Result>(
   load: (options: LoadOptions) => Promise<Model>,
-  handle: (model: Model, input: Input) => Promise<Result>,
+  handle: (model: Model, input: Input, signal: AbortSignal) => Promise<Result>,
 ) {
   if (env.backends.onnx.wasm) env.backends.onnx.wasm.wasmPaths = undefined;
   const reply = (message: ModelReply<Result>) => self.postMessage(message);
@@ -35,14 +35,25 @@ export function serveModel<Model, Input, Result>(
     (error: unknown) => reply({ type: "failed", message: messageOf(error) }),
   );
 
+  const requests = new Map<number, AbortController>();
   let queue: Promise<void> = Promise.resolve();
   self.addEventListener("message", (event: MessageEvent<ModelRequest<Input>>) => {
-    const { id, input } = event.data;
+    const request = event.data;
+    if (request.type === "cancel") {
+      requests.get(request.id)?.abort();
+      return;
+    }
+    const { id, input } = request;
+    const controller = new AbortController();
+    requests.set(id, controller);
     queue = queue.then(async () => {
       try {
-        reply({ type: "result", id, result: await handle(await model, input) });
+        if (controller.signal.aborted) return;
+        reply({ type: "result", id, result: await handle(await model, input, controller.signal) });
       } catch (error) {
         reply({ type: "error", id, message: messageOf(error) });
+      } finally {
+        requests.delete(id);
       }
     });
   });

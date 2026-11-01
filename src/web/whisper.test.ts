@@ -7,7 +7,7 @@ describe("createLocalTranscriber", () => {
   const decode = vi.fn(async () => samples);
 
   function engineThatSays(text: string) {
-    return { ready: Promise.resolve(), run: vi.fn(async () => text) };
+    return { ready: Promise.resolve(), stopped: false, run: vi.fn(async () => text) };
   }
 
   it("decodes the recording, transcribes it and loads the model only once", async () => {
@@ -35,11 +35,28 @@ describe("createLocalTranscriber", () => {
   });
 
   it("starts a fresh load on the next recording after the model failed to load", async () => {
-    const broken = { ready: Promise.reject(new Error("no network")), run: vi.fn() };
+    const broken = { ready: Promise.reject(new Error("no network")), stopped: true, run: vi.fn() };
     const start = vi.fn().mockReturnValueOnce(broken).mockReturnValue(engineThatSays("hello"));
     const transcribe = createLocalTranscriber(start, decode);
 
     await expect(transcribe(recording, vi.fn())).rejects.toThrow("no network");
     await expect(transcribe(recording, vi.fn())).resolves.toBe("hello");
+  });
+
+  it("starts the model again on the next recording after its worker stopped", async () => {
+    const crashed = {
+      ready: Promise.resolve(),
+      stopped: false,
+      run: vi.fn(async () => {
+        crashed.stopped = true;
+        throw new Error("Speech-to-text stopped");
+      }),
+    };
+    const start = vi.fn().mockReturnValueOnce(crashed).mockReturnValue(engineThatSays("hello"));
+    const transcribe = createLocalTranscriber(start, decode);
+
+    await expect(transcribe(recording, vi.fn())).rejects.toThrow("Speech-to-text stopped");
+    await expect(transcribe(recording, vi.fn())).resolves.toBe("hello");
+    expect(start).toHaveBeenCalledTimes(2);
   });
 });

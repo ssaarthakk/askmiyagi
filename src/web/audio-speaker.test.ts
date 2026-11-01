@@ -1,38 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ackPhrases } from "../shared/phrases.ts";
-import { elevenLabsSpeaker, kokoroSpeaker, type Speaker } from "./speaker.ts";
-
-function stubAudio() {
-  const played: Blob[] = [];
-  vi.stubGlobal("URL", {
-    createObjectURL: (audio: Blob) => {
-      played.push(audio);
-      return "blob:audio";
-    },
-    revokeObjectURL: vi.fn(),
-  });
-  vi.stubGlobal(
-    "Audio",
-    class {
-      onended: (() => void) | null = null;
-      play = () => {
-        setTimeout(() => this.onended?.());
-        return Promise.resolve();
-      };
-    },
-  );
-  return played;
-}
-
-function fallbackSpeaker() {
-  const spoken: string[] = [];
-  const speaker: Speaker = {
-    speak: async (text) => {
-      spoken.push(text);
-    },
-  };
-  return { speaker, spoken };
-}
+import { elevenLabsSpeaker } from "./speaker.ts";
+import { fallbackSpeaker, stubAudio } from "./speaker-helpers.ts";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -248,56 +216,5 @@ describe("elevenLabsSpeaker", () => {
     expect(fetchStub).toHaveBeenCalledTimes(2);
     expect(played).toHaveLength(1);
     expect(onFallback).not.toHaveBeenCalled();
-  });
-});
-
-describe("kokoroSpeaker", () => {
-  const signal = new AbortController().signal;
-
-  function fakeEngine(ready: Promise<void>) {
-    const run = vi.fn(async (text: string) => new Blob([`wav:${text}`]));
-    return { ready, run };
-  }
-
-  it("speaks with the fallback voice while the model downloads", async () => {
-    const engine = fakeEngine(new Promise(() => {}));
-    const { speaker, spoken } = fallbackSpeaker();
-    const notify = vi.fn();
-
-    await kokoroSpeaker(engine, speaker, notify).speak("hello", signal);
-
-    expect(spoken).toEqual(["hello"]);
-    expect(engine.run).not.toHaveBeenCalled();
-    expect(notify).not.toHaveBeenCalled();
-  });
-
-  it("plays the local voice once the model is ready, with the acknowledgement phrases made at once", async () => {
-    const engine = fakeEngine(Promise.resolve());
-    const played = stubAudio();
-    const { speaker, spoken } = fallbackSpeaker();
-    const notify = vi.fn();
-    const voice = kokoroSpeaker(engine, speaker, notify);
-    await vi.waitFor(() => expect(notify).toHaveBeenCalledWith("Local voice ready"));
-
-    await voice.speak("hello", signal);
-
-    expect(engine.run.mock.calls.map(([text]) => text)).toEqual([...ackPhrases, "hello"]);
-    expect(await played[0]?.text()).toBe("wav:hello");
-    expect(spoken).toEqual([]);
-  });
-
-  it("stays on the fallback voice with a notice when the model cannot load", async () => {
-    const engine = fakeEngine(Promise.reject(new Error("no network")));
-    const { speaker, spoken } = fallbackSpeaker();
-    const notify = vi.fn();
-    const voice = kokoroSpeaker(engine, speaker, notify);
-    await vi.waitFor(() =>
-      expect(notify).toHaveBeenCalledWith("Local voice failed to load, using the browser voice"),
-    );
-
-    await voice.speak("hello", signal);
-
-    expect(spoken).toEqual(["hello"]);
-    expect(engine.run).not.toHaveBeenCalled();
   });
 });

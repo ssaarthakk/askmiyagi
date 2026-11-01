@@ -94,34 +94,23 @@ describe("answering a check question", () => {
     const { request } = await buildRequest(root, "It returns one.");
     expect(request.system).toMatch(/first narration part of the first step/i);
   });
-
-  it("puts the earlier conversation into the request", async () => {
-    const root = await createRepo({ "a.ts": "export const a = 1;\n" });
-    const { request } = await buildRequest(
-      root,
-      "It returns one.",
-      undefined,
-      undefined,
-      "Earlier in this conversation: ...",
-    );
-    expect(request.conversation).toBe("Earlier in this conversation: ...");
-  });
 });
 
 describe("request", () => {
   it("is a valid LLMRequest carrying the question and the root", async () => {
     const root = await createRepo({ "a.ts": "export const a = 1;\n" });
     const { request } = await buildRequest(root, "What is a?");
-    expect(llmRequestSchema.safeParse(request).success).toBe(true);
+    expect(
+      llmRequestSchema.omit({ conversation: true, history: true }).safeParse(request).success,
+    ).toBe(true);
     expect(request.question).toBe("What is a?");
     expect(request.root).toBe(root);
-    expect(request.conversation).toBe("");
   });
 
   it("renders system, context, conversation and question in that order", async () => {
     const root = await createRepo({ "a.ts": "export const a = 1;\n" });
     const { request } = await buildRequest(root, "What is a?");
-    const rendered = renderPrompt({ ...request, conversation: "EARLIER TURNS" });
+    const rendered = renderPrompt({ ...request, conversation: "EARLIER TURNS", history: [] });
     const positions = [request.system, request.context, "EARLIER TURNS", "What is a?"].map((part) =>
       rendered.indexOf(part),
     );
@@ -200,6 +189,15 @@ describe("mode choice", () => {
     const tokens = Math.ceil(request.context.length / 4);
     expect((await buildRequest(root, "q", tokens)).mode).toBe("brute-force");
     expect((await buildRequest(root, "q", tokens - 1)).mode).toBe("agentic");
+  });
+
+  it("counts the conversation towards the threshold, so repo plus conversation must fit", async () => {
+    const root = await createRepo({ "a.ts": "x\n" });
+    const { request } = await buildRequest(root, "q");
+    const tokens = 100;
+    const room = tokens * 4 - request.context.length;
+    expect((await buildRequest(root, "q", tokens, undefined, room)).mode).toBe("brute-force");
+    expect((await buildRequest(root, "q", tokens, undefined, room + 1)).mode).toBe("agentic");
   });
 
   it("defaults the threshold to 60,000 tokens", async () => {

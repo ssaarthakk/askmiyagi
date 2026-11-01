@@ -51,8 +51,8 @@ function failure(message: string): ProviderEvent {
   return { type: "error", message, retryable: false };
 }
 
-function modelFailure(detail: string): ProviderEvent {
-  return { type: "error", message: lostThread, detail, retryable: false };
+function modelFailure(detail: string, invalidStep?: boolean): ProviderEvent {
+  return { type: "error", message: lostThread, detail, retryable: false, invalidStep };
 }
 
 function withoutBadAnchors(json: object) {
@@ -92,10 +92,10 @@ function parseModelLine(line: string): ProviderEvent {
     stepSchema,
     typeof json === "object" && json !== null ? withoutBadAnchors(json) : json,
   );
-  return parsed.ok ? { type: "step", step: parsed.value } : modelFailure(parsed.error);
+  return parsed.ok ? { type: "step", step: parsed.value } : modelFailure(parsed.error, true);
 }
 
-function* modelLineEvents(text: string) {
+export function* modelLineEvents(text: string) {
   const line = text.trim();
   if (line !== "") yield parseModelLine(line);
 }

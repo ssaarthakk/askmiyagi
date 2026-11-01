@@ -14,9 +14,12 @@ const cliArgsSchema = z.object({
     .optional(),
   noOpen: z.boolean(),
   provider: z
-    .enum(["fake"], { error: (issue) => `Unknown provider: ${String(issue.input)}` })
-    .optional(),
+    .enum(["claude-headless", "claude-api", "gemini", "fake"], {
+      error: (issue) => `Unknown provider: ${String(issue.input)}`,
+    })
+    .default("claude-headless"),
   recording: z.string().min(1).optional(),
+  app: z.string().min(1, "--app must not be empty").optional(),
   voice: z
     .enum(["browser", "elevenlabs"], { error: (issue) => `Unknown voice: ${String(issue.input)}` })
     .optional(),
@@ -30,6 +33,11 @@ const cliArgsSchema = z.object({
     .regex(/^[1-9]\d*$/, "--brute-force-tokens must be a positive integer")
     .transform(Number)
     .optional(),
+  contextTokens: z
+    .string()
+    .regex(/^[1-9]\d*$/, "--context-tokens must be a positive integer")
+    .transform(Number)
+    .optional(),
 });
 
 export function parseCliArgs(args: string[]) {
@@ -40,9 +48,11 @@ export function parseCliArgs(args: string[]) {
       "no-open": { type: "boolean" },
       provider: { type: "string" },
       recording: { type: "string" },
+      app: { type: "string" },
       voice: { type: "string" },
       "voice-id": { type: "string" },
       "brute-force-tokens": { type: "string" },
+      "context-tokens": { type: "string" },
       model: { type: "string" },
     },
     allowPositionals: true,
@@ -54,9 +64,11 @@ export function parseCliArgs(args: string[]) {
     noOpen: parsed.values["no-open"] ?? false,
     provider: parsed.values.provider,
     recording: parsed.values.recording,
+    app: parsed.values.app,
     voice: parsed.values.voice,
     voiceId: parsed.values["voice-id"],
     bruteForceTokens: parsed.values["brute-force-tokens"],
+    contextTokens: parsed.values["context-tokens"],
     model: parsed.values.model,
   });
   if (!validated.success) {
@@ -77,9 +89,11 @@ export function parseCliArgs(args: string[]) {
     noOpen: validated.data.noOpen,
     provider,
     recording,
+    app: validated.data.app,
     voice: validated.data.voice ?? "browser",
     voiceId: validated.data.voiceId ?? defaultVoiceId,
     bruteForceTokens: validated.data.bruteForceTokens,
+    contextTokens: validated.data.contextTokens,
     model: validated.data.model,
   };
 }
@@ -88,12 +102,5 @@ export function speechOptions(options: ReturnType<typeof parseCliArgs>, env: Nod
   return {
     apiKey: options.voice === "elevenlabs" ? env.ELEVENLABS_API_KEY : undefined,
     voiceId: options.voiceId,
-  };
-}
-
-export function callLogOptions(options: ReturnType<typeof parseCliArgs>) {
-  return {
-    providerName: options.provider ?? "claude-headless",
-    logCalls: !options.isUrl,
   };
 }

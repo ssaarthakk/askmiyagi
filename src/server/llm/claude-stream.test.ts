@@ -66,7 +66,12 @@ describe("parseClaudeStream", () => {
     ]);
     expect(events[0]).toEqual({ type: "text", text: "Here is the tour:" });
     const stepError = events[1];
-    expect(stepError).toMatchObject({ type: "error", message: lostThread, retryable: false });
+    expect(stepError).toMatchObject({
+      type: "error",
+      message: lostThread,
+      retryable: false,
+      invalidStep: true,
+    });
     if (stepError?.type === "error") {
       expect(stepError.detail).toContain("title");
       expect(stepError.detail).toContain("anchors");
@@ -76,6 +81,7 @@ describe("parseClaudeStream", () => {
       message: lostThread,
       detail: expect.stringContaining("checkQuestion"),
     });
+    expect(events[3]).toMatchObject({ invalidStep: undefined });
   });
 
   it("keeps a step with one bad anchor, dropping the anchor and repointing the narration", async () => {

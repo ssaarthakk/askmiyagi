@@ -1,10 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { root, saveStep, scripted, terminal, usage } from "../../../test/ask-helpers.ts";
+import {
+  attempts,
+  invalidStep,
+  root,
+  saveStep,
+  scripted,
+  terminal,
+  usage,
+} from "../../../test/ask-helpers.ts";
 import { collect } from "../../../test/fake-claude.ts";
 import type { CallRecord } from "../../shared/call-log.ts";
+import type { ProviderEvent } from "../../shared/events.ts";
+import type { LLMRequest } from "../../shared/llm-request.ts";
 import { askEvents } from "./ask.ts";
 import { createConversation } from "./conversation.ts";
-import type { LLMProvider } from "./provider.ts";
+import { type LLMProvider, lostThread } from "./provider.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -70,6 +80,69 @@ describe("askEvents call log", () => {
         outcome: "done",
       },
     ]);
+  });
+
+  it("adds the usage of an attempt with an invalid step to the retry, and passes it on as spent", async () => {
+    const seen: LLMRequest[] = [];
+    const records = await logged(
+      attempts(
+        [
+          [{ type: "step", step: saveStep }, { ...invalidStep, usage: fullUsage } as ProviderEvent],
+          [{ type: "done", usage: fullUsage }],
+        ],
+        seen,
+      ),
+    );
+    expect(seen[0]?.spent).toBeUndefined();
+    expect(seen[1]?.spent).toEqual(fullUsage);
+    expect(records[0]).toMatchObject({
+      inputTokens: 200,
+      outputTokens: 40,
+      cacheReadTokens: 60,
+      cacheWriteTokens: 80,
+      costUsd: 0.1,
+      outcome: "done",
+    });
+  });
+
+  it("adds the usage on the retry's own invalid step error, which ends the ask", async () => {
+    terminal();
+    const records = await logged(scripted([{ ...invalidStep, usage: fullUsage } as ProviderEvent]));
+    expect(records[0]).toMatchObject({
+      inputTokens: 200,
+      outputTokens: 40,
+      cacheReadTokens: 60,
+      cacheWriteTokens: 80,
+      costUsd: 0.1,
+      outcome: "error",
+    });
+  });
+
+  it("logs the usage on a model error that is not an invalid step", async () => {
+    terminal();
+    const records = await logged(
+      scripted([{ type: "error", message: lostThread, retryable: false, usage: fullUsage }]),
+    );
+    expect(records[0]).toMatchObject({ inputTokens: 100, costUsd: 0.05, outcome: "error" });
+  });
+
+  it("passes the ask's start time to the retry, so the time of the first attempt counts", async () => {
+    const seen: LLMRequest[] = [];
+    let firstAttemptAt = 0;
+    const scripts: ProviderEvent[][] = [[invalidStep], [{ type: "done", usage }]];
+    const before = Date.now();
+    await logged({
+      async *ask(request) {
+        seen.push(request);
+        if (seen.length === 1) {
+          firstAttemptAt = Date.now();
+          await new Promise((resolve) => setTimeout(resolve, 30));
+        }
+        yield* scripts[seen.length - 1] ?? [];
+      },
+    });
+    expect(seen[1]?.startedAt).toBeGreaterThanOrEqual(before);
+    expect(seen[1]?.startedAt).toBeLessThanOrEqual(firstAttemptAt);
   });
 
   it("logs the agentic mode when the repo is too big to send whole", async () => {

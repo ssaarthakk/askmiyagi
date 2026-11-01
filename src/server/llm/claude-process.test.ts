@@ -11,6 +11,7 @@ import {
   waitUntilDead,
 } from "../../../test/fake-claude.ts";
 import { tempDir } from "../../../test/temp-dir.ts";
+import { scopeToApp } from "../files/file-filter.ts";
 import { ClaudeProcessError, claudeArgs, runClaude, spawnCommand } from "./claude-process.ts";
 import { renderPrompt } from "./prompt.ts";
 
@@ -119,6 +120,22 @@ describe("runClaude", () => {
         },
       },
     });
+  });
+
+  it("passes the chosen monorepo app to the MCP server", async () => {
+    const { env, work } = await fakeEnv("ok");
+    scopeToApp("/scoped/repo", "apps/web");
+    await collect(
+      runClaude({ ...request, root: "/scoped/repo" }, new AbortController().signal, { env }),
+    );
+    const record = await recorded(work);
+    expect(record.mcpConfig.mcpServers.miyagi.args).toEqual([
+      resolve(import.meta.dirname, "../cli.ts"),
+      "mcp",
+      "/scoped/repo",
+      "--app",
+      "apps/web",
+    ]);
   });
 
   it("runs in an empty temp folder that is removed afterwards", async () => {

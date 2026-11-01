@@ -26,7 +26,39 @@ const excludedFiles = new Set([
   "Gemfile.lock",
   "go.sum",
 ]);
+const configPatterns = [
+  /^tsconfig.*\.json$/,
+  /^vite\.config\./,
+  /^next\.config\./,
+  /^biome\.json$/,
+  /^eslint\.config\./,
+  /^\.eslintrc/,
+  /^Dockerfile$/,
+  /^docker-compose\./,
+  /^compose\./,
+  /^\.env\.example$/,
+];
 const maximumFileSize = 1024 * 1024;
+const appFolders = new Map<string, string>();
+
+export function isConfigFile(name: string) {
+  return configPatterns.some((pattern) => pattern.test(name));
+}
+
+export function scopeToApp(root: string, app: string) {
+  appFolders.set(root, app);
+}
+
+export function appFolder(root: string) {
+  return appFolders.get(root);
+}
+
+function isInAppScope(root: string, relPath: string, isDirectory: boolean) {
+  const app = appFolders.get(root);
+  if (app === undefined || relPath === app || relPath.startsWith(`${app}/`)) return true;
+  if (isDirectory) return app.startsWith(`${relPath}/`);
+  return !relPath.includes("/") && isConfigFile(relPath);
+}
 
 function normalizeRelativePath(relPath: string) {
   if (isAbsolute(relPath) || win32.isAbsolute(relPath) || /^[a-z]:/i.test(relPath)) return null;
@@ -121,6 +153,7 @@ async function isGeneratedByAttributes(root: string, relPath: string) {
 }
 
 async function isVisiblePath(root: string, relPath: string, isDirectory: boolean) {
+  if (!isInAppScope(root, relPath, isDirectory)) return false;
   if (isExcludedName(relPath, isDirectory)) return false;
   if (await matchesGitignore(root, relPath, isDirectory)) return false;
 

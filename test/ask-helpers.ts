@@ -1,6 +1,8 @@
 import { resolve } from "node:path";
 import { vi } from "vitest";
-import type { LLMProvider } from "../src/server/llm/provider.ts";
+import { askEvents } from "../src/server/llm/ask.ts";
+import { createConversation } from "../src/server/llm/conversation.ts";
+import { type LLMProvider, lostThread } from "../src/server/llm/provider.ts";
 import type { ProviderEvent } from "../src/shared/events.ts";
 import type { LLMRequest } from "../src/shared/llm-request.ts";
 import type { Step } from "../src/shared/tour.ts";
@@ -33,4 +35,45 @@ export function scripted(events: ProviderEvent[], seen: LLMRequest[] = []): LLMP
       yield* events;
     },
   };
+}
+
+export const uploadStep: Step = {
+  title: "Uploading",
+  anchors: [
+    { file: "src/upload.ts", symbol: "uploadClip" },
+    { file: "src/missing.ts", symbol: "nothing" },
+  ],
+  narration: [{ text: "Then the clip is uploaded." }],
+};
+
+export const invalidStep: ProviderEvent = {
+  type: "error",
+  message: lostThread,
+  detail: "title: must not be empty",
+  retryable: false,
+  invalidStep: true,
+};
+
+export function attempts(scripts: ProviderEvent[][], seen: LLMRequest[] = []): LLMProvider {
+  return {
+    async *ask(request) {
+      seen.push(request);
+      yield* scripts[seen.length - 1] ?? [];
+    },
+  };
+}
+
+export function stream(
+  provider: LLMProvider,
+  signal = new AbortController().signal,
+  conversation = createConversation(),
+) {
+  return askEvents({
+    root,
+    provider,
+    question: "How are clips saved?",
+    ack: "One moment.",
+    signal,
+    conversation,
+  });
 }

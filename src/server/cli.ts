@@ -5,25 +5,45 @@ import { realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { resolve } from "node:path";
+import { createInterface } from "node:readline/promises";
 import { pathToFileURL } from "node:url";
-import { callLogOptions, parseCliArgs, speechOptions } from "./cli-args.ts";
+import { parseCliArgs, speechOptions } from "./cli-args.ts";
+import { scopeToApp } from "./files/file-filter.ts";
+import { watchFolder } from "./files/watcher.ts";
 import { createAskHandler } from "./http/ask-route.ts";
+import { createEventsHandler } from "./http/events-route.ts";
 import { createFileHandler } from "./http/file-route.ts";
 import { serveRequest } from "./http/serve.ts";
 import { createSpeechHandler } from "./http/speech-route.ts";
 import { createTranscribeHandler } from "./http/transcribe-route.ts";
-import { claudeHeadless } from "./llm/claude-headless.ts";
-import { loadFakeProvider } from "./llm/fake-provider.ts";
+import { chooseProvider } from "./llm/choose-provider.ts";
+import { logError } from "./log.ts";
 import { runMcpCommand } from "./mcp/server.ts";
 import { openGitClone } from "./source/git-clone.ts";
 import { type CodeSource, openLocalFolder } from "./source/local-folder.ts";
+import { chooseApp, findApps } from "./source/monorepo.ts";
 import { projectName } from "./source/project-name.ts";
+import { createTourWatch } from "./tour-watch.ts";
 
 export function closeServer(server: Server, source: CodeSource) {
   return new Promise<void>((resolveClose) => {
     server.close(() => resolveClose());
     server.closeAllConnections();
   }).then(() => source.dispose());
+}
+
+function askOnTerminal(interrupted: AbortController) {
+  return async (question: string) => {
+    const lines = createInterface({ input: process.stdin, output: process.stderr });
+    lines.once("SIGINT", () => interrupted.abort());
+    try {
+      return await lines.question(question, { signal: interrupted.signal });
+    } catch {
+      return "";
+    } finally {
+      lines.close();
+    }
+  };
 }
 
 function openBrowser(url: string) {
@@ -73,6 +93,13 @@ async function runCli() {
     return;
   }
 
+  const provider = await chooseProvider(options);
+  if (!provider.ok) {
+    process.stderr.write(`${provider.error}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
   const interrupted = new AbortController();
   process.on("SIGINT", () => interrupted.abort());
   process.on("SIGTERM", () => interrupted.abort());
@@ -86,23 +113,30 @@ async function runCli() {
     return;
   }
 
-  let provider = claudeHeadless(options.model);
-  if (options.provider === "fake" && options.recording) {
-    const fake = await loadFakeProvider(resolve(options.recording));
-    if (!fake.ok) {
-      process.stderr.write(`${fake.error}
-`);
-      await source.value.dispose();
-      process.exitCode = 1;
-      return;
-    }
-    provider = fake.value;
+  const app = await chooseApp({
+    apps: await findApps(source.value.root),
+    requested: options.app,
+    ask: process.stdin.isTTY ? askOnTerminal(interrupted) : undefined,
+  });
+  if (!app.ok) {
+    await source.value.dispose();
+    if (interrupted.signal.aborted) return;
+    process.stderr.write(`${app.error}\n`);
+    process.exitCode = 1;
+    return;
   }
+  if (app.value) scopeToApp(source.value.root, app.value);
+
+  const events = createEventsHandler();
+  const tourWatch = createTourWatch({ root: source.value.root, publish: events.publish });
   const handleAsk = createAskHandler({
     root: source.value.root,
-    provider,
-    ...callLogOptions(options),
+    provider: provider.value,
+    providerName: options.provider,
+    writeTutorFiles: !options.isUrl,
     bruteForceTokens: options.bruteForceTokens,
+    contextTokens: options.contextTokens,
+    tourWatch,
   });
 
   const handleFile = createFileHandler(source.value.root);
@@ -150,6 +184,7 @@ async function runCli() {
       handleFile,
       handleSpeech,
       handleTranscribe,
+      events,
     ).catch((error: unknown) => {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       if (!response.headersSent) response.writeHead(500);
@@ -181,11 +216,19 @@ async function runCli() {
   }
   serverPort = address.port;
 
+  const watcher = watchFolder(source.value.root, (paths) => {
+    tourWatch.changed(paths).catch((error: unknown) => {
+      logError(
+        `Could not check the tour after a code change: ${error instanceof Error ? error.message : error}`,
+      );
+    });
+  });
   const url = `http://127.0.0.1:${address.port}/`;
   let closing = false;
   const shutdown = () => {
     if (closing) return;
     closing = true;
+    watcher.close();
     void closeServer(server, source.value).then(
       () => {
         process.exitCode = 0;

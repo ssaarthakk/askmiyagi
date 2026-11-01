@@ -1,9 +1,7 @@
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
-import { claudeHeadless } from "../llm/claude-headless.ts";
-import { loadFakeProvider } from "../llm/fake-provider.ts";
-import type { LLMProvider } from "../llm/provider.ts";
+import { chooseProvider } from "../llm/choose-provider.ts";
 import { formatCalibration, humanGradesSchema } from "./calibrate.ts";
 import { readJsonFile } from "./read-json.ts";
 import { readResult, runSuite, writeResult } from "./runner.ts";
@@ -69,13 +67,6 @@ export function parseEvalArgs(args: string[]) {
   return { kind: "run" as const, ...parsed.data };
 }
 
-async function chooseProvider(name: "fake" | "claude-headless"): Promise<LLMProvider> {
-  if (name === "claude-headless") return claudeHeadless();
-  const fake = await loadFakeProvider(fakeRecording);
-  if (!fake.ok) throw new Error(fake.error);
-  return fake.value;
-}
-
 export async function runEval(
   args: string[],
   resultsFolder: string,
@@ -101,10 +92,15 @@ export async function runEval(
 
   const evalSuite = await loadEvalSuite(resolve(projectRoot, "evals", `${parsed.suite}.json`));
   if (!evalSuite.ok) throw new Error(evalSuite.error);
+  const provider = await chooseProvider({
+    provider: parsed.provider,
+    recording: fakeRecording,
+  });
+  if (!provider.ok) throw new Error(provider.error);
   const result = await runSuite({
     suiteName: parsed.suite,
     evalSuite: evalSuite.value,
-    provider: await chooseProvider(parsed.provider),
+    provider: provider.value,
     providerName: parsed.provider,
     runs: parsed.runs,
     judge: parsed.judge,

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { closeServer } from "../src/server/cli.ts";
-import { callLogOptions, parseCliArgs, speechOptions } from "../src/server/cli-args.ts";
+import { parseCliArgs, speechOptions } from "../src/server/cli-args.ts";
 import { builtCli, root, sourceCli, startCli, waitForExit, waitForLine } from "./cli-harness.ts";
 
 describe("CLI entry", () => {
@@ -229,23 +229,13 @@ describe("voice options", () => {
   });
 });
 
-describe("call log options", () => {
-  it("logs calls for a local folder under the default provider name", () => {
-    expect(callLogOptions(parseCliArgs(["some/folder"]))).toEqual({
-      providerName: "claude-headless",
-      logCalls: true,
-    });
+describe("app option", () => {
+  it("has no app by default and takes a folder from --app", () => {
+    expect(parseCliArgs([]).app).toBeUndefined();
+    expect(parseCliArgs(["--app", "apps/web"]).app).toBe("apps/web");
   });
 
-  it("logs the fake provider by its name", () => {
-    expect(
-      callLogOptions(parseCliArgs(["--provider", "fake", "--recording", "tour.jsonl"])),
-    ).toMatchObject({ providerName: "fake" });
-  });
-
-  it("writes no call log for a cloned GitHub URL", () => {
-    expect(callLogOptions(parseCliArgs(["https://github.com/owner/repo"]))).toMatchObject({
-      logCalls: false,
-    });
+  it("rejects an empty --app", () => {
+    expect(() => parseCliArgs(["--app", ""])).toThrow(/--app/);
   });
 });

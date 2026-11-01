@@ -8,6 +8,7 @@ export const request: LLMRequest = {
   system: "You are Miyagi.",
   context: "=== a.ts ===\n1: export const a = 1;",
   conversation: "",
+  history: [],
   question: "What is a?",
   root: "/some/repo",
   tools: true,

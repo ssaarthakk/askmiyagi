@@ -1,6 +1,7 @@
 import type { Selection } from "../shared/anchor.ts";
 import { type AskEvent, askEventSchema } from "../shared/events.ts";
 import { responseError } from "./response-error.ts";
+import { readEvents } from "./sse.ts";
 
 export async function ask(
   question: string,
@@ -14,18 +15,5 @@ export async function ask(
     body: JSON.stringify({ question, selection }),
   });
   if (!response.ok || !response.body) throw await responseError(response, "Ask");
-
-  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-  let buffered = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) return;
-    buffered += value;
-    const blocks = buffered.split("\n\n");
-    buffered = blocks.pop() ?? "";
-    for (const block of blocks) {
-      const data = block.split("\n").find((line) => line.startsWith("data: "));
-      if (data) onEvent(askEventSchema.parse(JSON.parse(data.slice("data: ".length))));
-    }
-  }
+  await readEvents(response.body, askEventSchema, onEvent);
 }

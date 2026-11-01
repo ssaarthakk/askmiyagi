@@ -8,7 +8,7 @@ import { redact } from "../files/redact.ts";
 
 const defaultBruteForceTokens = 60_000;
 
-const charactersPerToken = 4;
+export const charactersPerToken = 4;
 
 const systemPrompt = `You are Miyagi, a voice tutor that explains a codebase out loud while the learner's screen highlights the code you talk about.
 
@@ -68,14 +68,16 @@ export async function buildRequest(
   question: string,
   bruteForceTokens = defaultBruteForceTokens,
   selection?: Selection,
-  conversation = "",
+  conversationCharacters = 0,
 ) {
-  const wholeRepo = await bruteForceContext(root, bruteForceTokens * charactersPerToken);
+  const wholeRepo = await bruteForceContext(
+    root,
+    bruteForceTokens * charactersPerToken - conversationCharacters,
+  );
   const mode = wholeRepo === null ? ("agentic" as const) : ("brute-force" as const);
-  const request: LLMRequest = {
+  const request: Omit<LLMRequest, "conversation" | "history"> = {
     system: systemPrompt,
     context: wholeRepo ?? (await buildRepoMap(root)),
-    conversation,
     question: redact(
       selection
         ? `${question}

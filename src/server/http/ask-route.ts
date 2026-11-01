@@ -8,6 +8,8 @@ import { askEvents } from "../llm/ask.ts";
 import { createConversation } from "../llm/conversation.ts";
 import type { LLMProvider } from "../llm/provider.ts";
 import { logError } from "../log.ts";
+import { writeSessionRecord } from "../session-record.ts";
+import type { createTourWatch } from "../tour-watch.ts";
 
 const maxBodyBytes = 100_000;
 
@@ -61,12 +63,14 @@ export function createAskHandler(options: {
   root: string;
   provider: LLMProvider;
   providerName: string;
-  logCalls: boolean;
+  writeTutorFiles: boolean;
   bruteForceTokens?: number | undefined;
+  contextTokens?: number | undefined;
+  tourWatch?: ReturnType<typeof createTourWatch> | undefined;
 }) {
   let running = false;
   let asked = 0;
-  const conversation = createConversation();
+  const conversation = createConversation({ contextTokens: options.contextTokens });
 
   return async function handleAsk(request: IncomingMessage, response: ServerResponse) {
     const body = await readJsonBody(request, response, askBodySchema);
@@ -81,6 +85,7 @@ export function createAskHandler(options: {
     response.on("close", () => controller.abort());
     response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
     const ack = ackPhrases[asked++ % ackPhrases.length] ?? "";
+    options.tourWatch?.start();
     try {
       for await (const event of askEvents({
         root: options.root,
@@ -91,13 +96,17 @@ export function createAskHandler(options: {
         ack,
         signal: controller.signal,
         bruteForceTokens: options.bruteForceTokens,
-        callLog: options.logCalls
+        callLog: options.writeTutorFiles
           ? {
               provider: options.providerName,
               write: (record) => appendCallLog(options.root, record),
             }
           : undefined,
+        saveSession: options.writeTutorFiles
+          ? (session) => writeSessionRecord(options.root, session)
+          : undefined,
       })) {
+        if (event.type === "step") options.tourWatch?.addStep(event.step.anchors, event.ranges);
         response.write(`data: ${JSON.stringify(event)}\n\n`);
       }
     } finally {

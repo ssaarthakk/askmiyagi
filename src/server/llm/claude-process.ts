@@ -11,6 +11,7 @@ import { delimiter, extname, isAbsolute, join } from "node:path";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import type { LLMRequest } from "../../shared/llm-request.ts";
+import { appFolder } from "../files/file-filter.ts";
 import { renderPrompt } from "./prompt.ts";
 
 const execFileAsync = promisify(execFile);
@@ -19,6 +20,9 @@ const defaultTimeoutMs = 120_000;
 const taskkillNotFound = 128;
 export const stderrTailLength = 2000;
 const miyagiCli = join(import.meta.dirname, "..", `cli${extname(import.meta.filename)}`);
+
+export const claudeNotFound =
+  "Claude Code was not found. Install Claude Code, run `claude` once to log in, then try again.";
 
 export class ClaudeProcessError extends Error {
   retryable: boolean;
@@ -82,7 +86,7 @@ async function isUsableFile(file: string) {
   }
 }
 
-async function findClaude(env: NodeJS.ProcessEnv) {
+export async function findClaude(env: NodeJS.ProcessEnv) {
   const pathKey = Object.keys(env).find((name) => name.toUpperCase() === "PATH");
   const directories = (pathKey ? (env[pathKey] ?? "") : "")
     .split(delimiter)
@@ -200,9 +204,7 @@ export async function* runClaude(
   const env = childEnv(options.env ?? process.env);
   const claude = await findClaude(env);
   if (claude === undefined) {
-    throw new ClaudeProcessError(
-      "Claude Code was not found. Install Claude Code, run `claude` once to log in, then try again.",
-    );
+    throw new ClaudeProcessError(claudeNotFound);
   }
   if (signal.aborted) return;
 
@@ -213,9 +215,11 @@ export async function* runClaude(
     let mcpConfigPath: string | undefined;
     if (request.tools) {
       mcpConfigPath = join(directory, "mcp.json");
+      const app = appFolder(request.root);
+      const appArgs = app === undefined ? [] : ["--app", app];
       const config = {
         mcpServers: {
-          miyagi: { command: process.execPath, args: [miyagiCli, "mcp", request.root] },
+          miyagi: { command: process.execPath, args: [miyagiCli, "mcp", request.root, ...appArgs] },
         },
       };
       await writeFile(mcpConfigPath, JSON.stringify(config));

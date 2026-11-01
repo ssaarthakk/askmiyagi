@@ -39,6 +39,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `npm run eval -- --suite <name> --provider <fake|claude-headless> --runs <n>` runs an eval suite, saves the result in `evals/results/` and prints a score table; `--compare <a> <b>` prints a before/after table of two results.
 - `--judge` grades every eval run 1 to 5 on correctness, clarity, question quality and intent fit with the same model, and `--calibrate <result> <grades>` prints how often the judge agrees with human grades.
 - Every failed eval run is labelled a retrieval miss (a file to highlight was never opened) or a reasoning miss, and the score table counts both per case.
+- `--provider claude-headless|claude-api|gemini` picks who answers: your logged-in Claude Code (the default), the Claude API with `ANTHROPIC_API_KEY`, or Gemini with `GEMINI_API_KEY`. A missing key or CLI gives a clear message at startup.
+- The API providers run their tools in a guarded loop that stops after 20 tool calls, 90 seconds, 150k tokens or $1, a repeated call, or three tool errors in a row, and then give an honest partial answer.
+- A step the model gets wrong is asked for again once, keeping the steps already shown.
+- Long sessions keep every question: the last three turns in full, older ones as one-line records, and a short summary once the conversation grows large. The session is saved to `.tutor/private/session.json`.
+- Editing a file during a tour moves its highlights to the new lines, or removes a highlight whose code is gone and says "Code changed; highlight removed".
+- Monorepos: npm, pnpm and yarn workspaces are detected, and `--app <folder>` (or a numbered prompt) limits Miyagi to that app plus the root config files.
 
 ### Changed
 

@@ -66,6 +66,7 @@ export async function judgeRun(options: JudgeOptions): Promise<Result<Grades>> {
     system: systemPrompt,
     context: await highlightedCode(options.root, options.ranges),
     conversation: "",
+    history: [],
     question: redact(
       `The learner's intent: ${options.evalCase.intent}\nThe learner's question: ${options.evalCase.question}\n\nThe tutor's answer:\n${wrapUntrusted("tutor_answer", renderTour(options.tour))}`,
     ),

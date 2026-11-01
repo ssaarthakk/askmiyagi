@@ -248,6 +248,14 @@ describe("--brute-force-tokens", () => {
   });
 });
 
+describe("--context-tokens", () => {
+  it.each(["0", "1.5", "abc"])("rejects %s", async (value) => {
+    const server = startCli(sourceCli, ["--no-open", "--context-tokens", value]);
+    await expect(waitForExit(server.child)).resolves.toMatchObject({ code: 1 });
+    expect(server.stderr).toContain("--context-tokens must be a positive integer");
+  });
+});
+
 describe("call log", () => {
   it("appends one line per ask to .tutor/private/calls.jsonl in the project", async () => {
     const { folder, url, token } = await startServer(basic, fake("ask-tour.jsonl"));

@@ -2,6 +2,7 @@ import { readFile, realpath } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { type createAskHandler, sendError } from "./ask-route.ts";
+import type { createEventsHandler } from "./events-route.ts";
 import type { createFileHandler } from "./file-route.ts";
 import type { createSpeechHandler } from "./speech-route.ts";
 import type { createTranscribeHandler } from "./transcribe-route.ts";
@@ -32,6 +33,7 @@ export async function serveRequest(
   handleFile: ReturnType<typeof createFileHandler>,
   handleSpeech: ReturnType<typeof createSpeechHandler>,
   handleTranscribe: ReturnType<typeof createTranscribeHandler>,
+  events: ReturnType<typeof createEventsHandler>,
 ) {
   const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`];
   if (!allowedHosts.includes(request.headers.host?.toLowerCase() ?? "")) {
@@ -64,6 +66,10 @@ export async function serveRequest(
   }
   if (pathname === "/api/file" && request.method === "GET") {
     await handleFile(request, response);
+    return;
+  }
+  if (pathname === "/api/events" && request.method === "GET") {
+    events.handle(response);
     return;
   }
   if (pathname === "/api/speech" && request.method === "POST") {

@@ -10,11 +10,14 @@ const fixture = join(root, "test", "fixtures", "basic");
 const clients: Client[] = [];
 const folders: string[] = [];
 
-async function connect(folder: string) {
+async function connect(folder: string, options: string[] = []) {
   const client = new Client({ name: "miyagi-test", version: "0.0.0" });
   clients.push(client);
   await client.connect(
-    new StdioClientTransport({ command: process.execPath, args: [sourceCli, "mcp", folder] }),
+    new StdioClientTransport({
+      command: process.execPath,
+      args: [sourceCli, "mcp", folder, ...options],
+    }),
   );
   return client;
 }
@@ -130,6 +133,28 @@ describe("askmiyagi mcp", () => {
     );
   });
 
+  it("keeps tools inside the app given with --app", async () => {
+    const client = await connect(join(root, "test", "fixtures", "monorepo"), ["--app", "apps/web"]);
+
+    const inside = await callText(client, "read_file", { path: "apps/web/src/page.ts" });
+    const outside = await callText(client, "read_file", { path: "apps/api/src/server.ts" });
+
+    expect(inside.isError).toBe(false);
+    expect(outside).toMatchObject({
+      isError: true,
+      text: expect.stringContaining("not a visible file"),
+    });
+  });
+
+  it("exits with status 1 for an --app that is not a workspace", async () => {
+    const monorepo = join(root, "test", "fixtures", "monorepo");
+    const childProcess = startCli(sourceCli, ["mcp", monorepo, "--app", "apps/mobile"]);
+
+    await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
+    expect(childProcess.stderr).toContain("Unknown app: apps/mobile");
+    expect(childProcess.stdout).toBe("");
+  });
+
   it("reports a missing folder and exits with status 1", async () => {
     const missing = join(tmpdir(), "miyagi-mcp-missing-folder");
     const childProcess = startCli(sourceCli, ["mcp", missing]);
@@ -143,7 +168,7 @@ describe("askmiyagi mcp", () => {
     const childProcess = startCli(sourceCli, ["mcp"]);
 
     await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
-    expect(childProcess.stderr.trim()).toBe("Usage: askmiyagi mcp <root>");
+    expect(childProcess.stderr.trim()).toBe("Usage: askmiyagi mcp <root> [--app <folder>]");
     expect(childProcess.stdout).toBe("");
   });
 });

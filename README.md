@@ -14,7 +14,7 @@ https://github.com/user-attachments/assets/d1084307-719d-40d0-b382-60831bb6cdea
 npx askmiyagi path/to/your/repo
 ```
 
-Requires Node 24+ and a logged-in [Claude Code](https://claude.com/claude-code) CLI (other providers are planned).
+Requires Node 24+ and a logged-in [Claude Code](https://claude.com/claude-code) CLI (the default), or an API key: `--provider claude-api` with `ANTHROPIC_API_KEY`, or `--provider gemini` with `GEMINI_API_KEY`.
 
 ## Develop
 

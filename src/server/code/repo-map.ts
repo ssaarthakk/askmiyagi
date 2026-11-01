@@ -1,7 +1,7 @@
 import { posix } from "node:path";
 import type { Node } from "web-tree-sitter";
 import { z } from "zod";
-import { listVisibleFiles } from "../files/file-filter.ts";
+import { isConfigFile, listVisibleFiles } from "../files/file-filter.ts";
 import { readRedactedFile } from "../files/path-guard.ts";
 import { redact } from "../files/redact.ts";
 import { grammarsByExtension, hasParser, parseFile } from "./parse-cache.ts";
@@ -17,18 +17,6 @@ const packageSchema = z.object({
   devDependencies: z.record(z.string(), z.unknown()).optional(),
 });
 type PackageInfo = z.infer<typeof packageSchema> | "invalid";
-const configPatterns = [
-  /^tsconfig.*\.json$/,
-  /^vite\.config\./,
-  /^next\.config\./,
-  /^biome\.json$/,
-  /^eslint\.config\./,
-  /^\.eslintrc/,
-  /^Dockerfile$/,
-  /^docker-compose\./,
-  /^compose\./,
-  /^\.env\.example$/,
-];
 const moduleExtensions = Object.keys(grammarsByExtension);
 const substitutions: Record<string, string[]> = {
   ".js": [".ts", ".tsx", ".js"],
@@ -217,9 +205,7 @@ export async function buildRepoMap(root: string, tokenBudget = 5000): Promise<st
       ),
     )
     .find(Boolean);
-  const configs = paths.filter((path) =>
-    configPatterns.some((pattern) => pattern.test(path.split("/").at(-1) ?? "")),
-  );
+  const configs = paths.filter((path) => isConfigFile(path.split("/").at(-1) ?? ""));
   const counts = await importCounts(sources, paths);
   const tree = createTree(entries);
   const characterBudget = tokenBudget * 4;

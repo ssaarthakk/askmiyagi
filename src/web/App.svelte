@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { Selection } from "../shared/anchor.ts";
+import type { ResolvedAnchor, Selection } from "../shared/anchor.ts";
 import { createAnnouncer, spokenProgress } from "./announcer.ts";
 import { ask } from "./ask.ts";
 import Conversation, { type Note, type Turn } from "./Conversation.svelte";
@@ -12,6 +12,7 @@ import { createTalk } from "./talk.svelte.ts";
 import Viewer from "./Viewer.svelte";
 import VoicePill from "./VoicePill.svelte";
 import Welcome from "./Welcome.svelte";
+import { watchCode } from "./watch.ts";
 
 const token = document.querySelector<HTMLMetaElement>('meta[name="miyagi-token"]')?.content ?? "";
 
@@ -50,6 +51,8 @@ const selectionLabel = $derived(
 );
 let asking = $state(false);
 let highlight = $state<Highlight>();
+let staleNotice = $state("");
+let reloads = $state(0);
 let steps = $state<PlayerStep[]>([]);
 let tutorLine = $state<string>();
 let position = $state<Position>();
@@ -61,10 +64,29 @@ const next = $derived(position && neighbour(steps, position, 1));
 
 function select(chosen: Position) {
   position = chosen;
+  staleNotice = "";
   const entry = steps[chosen.step];
   const target = entry && anchorTarget(entry, chosen.segment);
   if (target) highlight = moveHighlight(highlight, target.file, target.range);
 }
+
+function applyRanges(ranges: (ResolvedAnchor | null)[][]) {
+  steps = steps.map((entry, index) => ({ ...entry, ranges: ranges[index] ?? entry.ranges }));
+  staleNotice = "";
+  reloads += 1;
+  const entry = position && steps[position.step];
+  const target = position && entry && anchorTarget(entry, position.segment);
+  if (target) highlight = { file: target.file, current: target.range, previous: null };
+}
+
+void watchCode(token, (event) => {
+  if (event.type === "ranges") {
+    applyRanges(event.ranges);
+    return;
+  }
+  if (highlight?.file === event.file) highlight = { ...highlight, current: null, previous: null };
+  staleNotice = "Code changed; highlight removed";
+}).catch((error: unknown) => console.warn("Stopped watching the code", error));
 
 const announcer =
   speaker &&
@@ -183,6 +205,7 @@ async function sendQuestion() {
   position = undefined;
   tourStarted = false;
   highlight = undefined;
+  staleNotice = "";
   let progressSpoken = 0;
   try {
     await ask(text, token, attached, (askEvent) => {
@@ -252,14 +275,19 @@ const talk = createTalk({
 
 <main class="app">
   <div class="code-pane">
+    {#if staleNotice}
+      <p role="status" class="notice">{staleNotice}</p>
+    {/if}
     {#if highlight}
-      <Viewer
-        path={highlight.file}
-        {token}
-        current={highlight.current}
-        previous={highlight.previous}
-        onpick={(picked) => (selection = picked)}
-      />
+      {#key reloads}
+        <Viewer
+          path={highlight.file}
+          {token}
+          current={highlight.current}
+          previous={highlight.previous}
+          onpick={(picked) => (selection = picked)}
+        />
+      {/key}
     {:else if turns.length === 0}
       <Welcome {projectName} onsuggest={askText} />
     {/if}
@@ -322,6 +350,14 @@ const talk = createTalk({
     flex-direction: column;
     min-width: 0;
     min-height: 0;
+  }
+
+  .notice {
+    padding: var(--space) calc(var(--space) * 2);
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.875rem;
   }
 
   @media (max-width: 899px) {

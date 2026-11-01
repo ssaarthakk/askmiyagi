@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { cp, mkdtemp, rm } from "node:fs/promises";
 import { request } from "node:http";
 import { networkInterfaces, tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, delimiter, join, resolve } from "node:path";
 import { afterEach } from "vitest";
 
 export const root = resolve(import.meta.dirname, "..");
@@ -11,6 +12,13 @@ export const builtCli = join(root, "dist", "server", "cli.js");
 export const nonLoopbackIPv4 = Object.values(networkInterfaces())
   .flatMap((addresses) => addresses ?? [])
   .find((address) => address.family === "IPv4" && !address.internal)?.address;
+
+const stubClaudeDir = mkdtempSync(join(tmpdir(), "miyagi-stub-claude-"));
+const stubClaude = join(stubClaudeDir, process.platform === "win32" ? "claude.cmd" : "claude");
+writeFileSync(stubClaude, "");
+chmodSync(stubClaude, 0o755);
+process.env.PATH = [process.env.PATH, stubClaudeDir].join(delimiter);
+process.on("exit", () => rmSync(stubClaudeDir, { recursive: true, force: true }));
 
 const children: ReturnType<typeof spawn>[] = [];
 const copies: string[] = [];

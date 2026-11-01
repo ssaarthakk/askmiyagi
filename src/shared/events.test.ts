@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import type { AgentMessage } from "./agent-message.ts";
 import {
   type AskEvent,
   askEventSchema,
@@ -26,6 +27,19 @@ const usage: Usage = {
   costUsd: null,
 };
 const range = { file: "src/clip.ts", start: 1, end: 4, capped: false };
+const messages: AgentMessage[] = [
+  { role: "user", text: "How is a clip saved?" },
+  {
+    role: "assistant",
+    text: "",
+    toolCalls: [{ id: "c1", name: "read_file", input: { path: "src/clip.ts" } }],
+  },
+  {
+    role: "tool",
+    outputs: [{ callId: "c1", name: "read_file", text: "export {}", isError: false }],
+  },
+  { role: "assistant", text: "It is saved here.", toolCalls: [] },
+];
 
 describe("Result", () => {
   const schema = resultSchema(z.number());
@@ -57,6 +71,7 @@ describe("LLMRequest", () => {
     system: "s",
     context: "c",
     conversation: "",
+    history: [],
     question: "q",
     root: "/repo",
     tools: true,
@@ -69,6 +84,15 @@ describe("LLMRequest", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("model");
   });
+
+  it("carries earlier turns as agent messages and rejects a malformed one", () => {
+    expect(parseContract(llmRequestSchema, { ...request, history: messages }).ok).toBe(true);
+    const bad = { ...request, history: [{ role: "tool", outputs: [{ callId: "c1" }] }] };
+    const result = parseContract(llmRequestSchema, bad);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("history");
+    expect(parseContract(llmRequestSchema, { ...request, history: undefined }).ok).toBe(false);
+  });
 });
 
 describe("ProviderEvent", () => {
@@ -79,6 +103,7 @@ describe("ProviderEvent", () => {
       { type: "checkQuestion", text: "What does save return?" },
       { type: "tool_call", name: "grep", input: { patterns: ["a"] } },
       { type: "done", usage },
+      { type: "done", usage, messages },
       { type: "error", message: "boom", retryable: true },
     ];
     for (const event of events) {

@@ -1,21 +1,27 @@
 import { basename } from "node:path";
 import { z } from "zod";
+import type { AgentMessage } from "../../shared/agent-message.ts";
 import type { ResolvedAnchor, Selection } from "../../shared/anchor.ts";
 import type { CallRecord } from "../../shared/call-log.ts";
 import type { AskEvent } from "../../shared/events.ts";
+import type { LLMRequest } from "../../shared/llm-request.ts";
+import type { SessionRecord } from "../../shared/session.ts";
 import {
   findSymbolInputSchema,
   grepInputSchema,
   readFileInputSchema,
 } from "../../shared/tool-inputs.ts";
 import type { Step } from "../../shared/tour.ts";
-import type { Usage } from "../../shared/usage.ts";
+import { wrapUntrusted } from "../../shared/untrusted.ts";
+import { addUsage, noUsage, type Usage } from "../../shared/usage.ts";
 import { resolveAnchor } from "../code/anchor-resolver.ts";
+import { redact } from "../files/redact.ts";
 import { logError } from "../log.ts";
 import type { Conversation } from "./conversation.ts";
 import { buildRequest } from "./prompt.ts";
 import { type LLMProvider, lostThread } from "./provider.ts";
 import { checkSelection } from "./selection.ts";
+import { createSummariser } from "./summariser.ts";
 
 const openedFileSchema = z.object({ path: readFileInputSchema.shape.path });
 
@@ -35,6 +41,17 @@ function progressText(name: string, input: unknown) {
   return undefined;
 }
 
+function retryQuestion(question: string, steps: Step[], errors: string) {
+  const sent = steps.map((step) => JSON.stringify(step)).join("\n");
+  return redact(`${question}
+
+Your answer so far was accepted and shown to the learner up to step ${steps.length}:
+${wrapUntrusted("steps_sent", sent)}
+Step ${steps.length + 1} was invalid:
+${wrapUntrusted("validation_errors", errors)}
+Re-emit from step ${steps.length + 1} onward as NDJSON, fixing those errors. Do not repeat the earlier steps.`);
+}
+
 type AskOptions = {
   root: string;
   provider: LLMProvider;
@@ -45,6 +62,7 @@ type AskOptions = {
   signal: AbortSignal;
   bruteForceTokens?: number | undefined;
   callLog?: { provider: string; write(record: CallRecord): Promise<void> } | undefined;
+  saveSession?: ((session: SessionRecord) => Promise<void>) | undefined;
 };
 
 type CallProgress = {
@@ -54,14 +72,6 @@ type CallProgress = {
   firstContentMs: number | null;
   usage: Usage;
   filesOpened: Set<string>;
-};
-
-const noUsage: Usage = {
-  inputTokens: 0,
-  outputTokens: 0,
-  cacheReadTokens: 0,
-  cacheWriteTokens: 0,
-  costUsd: null,
 };
 
 export async function* askEvents(options: AskOptions): AsyncGenerator<AskEvent> {
@@ -88,6 +98,9 @@ export async function* askEvents(options: AskOptions): AsyncGenerator<AskEvent> 
       filesOpened: [...progress.filesOpened],
       outcome: progress.outcome,
     });
+    if (progress.outcome === "done") {
+      await options.saveSession?.(options.conversation.session());
+    }
   }
 }
 
@@ -103,6 +116,8 @@ async function* answer(
   const steps: Step[] = [];
   const allRanges: (ResolvedAnchor | null)[][] = [];
   let checkQuestion: string | undefined;
+  let turnMessages: AgentMessage[] | undefined;
+  let contextLength = 0;
   const progressSent = new Set<string>();
   const replyLines: string[] = [];
   try {
@@ -114,50 +129,77 @@ async function* answer(
         selection = undefined;
       }
     }
-    const { mode, request } = await buildRequest(
+    const built = await buildRequest(
       root,
       options.question,
       options.bruteForceTokens,
       selection,
-      options.conversation.render(),
+      options.conversation.size(),
     );
-    progress.mode = mode;
-    for await (const event of options.provider.ask(request, signal)) {
-      if (signal.aborted) return;
-      if (event.type === "tool_call") {
-        const opened = openedFileSchema.safeParse(event.input);
-        if (event.name === "read_file" && opened.success)
-          progress.filesOpened.add(opened.data.path);
-        const text = progressText(event.name, event.input);
-        if (text !== undefined && !progressSent.has(text)) {
-          progressSent.add(text);
-          yield { type: "progress", text };
+    contextLength = built.request.context.length;
+    const request: LLMRequest = {
+      ...built.request,
+      conversation: options.conversation.render(),
+      history: options.conversation.messages(contextLength),
+    };
+    progress.mode = built.mode;
+    let attempt = request;
+    let retried = false;
+    const attemptsStartedAt = Date.now();
+    while (true) {
+      let invalidStepErrors: string | undefined;
+      for await (const event of options.provider.ask(attempt, signal)) {
+        if (signal.aborted) return;
+        if (event.type === "tool_call") {
+          const opened = openedFileSchema.safeParse(event.input);
+          if (event.name === "read_file" && opened.success)
+            progress.filesOpened.add(opened.data.path);
+          const text = progressText(event.name, event.input);
+          if (text !== undefined && !progressSent.has(text)) {
+            progressSent.add(text);
+            yield { type: "progress", text };
+          }
+        } else if (event.type === "step") {
+          progress.firstContentMs ??= performance.now() - started;
+          const ranges = await Promise.all(
+            event.step.anchors.map(async (anchor) => {
+              const resolved = await resolveAnchor(root, anchor);
+              if (!resolved.ok) logError(`No highlight for ${anchor.file}: ${resolved.error}`);
+              return resolved.ok ? resolved.value : null;
+            }),
+          );
+          steps.push(event.step);
+          allRanges.push(ranges);
+          yield { type: "step", step: event.step, ranges };
+        } else if (event.type === "checkQuestion") {
+          checkQuestion = event.text;
+        } else if (event.type === "text") {
+          progress.firstContentMs ??= performance.now() - started;
+          replyLines.push(event.text);
+        } else if (event.type === "done") {
+          progress.usage = addUsage(progress.usage, event.usage);
+          turnMessages = event.messages;
+        } else if (event.type === "error") {
+          if (event.usage) progress.usage = addUsage(progress.usage, event.usage);
+          if (event.invalidStep && !retried) {
+            invalidStepErrors = event.detail ?? event.message;
+            logError(`Retrying from step ${steps.length + 1}: ${invalidStepErrors}`);
+            break;
+          }
+          progress.outcome = "error";
+          logError(`Ask failed: ${event.detail ?? event.message}`);
+          yield { type: "error", message: event.message };
+          return;
         }
-      } else if (event.type === "step") {
-        progress.firstContentMs ??= performance.now() - started;
-        const ranges = await Promise.all(
-          event.step.anchors.map(async (anchor) => {
-            const resolved = await resolveAnchor(root, anchor);
-            if (!resolved.ok) logError(`No highlight for ${anchor.file}: ${resolved.error}`);
-            return resolved.ok ? resolved.value : null;
-          }),
-        );
-        steps.push(event.step);
-        allRanges.push(ranges);
-        yield { type: "step", step: event.step, ranges };
-      } else if (event.type === "checkQuestion") {
-        checkQuestion = event.text;
-      } else if (event.type === "text") {
-        progress.firstContentMs ??= performance.now() - started;
-        replyLines.push(event.text);
-      } else if (event.type === "done") {
-        progress.usage = event.usage;
-      } else if (event.type === "error") {
-        progress.outcome = "error";
-        logError(`Ask failed: ${event.detail ?? event.message}`);
-        yield { type: "error", message: event.message };
-        return;
       }
+      if (invalidStepErrors === undefined) break;
+      retried = true;
+      attempt = {
+        ...request,
+        question: retryQuestion(request.question, steps, invalidStepErrors),
+        spent: progress.usage,
+        startedAt: attemptsStartedAt,
+      };
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -184,7 +226,10 @@ async function* answer(
     ...(checkQuestion === undefined ? {} : { checkQuestion }),
     ...(reply === undefined ? {} : { reply }),
   };
-  if (steps.length > 0 || reply) options.conversation.add(options.question, tour);
+  if (steps.length > 0 || reply) {
+    options.conversation.add(options.question, tour, turnMessages);
+    void options.conversation.summarise(contextLength, createSummariser(options.provider, root));
+  }
   progress.outcome = "done";
   yield { type: "tour", tour, ranges: allRanges };
   yield { type: "done" };

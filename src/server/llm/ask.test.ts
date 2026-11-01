@@ -1,9 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { root, saveStep, scripted, terminal, usage } from "../../../test/ask-helpers.ts";
+import {
+  root,
+  saveStep,
+  scripted,
+  stream,
+  terminal,
+  uploadStep,
+  usage,
+} from "../../../test/ask-helpers.ts";
 import { collect } from "../../../test/fake-claude.ts";
-import type { ProviderEvent } from "../../shared/events.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
-import type { Step } from "../../shared/tour.ts";
 import { askEvents } from "./ask.ts";
 import { createConversation } from "./conversation.ts";
 import { type LLMProvider, lostThread } from "./provider.ts";
@@ -11,30 +17,6 @@ import { type LLMProvider, lostThread } from "./provider.ts";
 afterEach(() => {
   vi.restoreAllMocks();
 });
-
-const uploadStep: Step = {
-  title: "Uploading",
-  anchors: [
-    { file: "src/upload.ts", symbol: "uploadClip" },
-    { file: "src/missing.ts", symbol: "nothing" },
-  ],
-  narration: [{ text: "Then the clip is uploaded." }],
-};
-
-function stream(
-  provider: LLMProvider,
-  signal = new AbortController().signal,
-  conversation = createConversation(),
-) {
-  return askEvents({
-    root,
-    provider,
-    question: "How are clips saved?",
-    ack: "One moment.",
-    signal,
-    conversation,
-  });
-}
 
 describe("askEvents", () => {
   it("sends the acknowledgement before the provider is asked", async () => {
@@ -226,56 +208,5 @@ describe("askEvents", () => {
     };
     const events = await collect(stream(provider, controller.signal));
     expect(events.map((event) => event.type)).toEqual(["ack", "step"]);
-  });
-});
-
-describe("askEvents conversation", () => {
-  const finished: ProviderEvent[] = [
-    { type: "step", step: saveStep },
-    { type: "checkQuestion", text: "What does save return?" },
-    { type: "done", usage },
-  ];
-
-  it("sends the first question and a record of its tour with the next request", async () => {
-    const conversation = createConversation();
-    const seen: LLMRequest[] = [];
-    await collect(stream(scripted(finished, seen), undefined, conversation));
-    expect(seen[0]?.conversation).toBe("");
-
-    await collect(stream(scripted(finished, seen), undefined, conversation));
-    expect(seen[1]?.conversation).toContain("How are clips saved?");
-    expect(seen[1]?.conversation).toContain("Saving a clip");
-    expect(seen[1]?.conversation).toContain("What does save return?");
-  });
-
-  it("does not store an ask that ended in an error", async () => {
-    const conversation = createConversation();
-    await collect(
-      stream(
-        scripted([{ type: "error", message: "boom", retryable: false }]),
-        undefined,
-        conversation,
-      ),
-    );
-    expect(conversation.render()).toBe("");
-  });
-
-  it("does not store an ask that produced no steps", async () => {
-    const conversation = createConversation();
-    await collect(stream(scripted([{ type: "done", usage }]), undefined, conversation));
-    expect(conversation.render()).toBe("");
-  });
-
-  it("does not store an ask that was aborted", async () => {
-    const conversation = createConversation();
-    const controller = new AbortController();
-    const provider: LLMProvider = {
-      async *ask() {
-        yield { type: "step", step: saveStep };
-        controller.abort();
-      },
-    };
-    await collect(stream(provider, controller.signal, conversation));
-    expect(conversation.render()).toBe("");
   });
 });

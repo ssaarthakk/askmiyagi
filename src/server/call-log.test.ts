@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { terminal } from "../../test/ask-helpers.ts";
 import type { CallRecord } from "../shared/call-log.ts";
 import { appendCallLog } from "./call-log.ts";
 
@@ -39,11 +40,6 @@ async function makeFolders() {
   await mkdir(root);
   await mkdir(outside);
   return { root, outside };
-}
-
-function terminal() {
-  const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-  return () => write.mock.calls.map(([text]) => String(text)).join("");
 }
 
 describe("appendCallLog", () => {

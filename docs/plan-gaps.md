@@ -2,12 +2,6 @@
 
 Technical gaps a smaller model would have to guess at, found by a read-through on 20 October 2026. Each has a proposed answer. Before a phase starts, check its items against the code as it is by then, write the settled answers into that phase's features in `docs/PLAN.md`, and delete them here. Owner decisions are in `docs/PLAN.md` under `## Open questions`, not here.
 
-## Phase 10: Interaction
-
-- **Local commands:** whole-utterance match after cleanup. Go back is the previous segment, skip the next, repeat replays the current one, slower and faster change speed by 0.25 within 0.5–2.0.
-- **Interruptions and tour stack:** too big for one session; split into (a) stack and resume, (b) side-question context. Side question vs new topic: the model's final line carries `scope: "side" | "new"`, and the ask body gains `current: { step, segmentIndex }`. `/api/interrupt` returns 204 when it aborts a running ask; steps already received stay as a stacked partial tour.
-- **Hands-free mode:** ducked volume 20%, end of speech after 0.65 s of silence, VAD model and onnx wasm served from `dist/web` (no CDN).
-
 ## Phase 11: Explain my diff and stack traces
 
 - **Read-only git tool:** too big for one session; split into (a) the git tool, (b) diff bases and `askmiyagi snapshot`. Allowed flags: `--stat`, `--name-only`, `--name-status`, `--oneline`, `-n`, `-U<n>`, `--no-color`, `--`. Always add `--no-ext-diff --no-textconv` (repo config can run commands). Refuse `-c`, `--output` and `--no-index` from model input. Filter diff and show output per file through the file filter, then redact. Default branch: try `origin/HEAD`, then `main`, then `master`, with `git diff <base>...HEAD`. A snapshot copies visible files into `.tutor/private/snapshot/` and is compared with `git diff --no-index` (run by Miyagi, never from model input).

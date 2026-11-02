@@ -10,3 +10,11 @@ export async function ask(page: Page) {
   await box.fill("How are clips saved?");
   await box.press("Enter");
 }
+
+export function countAsks(page: Page) {
+  const questions: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/ask")) questions.push(request.postDataJSON().question);
+  });
+  return questions;
+}

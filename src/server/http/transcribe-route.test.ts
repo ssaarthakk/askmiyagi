@@ -97,6 +97,19 @@ describe("POST /api/transcribe", () => {
     expect((sent.get("file") as File).type).toBe("audio/webm");
   });
 
+  it("accepts a WAV recording from hands-free mode", async () => {
+    const stub = stubElevenLabs(() => transcript("hello"));
+    const post = await start({ apiKey });
+
+    const result = await post(recording, "audio/wav");
+
+    expect(result.status).toBe(200);
+    const sent = stub.mock.calls[0]?.[1]?.body as FormData;
+    const file = sent.get("file") as File;
+    expect(file.type).toBe("audio/wav");
+    expect(file.name).toBe("recording.wav");
+  });
+
   it("trims the transcript and returns an empty text when nothing was heard", async () => {
     stubElevenLabs(() => transcript("   "));
     const post = await start({ apiKey });

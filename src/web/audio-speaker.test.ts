@@ -28,6 +28,95 @@ describe("elevenLabsSpeaker", () => {
     expect(onFallback).not.toHaveBeenCalled();
   });
 
+  it("plays the audio at the speed it was given and passes the speed to the fallback voice", async () => {
+    vi.stubGlobal("fetch", async () => new Response("audio-bytes"));
+    const elements: { playbackRate: number }[] = [];
+    stubAudio(elements);
+    const { speaker, rates } = fallbackSpeaker();
+    const voice = elevenLabsSpeaker("tok", speaker, vi.fn());
+
+    voice.setRate(1.5);
+    await voice.speak("hello", signal);
+
+    expect(elements.map((element) => element.playbackRate)).toEqual([1.5]);
+    expect(rates).toEqual([1.5]);
+  });
+
+  it("changes the speed and volume of audio that is already playing", async () => {
+    vi.stubGlobal("fetch", async () => new Response("audio-bytes"));
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:audio", revokeObjectURL: vi.fn() });
+    const elements: { playbackRate: number; volume: number }[] = [];
+    vi.stubGlobal(
+      "Audio",
+      class {
+        playbackRate = 1;
+        volume = 1;
+        pause = vi.fn();
+        play = () => new Promise<void>(() => {});
+        constructor() {
+          elements.push(this);
+        }
+      },
+    );
+    const { speaker } = fallbackSpeaker();
+    const voice = elevenLabsSpeaker("tok", speaker, vi.fn());
+    void voice.speak("hello", signal);
+    await vi.waitFor(() => expect(elements).toHaveLength(1));
+
+    voice.setRate(0.5);
+    voice.setVolume(0.2);
+    const lowered = elements[0]?.volume;
+    voice.setVolume(1);
+
+    expect(elements[0]?.playbackRate).toBe(0.5);
+    expect(lowered).toBe(0.2);
+    expect(elements[0]?.volume).toBe(1);
+  });
+
+  it("keeps controlling new audio when an old one ends late", async () => {
+    vi.stubGlobal("fetch", async () => new Response("audio-bytes"));
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:audio", revokeObjectURL: vi.fn() });
+    const elements: { volume: number; onended: (() => void) | null }[] = [];
+    vi.stubGlobal(
+      "Audio",
+      class {
+        volume = 1;
+        onended: (() => void) | null = null;
+        pause = vi.fn();
+        play = () => new Promise<void>(() => {});
+        constructor() {
+          elements.push(this);
+        }
+      },
+    );
+    const { speaker } = fallbackSpeaker();
+    const voice = elevenLabsSpeaker("tok", speaker, vi.fn());
+    const stopped = new AbortController();
+    void voice.speak("one", stopped.signal);
+    await vi.waitFor(() => expect(elements).toHaveLength(1));
+    stopped.abort();
+    void voice.speak("two", signal);
+    await vi.waitFor(() => expect(elements).toHaveLength(2));
+
+    elements[0]?.onended?.();
+    voice.setVolume(0.2);
+
+    expect(elements[1]?.volume).toBe(0.2);
+  });
+
+  it("plays later audio at the volume it was given", async () => {
+    vi.stubGlobal("fetch", async () => new Response("audio-bytes"));
+    const elements: { playbackRate: number; volume: number }[] = [];
+    stubAudio(elements);
+    const { speaker } = fallbackSpeaker();
+    const voice = elevenLabsSpeaker("tok", speaker, vi.fn());
+
+    voice.setVolume(0.2);
+    await voice.speak("hello", signal);
+
+    expect(elements.map((element) => element.volume)).toEqual([0.2]);
+  });
+
   it("plays the segment with the fallback voice when the request fails", async () => {
     vi.stubGlobal("fetch", async () => new Response("{}", { status: 502 }));
     const { speaker, spoken } = fallbackSpeaker();

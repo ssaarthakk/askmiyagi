@@ -2,7 +2,7 @@ import { z } from "zod";
 import { anchorSchema } from "../../shared/anchor.ts";
 import type { ProviderEvent } from "../../shared/events.ts";
 import { parseContract } from "../../shared/parse.ts";
-import { stepSchema } from "../../shared/tour.ts";
+import { scopeSchema, stepSchema } from "../../shared/tour.ts";
 import { lostThread } from "./provider.ts";
 
 const toolPrefix = "mcp__miyagi__";
@@ -46,6 +46,7 @@ const resultSchema = z.object({
 });
 
 const checkQuestionSchema = z.object({ checkQuestion: z.string().min(1) });
+const scopeLineSchema = z.object({ scope: scopeSchema });
 
 function failure(message: string): ProviderEvent {
   return { type: "error", message, retryable: false };
@@ -87,6 +88,10 @@ function parseModelLine(line: string): ProviderEvent {
     return parsed.ok
       ? { type: "checkQuestion", text: parsed.value.checkQuestion }
       : modelFailure(parsed.error);
+  }
+  if (typeof json === "object" && json !== null && "scope" in json) {
+    const parsed = parseContract(scopeLineSchema, json);
+    return parsed.ok ? { type: "scope", scope: parsed.value.scope } : modelFailure(parsed.error);
   }
   const parsed = parseContract(
     stepSchema,

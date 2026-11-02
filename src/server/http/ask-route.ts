@@ -3,6 +3,7 @@ import { z } from "zod";
 import { selectionSchema } from "../../shared/anchor.ts";
 import { parseContract } from "../../shared/parse.ts";
 import { ackPhrases } from "../../shared/phrases.ts";
+import { currentSchema } from "../../shared/tour.ts";
 import { appendCallLog } from "../call-log.ts";
 import { askEvents } from "../llm/ask.ts";
 import { createConversation } from "../llm/conversation.ts";
@@ -16,6 +17,7 @@ const maxBodyBytes = 100_000;
 const askBodySchema = z.object({
   question: z.string().trim().min(1).max(2000),
   selection: selectionSchema.optional(),
+  current: currentSchema.optional(),
 });
 
 export function sendError(response: ServerResponse, status: number, message: string, reason = "") {
@@ -68,11 +70,11 @@ export function createAskHandler(options: {
   contextTokens?: number | undefined;
   tourWatch?: ReturnType<typeof createTourWatch> | undefined;
 }) {
-  let running = false;
+  let running: { controller: AbortController; finished: Promise<void> } | undefined;
   let asked = 0;
   const conversation = createConversation({ contextTokens: options.contextTokens });
 
-  return async function handleAsk(request: IncomingMessage, response: ServerResponse) {
+  async function handle(request: IncomingMessage, response: ServerResponse) {
     const body = await readJsonBody(request, response, askBodySchema);
     if (!body) return;
     if (running) {
@@ -80,8 +82,9 @@ export function createAskHandler(options: {
       return;
     }
 
-    running = true;
     const controller = new AbortController();
+    const finished = Promise.withResolvers<void>();
+    running = { controller, finished: finished.promise };
     response.on("close", () => controller.abort());
     response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
     const ack = ackPhrases[asked++ % ackPhrases.length] ?? "";
@@ -93,6 +96,7 @@ export function createAskHandler(options: {
         conversation,
         question: body.question,
         selection: body.selection,
+        current: body.current,
         ack,
         signal: controller.signal,
         bruteForceTokens: options.bruteForceTokens,
@@ -110,8 +114,16 @@ export function createAskHandler(options: {
         response.write(`data: ${JSON.stringify(event)}\n\n`);
       }
     } finally {
-      running = false;
+      running = undefined;
+      finished.resolve();
       response.end();
     }
-  };
+  }
+
+  async function interrupt() {
+    running?.controller.abort();
+    await running?.finished;
+  }
+
+  return { handle, interrupt };
 }

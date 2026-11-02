@@ -1,8 +1,11 @@
 import { createAnnouncer } from "./announcer.ts";
+import { steppedSpeed } from "./commands.ts";
 import { createFirstSound, postFirstSound } from "./first-sound.ts";
 import { createPlayback } from "./playback.ts";
 import type { PlayerStep, Position } from "./player.ts";
 import { chooseSpeaker, localVoices, noLocalVoice, type Speaker } from "./speaker.ts";
+
+const duckedVolume = 0.2;
 
 export function createVoice(options: {
   choice: string;
@@ -26,6 +29,7 @@ export function createVoice(options: {
   let on = $state(speaker !== undefined);
   let playing = $state(false);
   let caughtUp = false;
+  let speed = 1;
   let interrupted: Position | undefined;
   const firstSound = createFirstSound((ms) => postFirstSound(ms, options.token));
 
@@ -92,6 +96,15 @@ export function createVoice(options: {
     return on;
   }
 
+  function changeSpeed(direction: 1 | -1) {
+    speed = steppedSpeed(speed, direction);
+    speaker?.setRate?.(speed);
+  }
+
+  function duck(lowered: boolean) {
+    speaker?.setVolume?.(lowered ? duckedVolume : 1);
+  }
+
   function takeInterrupted() {
     const at = interrupted;
     interrupted = undefined;
@@ -128,6 +141,8 @@ export function createVoice(options: {
     playClosing,
     pause,
     toggle,
+    changeSpeed,
+    duck,
     takeInterrupted,
     asked() {
       if (on && playback) firstSound.asked();

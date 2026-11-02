@@ -12,7 +12,13 @@ const defaultContextTokens = 200_000;
 const placeholderShare = 0.5;
 const summaryShare = 0.7;
 
-type Turn = { question: string; record: string; answer: string; messages: AgentMessage[] };
+type Turn = {
+  question: string;
+  tour: Tour;
+  record: string;
+  answer: string;
+  messages: AgentMessage[];
+};
 
 function recordOf(tour: Tour) {
   if (tour.reply) return `Replied: ${tour.reply}`;
@@ -25,6 +31,7 @@ function answerOf(tour: Tour) {
   if (tour.reply) return tour.reply;
   const lines = tour.steps.map((step) => JSON.stringify(step));
   if (tour.checkQuestion) lines.push(JSON.stringify({ checkQuestion: tour.checkQuestion }));
+  if (tour.scope) lines.push(JSON.stringify({ scope: tour.scope }));
   return lines.join("\n");
 }
 
@@ -125,10 +132,14 @@ export function createConversation({
     add(question: string, tour: Tour, messages: AgentMessage[] = []) {
       turns.push({
         question: redact(question),
+        tour,
         record: redact(recordOf(tour)),
         answer: redact(answerOf(tour)),
         messages: messages.map(redactMessage),
       });
+    },
+    tourAsked(question: string) {
+      return turns.findLast((turn) => turn.question === redact(question))?.tour;
     },
     render,
     size,

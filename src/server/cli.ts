@@ -131,7 +131,7 @@ async function runCli() {
 
   const events = createEventsHandler();
   const tourWatch = createTourWatch({ root: source.value.root, publish: events.publish });
-  const handleAsk = createAskHandler({
+  const ask = createAskHandler({
     root: source.value.root,
     provider: provider.value,
     providerName: options.provider,
@@ -184,7 +184,7 @@ async function runCli() {
       page,
       sessionToken,
       serverPort,
-      handleAsk,
+      ask,
       handleFile,
       handleSpeech,
       handleTranscribe,

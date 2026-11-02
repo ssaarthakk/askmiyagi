@@ -4,6 +4,8 @@ import { createModelEngine, type ModelEngine } from "./model-download.ts";
 export type Speaker = {
   speak(text: string, signal: AbortSignal, onStart?: () => void): Promise<void>;
   prefetch?(text: string): void;
+  setRate?(rate: number): void;
+  setVolume?(volume: number): void;
 };
 
 export const noLocalVoice = "No local voice found; showing text";
@@ -32,7 +34,11 @@ export async function localVoices(synthesis: SpeechSynthesis) {
 }
 
 export function browserSpeaker(synthesis: SpeechSynthesis): Speaker {
+  let rate = 1;
   return {
+    setRate(next) {
+      rate = next;
+    },
     async speak(text, signal, onStart) {
       const [voice] = await localVoices(synthesis);
       if (!voice) throw new Error(noLocalVoice);
@@ -40,6 +46,7 @@ export function browserSpeaker(synthesis: SpeechSynthesis): Speaker {
       await new Promise<void>((resolve, reject) => {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.voice = voice;
+        utterance.rate = rate;
         const stop = () => {
           synthesis.cancel();
           resolve();
@@ -62,7 +69,9 @@ export function browserSpeaker(synthesis: SpeechSynthesis): Speaker {
   };
 }
 
-function playAudio(audio: Blob, signal: AbortSignal, onStart?: () => void) {
+type Pace = { rate: number; volume: number; element?: HTMLAudioElement };
+
+function playAudio(audio: Blob, signal: AbortSignal, pace: Pace, onStart?: () => void) {
   return new Promise<void>((resolve, reject) => {
     if (signal.aborted) {
       resolve();
@@ -70,13 +79,20 @@ function playAudio(audio: Blob, signal: AbortSignal, onStart?: () => void) {
     }
     const url = URL.createObjectURL(audio);
     const element = new Audio(url);
-    const finish = () => {
+    element.playbackRate = pace.rate;
+    element.volume = pace.volume;
+    pace.element = element;
+    const release = () => {
       URL.revokeObjectURL(url);
+      if (pace.element === element) pace.element = undefined;
+    };
+    const finish = () => {
+      release();
       resolve();
     };
     element.onended = finish;
     element.onerror = () => {
-      URL.revokeObjectURL(url);
+      release();
       reject(new Error("Audio could not be played"));
     };
     signal.addEventListener(
@@ -115,6 +131,7 @@ function audioSpeaker(
   fallback: Speaker,
   onFallback: () => void,
 ) {
+  const pace: Pace = { rate: 1, volume: 1 };
   const preloaded = new Map<string, Promise<Blob>>();
   let upcoming: { text: string; audio: Promise<Blob>; cancel: AbortController } | undefined;
   function dropUpcoming() {
@@ -122,6 +139,15 @@ function audioSpeaker(
     upcoming = undefined;
   }
   return {
+    setRate(rate: number) {
+      pace.rate = rate;
+      if (pace.element) pace.element.playbackRate = rate;
+      fallback.setRate?.(rate);
+    },
+    setVolume(volume: number) {
+      pace.volume = volume;
+      if (pace.element) pace.element.volume = volume;
+    },
     preload(texts: string[]) {
       for (const text of texts) {
         const audio = load(text);
@@ -154,7 +180,7 @@ function audioSpeaker(
         return;
       }
       if (!audio) return;
-      await playAudio(audio, signal, onStart);
+      await playAudio(audio, signal, pace, onStart);
     },
   };
 }
@@ -193,6 +219,8 @@ export function kokoroSpeaker(
   }
 
   return {
+    setRate: local.setRate,
+    setVolume: local.setVolume,
     prefetch(text) {
       if (loaded) local.prefetch(text);
     },

@@ -39,7 +39,8 @@ SOFTWARE.
 - `crelt`: Copyright (C) 2020 by Marijn Haverbeke
 - `@marijn/find-cluster-break`: Copyright (C) 2024 by Marijn Haverbeke
 - `@huggingface/jinja`: Copyright (c) 2023 Hugging Face
-- `onnxruntime-web`, including its `.wasm` runtime in `dist/web/assets`: Copyright (c) Microsoft Corporation
+- `onnxruntime-web`, including its `.wasm` runtime in `dist/web/assets` and `dist/web/vad`: Copyright (c) Microsoft Corporation
+- `silero_vad_v5.onnx`, the Silero voice activity model in `dist/web/vad`: Copyright (c) 2020-present Silero Team
 
 Each is released under the MIT License:
 
@@ -61,6 +62,28 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+## Voice activity detection
+
+`dist/web` bundles `@ricky0123/vad-web` and its audio worklet (`dist/web/vad`), released under the ISC License:
+
+```
+ISC License
+
+Copyright (c) 2022-present ricky0123
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
 ## Local voice and speech-to-text workers

@@ -15,6 +15,7 @@ const contentTypes: Record<string, string> = {
   ".css": "text/css",
   ".svg": "image/svg+xml",
   ".json": "application/json",
+  ".mjs": "text/javascript",
   ".wasm": "application/wasm",
   ".woff2": "font/woff2",
 };
@@ -31,7 +32,7 @@ export async function serveRequest(
   page: string,
   token: string,
   port: number,
-  handleAsk: ReturnType<typeof createAskHandler>,
+  ask: ReturnType<typeof createAskHandler>,
   handleFile: ReturnType<typeof createFileHandler>,
   handleSpeech: ReturnType<typeof createSpeechHandler>,
   handleTranscribe: ReturnType<typeof createTranscribeHandler>,
@@ -65,7 +66,13 @@ export async function serveRequest(
     return;
   }
   if (pathname === "/api/ask" && request.method === "POST") {
-    await handleAsk(request, response);
+    await ask.handle(request, response);
+    return;
+  }
+  if (pathname === "/api/interrupt" && request.method === "POST") {
+    await ask.interrupt();
+    response.writeHead(204);
+    response.end();
     return;
   }
   if (pathname === "/api/file" && request.method === "GET") {

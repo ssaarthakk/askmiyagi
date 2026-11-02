@@ -1,9 +1,13 @@
+export function openMicrophone() {
+  return navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true },
+  });
+}
+
 export async function startRecording() {
   const mimeType = ["audio/webm", "audio/ogg"].find((type) => MediaRecorder.isTypeSupported(type));
   if (!mimeType) throw new Error("This browser can't record webm or ogg audio");
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true },
-  });
+  const stream = await openMicrophone();
   const release = () => {
     for (const track of stream.getTracks()) track.stop();
   };

@@ -57,6 +57,35 @@ describe("kokoroSpeaker", () => {
     expect(spoken).toEqual([]);
   });
 
+  it("applies the speed to the local voice and the fallback voice", async () => {
+    const engine = fakeEngine(Promise.resolve());
+    const elements: { playbackRate: number }[] = [];
+    stubAudio(elements);
+    const { speaker, rates } = fallbackSpeaker();
+    const voice = kokoroSpeaker(engine, speaker, vi.fn());
+    await engine.ready;
+
+    voice.setRate?.(1.75);
+    await voice.speak("hello", signal);
+
+    expect(elements.map((element) => element.playbackRate)).toEqual([1.75]);
+    expect(rates).toEqual([1.75]);
+  });
+
+  it("applies the volume to the local voice", async () => {
+    const engine = fakeEngine(Promise.resolve());
+    const elements: { playbackRate: number; volume: number }[] = [];
+    stubAudio(elements);
+    const { speaker } = fallbackSpeaker();
+    const voice = kokoroSpeaker(engine, speaker, vi.fn());
+    await engine.ready;
+
+    voice.setVolume?.(0.2);
+    await voice.speak("hello", signal);
+
+    expect(elements.map((element) => element.volume)).toEqual([0.2]);
+  });
+
   it("stays on the fallback voice with a notice when the model cannot load", async () => {
     const engine = fakeEngine(Promise.reject(new Error("no network")));
     const { speaker, spoken } = fallbackSpeaker();

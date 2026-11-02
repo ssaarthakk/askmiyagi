@@ -16,7 +16,15 @@ export const stubSpeaker = `
   document.addEventListener("submit", () => {
     window.submittedAt = performance.now();
   }, true);
+  window.rates = [];
+  window.volumes = [];
   window.__MIYAGI_SPEAKER__ = {
+    setRate(rate) {
+      window.rates.push(rate);
+    },
+    setVolume(volume) {
+      window.volumes.push(volume);
+    },
     speak(text, signal, onStart) {
       if (!onStart) {
         window.announced.push({ text, at: performance.now() });
@@ -53,12 +61,15 @@ export const finishSpeech = (page: Page) => page.evaluate("window.finishSpeech()
 export const heldAsk = `
   const realFetch = window.fetch.bind(window);
   const encoder = new TextEncoder();
+  window.askedQuestions = [];
   window.fetch = (input, init) => {
     if (!String(input).endsWith("/api/ask")) return realFetch(input, init);
+    window.askedQuestions.push(JSON.parse(init.body).question);
     return Promise.resolve(
       new Response(
         new ReadableStream({
           start(controller) {
+            window.endAsk = () => controller.close();
             window.sendAskEvent = (event) =>
               controller.enqueue(encoder.encode("data: " + JSON.stringify(event) + "\\n\\n"));
           },
@@ -85,6 +96,8 @@ export async function sendAskEvent(page: Page, event: object) {
   await page.waitForFunction("typeof window.sendAskEvent === 'function'");
   await page.evaluate(`window.sendAskEvent(${JSON.stringify(event)})`);
 }
+
+export const endAsk = (page: Page) => page.evaluate("window.endAsk()");
 
 export const announced = (page: Page) =>
   page.evaluate<string[]>("window.announced.map((line) => line.text)");

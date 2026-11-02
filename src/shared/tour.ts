@@ -21,12 +21,22 @@ export const stepSchema = z
     });
   });
 
+export const scopeSchema = z.enum(["side", "new"]);
+
+export const currentSchema = z.object({
+  tour: z.string().min(1).max(2000),
+  step: z.number().int().nonnegative(),
+  segmentIndex: z.number().int().nonnegative(),
+});
+
 export const tourSchema = z.object({
   question: z.string(),
   steps: z.array(stepSchema),
   checkQuestion: z.string().min(1).optional(),
   reply: z.string().min(1).optional(),
+  scope: scopeSchema.optional(),
 });
 
 export type Step = z.infer<typeof stepSchema>;
 export type Tour = z.infer<typeof tourSchema>;
+export type Current = z.infer<typeof currentSchema>;

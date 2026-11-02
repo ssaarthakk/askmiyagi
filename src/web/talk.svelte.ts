@@ -1,25 +1,36 @@
+import { type Detection, type Detector, encodeWav } from "./hands-free.ts";
 import { startRecording } from "./recorder.ts";
 
 const microphoneUnavailable = "Microphone unavailable. Type your question instead.";
+const microphoneErrors = ["NotAllowedError", "NotFoundError", "NotReadableError"];
+
+function errorText(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
 
 export type Transcriber = (recording: Blob, notify: (text: string) => void) => Promise<string>;
 
 export function createTalk(options: {
   transcribe: Transcriber;
-  busy: () => boolean;
   button: () => HTMLButtonElement | undefined;
   onstart: () => void;
-  onquestion: (text: string) => Promise<void>;
+  ontranscript: (text: string) => Promise<void>;
+  detect: (detection: Detection) => Promise<Detector>;
+  duck: (lowered: boolean) => void;
 }) {
   let recording = $state(false);
   let notice = $state("");
+  let handsFree = $state<"off" | "starting" | "listening">("off");
   let activeRecording: ReturnType<typeof startRecording> | undefined;
   let opened = false;
   let transcribing = false;
+  let detector: Promise<Detector> | undefined;
+  let overlapsPushToTalk = false;
 
   function start() {
-    if (recording || transcribing || options.busy()) return;
+    if (recording || transcribing) return;
     recording = true;
+    overlapsPushToTalk = true;
     opened = false;
     notice = "";
     options.onstart();
@@ -35,11 +46,20 @@ export function createTalk(options: {
     );
   }
 
+  async function handle(text: string) {
+    try {
+      await options.ontranscript(text);
+    } catch (error) {
+      notice = errorText(error);
+    }
+  }
+
   async function stop() {
     if (!recording) return;
     recording = false;
     const heldOpen = opened;
     transcribing = true;
+    let text = "";
     try {
       const session = await activeRecording?.catch(() => undefined);
       if (!session) return;
@@ -49,14 +69,71 @@ export function createTalk(options: {
         return;
       }
       notice = "Transcribing...";
-      const text = audio.size > 0 ? await options.transcribe(audio, (text) => (notice = text)) : "";
+      text = audio.size > 0 ? await options.transcribe(audio, (text) => (notice = text)) : "";
       notice = text ? "" : "Didn't catch that";
-      if (text) await options.onquestion(text);
     } catch (error) {
-      notice = error instanceof Error ? error.message : String(error);
+      notice = errorText(error);
     } finally {
       transcribing = false;
     }
+    if (text) await handle(text);
+  }
+
+  async function heard(audio: Float32Array) {
+    if (overlapsPushToTalk || transcribing || handsFree === "off") {
+      options.duck(false);
+      return;
+    }
+    transcribing = true;
+    let text = "";
+    try {
+      text = await options.transcribe(encodeWav(audio), (text) => (notice = text));
+      notice = "";
+    } catch (error) {
+      notice = errorText(error);
+    } finally {
+      transcribing = false;
+    }
+    if (text) options.onstart();
+    options.duck(false);
+    if (text) await handle(text);
+  }
+
+  const detection: Detection = {
+    onSpeechStart: () => {
+      overlapsPushToTalk = recording;
+      if (!overlapsPushToTalk) options.duck(true);
+    },
+    onVADMisfire: () => options.duck(false),
+    onSpeechEnd: (audio) => void heard(audio),
+  };
+
+  async function startHandsFree() {
+    handsFree = "starting";
+    notice = "";
+    try {
+      if (detector) {
+        await (await detector).start();
+      } else {
+        detector = options.detect(detection);
+        await detector;
+      }
+      if (handsFree === "starting") handsFree = "listening";
+    } catch (error) {
+      detector = undefined;
+      handsFree = "off";
+      notice =
+        error instanceof DOMException && microphoneErrors.includes(error.name)
+          ? microphoneUnavailable
+          : `Hands-free failed to start: ${errorText(error)}`;
+    }
+  }
+
+  async function stopHandsFree() {
+    handsFree = "off";
+    options.duck(false);
+    const running = await detector?.catch(() => undefined);
+    if (handsFree === "off") await running?.pause();
   }
 
   let clicked: Element | null | undefined;
@@ -76,6 +153,12 @@ export function createTalk(options: {
     },
     get notice() {
       return notice;
+    },
+    get handsFree() {
+      return handsFree;
+    },
+    toggleHandsFree() {
+      return handsFree === "off" ? startHandsFree() : stopHandsFree();
     },
     stop,
     pointerused(event: PointerEvent) {

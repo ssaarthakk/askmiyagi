@@ -53,6 +53,14 @@ describe("system prompt", () => {
     expect(request.system).toMatch(/exact text/i);
     expect(request.system).toMatch(/1 to 3 anchors/);
   });
+
+  it("tells the model to answer about the learner's position and to end with a scope line", async () => {
+    const root = await createRepo({ "a.ts": "export const a = 1;\n" });
+    const { request } = await buildRequest(root, "What is a?");
+    expect(request.system).toContain('{"scope": "side"}');
+    expect(request.system).toContain('{"scope": "new"}');
+    expect(request.system).toMatch(/what the learner is looking at/i);
+  });
 });
 
 describe("answer length", () => {

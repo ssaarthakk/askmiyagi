@@ -49,6 +49,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - When a tour moves to another file, the viewer shows that file about 200 ms before its narration starts.
 - Spoken questions are cleaned up before they are sent: filler words (um, uh, er, ah, hmm) are dropped and words that sound like a repo symbol become that symbol, for example "upload clip" becomes `uploadClip`.
 - The call log records the time to first sound (`firstSoundMs`) for questions asked with the voice on.
+- Voice commands that run at once, with no LLM call: "go back", "repeat", "skip", "slower", "faster", "pause" and "resume". Slower and faster change the speed by 0.25, between 0.5x and 2x.
+- Speak while an answer is still streaming to interrupt it: the steps already received go on the tour stack and nothing is dropped.
+- Side questions know where you are: "that await" means the line being highlighted. After a side answer the earlier tour picks up on its own; after a new topic it waits until you say or press resume.
+- Hands-free mode (off by default): turn it on beside the microphone button and just speak. The tour gets quieter when you start talking and stops once your speech is recognised; noise and coughs let it carry on. Voice detection (Silero) runs in the browser from files served by Miyagi.
 
 ### Changed
 

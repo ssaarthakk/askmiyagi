@@ -197,7 +197,7 @@ describe("local server", () => {
       requestPath(url, "/api/transcribe", { "x-miyagi-token": token }, "POST"),
     ).resolves.toEqual({
       status: 415,
-      body: '{"error":"Recording must be audio/webm or audio/ogg"}',
+      body: '{"error":"Recording must be audio/webm, audio/ogg or audio/wav"}',
     });
   });
 

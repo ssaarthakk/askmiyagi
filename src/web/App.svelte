@@ -1,9 +1,11 @@
 <script lang="ts">
 import type { ResolvedAnchor, Selection } from "../shared/anchor.ts";
 import { spokenProgress } from "./announcer.ts";
-import { ask } from "./ask.ts";
+import { ask, interruptAsk } from "./ask.ts";
 import CodePane from "./CodePane.svelte";
 import Conversation, { type Note, type Turn } from "./Conversation.svelte";
+import { type Command, matchCommand } from "./commands.ts";
+import { chooseDetector } from "./hands-free.ts";
 import { type Highlight, moveHighlight } from "./highlight.ts";
 import Player from "./Player.svelte";
 import { anchorTarget, firstPosition, neighbour, type PlayerStep, type Position } from "./player.ts";
@@ -35,8 +37,18 @@ let steps = $state<PlayerStep[]>([]);
 let tutorLine = $state<string>();
 let position = $state<Position>();
 let tourStarted = false;
-const earlierTours: { steps: PlayerStep[]; tutorLine: string | undefined; at: Position }[] = [];
+type EarlierTour = {
+  question: string;
+  steps: PlayerStep[];
+  tutorLine: string | undefined;
+  at: Position;
+  waits: boolean;
+};
+const earlierTours: EarlierTour[] = [];
+let tourQuestion = "";
+let talkPausedPlayback = false;
 let awaitingAnswer = false;
+let running: AbortController | undefined;
 const previous = $derived(position && neighbour(steps, position, -1));
 const next = $derived(position && neighbour(steps, position, 1));
 
@@ -100,6 +112,10 @@ function selectFirst() {
 }
 
 function resume() {
+  if (earlierTours.length > 0 && !voice.interrupted && !voice.playing && !asking) {
+    restoreEarlierTour();
+    return;
+  }
   const at = voice.interrupted ?? position;
   if (at) go(at);
   else selectFirst();
@@ -117,19 +133,25 @@ function startTurn(question: string, notes: Note[]) {
   turns.push({ question, notes, titles: [], check: undefined });
 }
 
-function resumeEarlierTour() {
-  const earlier = earlierTours.at(-1);
-  if (!earlier || asking || voice.playing || !voice.on || awaitingAnswer) return;
-  if (!voice.caughtUp && (steps.length > 0 || tutorLine)) return;
-  earlierTours.pop();
+function restoreEarlierTour() {
+  const earlier = earlierTours.pop();
+  if (!earlier) return;
   voice.cancelFirstSound();
   startTurn("", [{ kind: "progress", text: "Back to where we were" }]);
   steps = earlier.steps;
   tutorLine = earlier.tutorLine;
+  tourQuestion = earlier.question;
   position = undefined;
   highlight = undefined;
   voice.announcer?.say("Now, back to where we were.");
   go(earlier.at);
+}
+
+function resumeEarlierTour() {
+  if (earlierTours.length === 0 || earlierTours.at(-1)?.waits || asking || voice.playing) return;
+  if (!voice.on || awaitingAnswer) return;
+  if (!voice.caughtUp && (steps.length > 0 || tutorLine)) return;
+  restoreEarlierTour();
 }
 
 function note(kind: Note["kind"], text: string) {
@@ -141,19 +163,63 @@ function askText(text: string) {
   return sendQuestion();
 }
 
+function runCommand(command: Command) {
+  if (command === "back" && previous) go(previous);
+  else if (command === "skip" && next) go(next);
+  else if (command === "repeat" && position) go(position);
+  else if (command === "pause") voice.pause();
+  else if (command === "resume") resume();
+  else {
+    if (command === "slower") voice.changeSpeed(-1);
+    if (command === "faster") voice.changeSpeed(1);
+    if (talkPausedPlayback) resume();
+  }
+}
+
+function canRun(command: Command | undefined) {
+  return position !== undefined || (command === "resume" && earlierTours.length > 0);
+}
+
+async function handleTranscript(text: string) {
+  const command = matchCommand(text);
+  if (command && canRun(command)) runCommand(command);
+  else await askText(text);
+}
+
+function pauseForTalk() {
+  talkPausedPlayback = voice.playing;
+  voice.pause();
+}
+
 async function sendQuestion() {
   const text = question.trim();
-  if (!text || asking) return;
+  if (!text) return;
+  const streaming = running !== undefined;
+  if (running) {
+    running.abort();
+    await interruptAsk(token);
+  }
   question = "";
   asking = true;
+  const controller = new AbortController();
+  running = controller;
   const attached = selection;
   selection = undefined;
   voice.pause();
   voice.asked();
   const interrupted = voice.takeInterrupted();
-  if (voice.on && interrupted && steps.length > 0) {
-    earlierTours.push({ steps, tutorLine, at: interrupted });
-  }
+  const watching = interrupted ?? position;
+  const onScreen =
+    steps.length > 0 && watching
+      ? { tour: tourQuestion, step: watching.step, segmentIndex: watching.segment }
+      : undefined;
+  const setAsideAt = interrupted ?? (streaming ? (position ?? firstPosition(steps)) : undefined);
+  const setAside: EarlierTour | undefined =
+    voice.on && setAsideAt && steps.length > 0
+      ? { question: tourQuestion, steps, tutorLine, at: setAsideAt, waits: false }
+      : undefined;
+  if (setAside) earlierTours.push(setAside);
+  tourQuestion = text;
   awaitingAnswer = false;
   startTurn(text, []);
   steps = [];
@@ -164,7 +230,8 @@ async function sendQuestion() {
   staleNotice = "";
   let progressSpoken = 0;
   try {
-    await ask(text, token, attached, (askEvent) => {
+    await ask(text, token, attached, onScreen, (askEvent) => {
+      if (controller.signal.aborted) return;
       if (askEvent.type === "ack") {
         note("ack", askEvent.text);
         announce(askEvent.text);
@@ -189,6 +256,7 @@ async function sendQuestion() {
         if (!tourStarted || (position && !steps[position.step]?.step.narration[position.segment])) {
           selectFirst();
         }
+        if (setAside) setAside.waits = askEvent.tour.scope === "new";
         tutorLine = askEvent.tour.reply ?? askEvent.tour.checkQuestion;
         awaitingAnswer = !askEvent.tour.reply && askEvent.tour.checkQuestion !== undefined;
         const current = turns.at(-1);
@@ -197,13 +265,14 @@ async function sendQuestion() {
       } else if (askEvent.type === "error") {
         note("error", askEvent.message);
       }
-    });
+    }, controller.signal);
   } catch (error) {
-    note("error", error instanceof Error ? error.message : String(error));
-  } finally {
-    asking = false;
-    voice.answered();
+    if (!controller.signal.aborted) note("error", error instanceof Error ? error.message : String(error));
   }
+  if (controller.signal.aborted) return;
+  running = undefined;
+  asking = false;
+  voice.answered();
   resumeEarlierTour();
 }
 
@@ -211,11 +280,16 @@ let microphoneButton = $state<HTMLButtonElement>();
 
 const talk = createTalk({
   transcribe: chooseTranscriber(elevenLabs, token),
-  busy: () => asking,
   button: () => microphoneButton,
-  onstart: voice.pause,
-  onquestion: askText,
+  onstart: pauseForTalk,
+  ontranscript: handleTranscript,
+  detect: chooseDetector(),
+  duck: voice.duck,
 });
+
+const micNotice = $derived(
+  talk.notice || (talk.handsFree === "listening" ? "Listening hands-free" : ""),
+);
 </script>
 
 <svelte:window
@@ -258,13 +332,15 @@ const talk = createTalk({
     {selectionLabel}
     {elevenLabs}
     voiceNotice={voice.notice}
-    micNotice={talk.notice}
+    {micNotice}
     recording={talk.recording}
+    handsFree={talk.handsFree !== "off"}
     {asking}
     onsend={sendQuestion}
     onremoveselection={() => (selection = undefined)}
     onmicdown={talk.pointerdown}
     onmicup={talk.stop}
+    ontogglehandsfree={talk.toggleHandsFree}
   />
 </main>
 

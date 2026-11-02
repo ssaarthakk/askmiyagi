@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { collect, request } from "../../../test/fake-claude.ts";
 import { runClaude } from "./claude-process.ts";
-import { parseClaudeStream } from "./claude-stream.ts";
+import { modelLineEvents, parseClaudeStream } from "./claude-stream.ts";
 import { lostThread } from "./provider.ts";
 
 const recordings = resolve(import.meta.dirname, "../../../test/fixtures/recordings");
@@ -179,6 +179,14 @@ describe("parseClaudeStream", () => {
         message: "Claude Code is not logged in. Run `claude` and use /login, then ask again.",
         retryable: false,
       },
+    ]);
+  });
+
+  it("turns a scope line into a scope event and rejects any other scope", () => {
+    expect([...modelLineEvents('{"scope":"side"}')]).toEqual([{ type: "scope", scope: "side" }]);
+    expect([...modelLineEvents('{"scope":"new"}')]).toEqual([{ type: "scope", scope: "new" }]);
+    expect([...modelLineEvents('{"scope":"later"}')]).toEqual([
+      expect.objectContaining({ type: "error", message: lostThread, retryable: false }),
     ]);
   });
 

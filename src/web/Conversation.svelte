@@ -17,11 +17,13 @@ let {
   voiceNotice,
   micNotice,
   recording,
+  handsFree,
   asking,
   onsend,
   onremoveselection,
   onmicdown,
   onmicup,
+  ontogglehandsfree,
 }: {
   turns: Turn[];
   tourVisible: boolean;
@@ -33,11 +35,13 @@ let {
   voiceNotice: string;
   micNotice: string;
   recording: boolean;
+  handsFree: boolean;
   asking: boolean;
   onsend: () => void;
   onremoveselection: () => void;
   onmicdown: (event: PointerEvent) => void;
   onmicup: () => void;
+  ontogglehandsfree: () => void;
 } = $props();
 
 let list = $state<HTMLUListElement>();
@@ -114,11 +118,11 @@ function keydown(event: KeyboardEvent) {
         type="button"
         bind:this={microphoneButton}
         aria-pressed={recording}
-        disabled={asking}
         onpointerdown={onmicdown}
         onpointerup={onmicup}
         onpointercancel={onmicup}
       >Hold to talk</button>
+      <button type="button" aria-pressed={handsFree} onclick={ontogglehandsfree}>Hands-free</button>
       <button type="submit" class="primary" disabled={asking}>Send</button>
     </div>
   </form>

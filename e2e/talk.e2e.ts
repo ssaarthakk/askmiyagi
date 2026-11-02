@@ -50,6 +50,7 @@ test("a picked symbol is sent with the spoken question", async ({ page }) => {
   expect((await asked).postDataJSON()).toEqual({
     question: "What does this do?",
     selection: { file: "src/upload.ts", start: 1, end: 1, text: "uploadClip" },
+    current: { tour: "How are clips saved?", step: 2, segmentIndex: 0 },
   });
 });
 
@@ -195,7 +196,10 @@ test("after pausing with the mouse, holding Space asks instead of resuming", asy
   );
   await page.keyboard.up("Space");
 
-  expect((await asked).postDataJSON()).toEqual({ question: "What does runCli do?" });
+  expect((await asked).postDataJSON()).toEqual({
+    question: "What does runCli do?",
+    current: { tour: "How are clips saved?", step: 0, segmentIndex: 0 },
+  });
   expect(await page.evaluate<number>("window.spoken.length")).toBe(spokenBefore);
 });
 

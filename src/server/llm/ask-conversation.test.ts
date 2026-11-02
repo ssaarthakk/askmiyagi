@@ -142,13 +142,40 @@ describe("askEvents conversation", () => {
     expect(conversation.render()).toBe("");
   });
 
-  it("does not store an ask that was aborted", async () => {
+  it("keeps the steps an aborted ask had sent as a partial turn", async () => {
     const conversation = createConversation();
     const controller = new AbortController();
     const provider: LLMProvider = {
       async *ask() {
         yield { type: "step", step: saveStep };
         controller.abort();
+      },
+    };
+    await collect(stream(provider, controller.signal, conversation));
+    expect(conversation.render()).toContain(saveStep.title);
+  });
+
+  it("keeps the partial turn when the provider throws after the abort", async () => {
+    const conversation = createConversation();
+    const controller = new AbortController();
+    const provider: LLMProvider = {
+      async *ask() {
+        yield { type: "step", step: saveStep };
+        controller.abort();
+        throw new Error("The operation was aborted");
+      },
+    };
+    await collect(stream(provider, controller.signal, conversation));
+    expect(conversation.render()).toContain(saveStep.title);
+  });
+
+  it("stores nothing for an ask aborted before any step", async () => {
+    const conversation = createConversation();
+    const controller = new AbortController();
+    const provider: LLMProvider = {
+      async *ask() {
+        controller.abort();
+        yield { type: "step", step: saveStep };
       },
     };
     await collect(stream(provider, controller.signal, conversation));

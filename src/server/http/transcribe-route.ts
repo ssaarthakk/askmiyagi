@@ -5,7 +5,7 @@ import { readBody, sendError } from "./ask-route.ts";
 
 const maxRecordingBytes = 10 * 1024 * 1024;
 const timeoutMs = 30_000;
-const audioTypes = ["audio/webm", "audio/ogg"];
+const audioTypes = ["audio/webm", "audio/ogg", "audio/wav"];
 
 export function createTranscribeHandler(options: { apiKey?: string | undefined }) {
   return async function handleTranscribe(request: IncomingMessage, response: ServerResponse) {
@@ -15,7 +15,7 @@ export function createTranscribeHandler(options: { apiKey?: string | undefined }
     }
     const type = (request.headers["content-type"] ?? "").split(";", 1)[0]?.trim().toLowerCase();
     if (!type || !audioTypes.includes(type)) {
-      sendError(response, 415, "Recording must be audio/webm or audio/ogg");
+      sendError(response, 415, "Recording must be audio/webm, audio/ogg or audio/wav");
       return;
     }
     const recording = await readBody(request, maxRecordingBytes);

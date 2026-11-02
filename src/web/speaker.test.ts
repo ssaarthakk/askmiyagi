@@ -5,6 +5,7 @@ import { browserSpeaker, chooseSpeaker, localVoices, noLocalVoice } from "./spea
 type FakeUtterance = {
   text: string;
   voice: SpeechSynthesisVoice | null;
+  rate: number;
   onstart: (() => void) | null;
   onend: (() => void) | null;
   onerror: ((event: { error: string }) => void) | null;
@@ -25,6 +26,7 @@ function fakeSynthesis(voices: SpeechSynthesisVoice[]) {
     "SpeechSynthesisUtterance",
     class {
       voice = null;
+      rate = 1;
       onstart = null;
       onend = null;
       onerror = null;
@@ -70,6 +72,19 @@ describe("browserSpeaker", () => {
 
     await done;
     expect(onStart).toHaveBeenCalledOnce();
+  });
+
+  it("speaks each new utterance at the speed it was last given", async () => {
+    const { synthesis, spoken } = fakeSynthesis([local]);
+    const speaker = browserSpeaker(synthesis);
+    void speaker.speak("one", new AbortController().signal);
+    await vi.waitFor(() => expect(spoken).toHaveLength(1));
+
+    speaker.setRate?.(0.75);
+    void speaker.speak("two", new AbortController().signal);
+    await vi.waitFor(() => expect(spoken).toHaveLength(2));
+
+    expect(spoken.map((utterance) => utterance.rate)).toEqual([1, 0.75]);
   });
 
   it("stops at once when aborted", async () => {

@@ -11,13 +11,14 @@ import {
   grepInputSchema,
   readFileInputSchema,
 } from "../../shared/tool-inputs.ts";
-import type { Step } from "../../shared/tour.ts";
+import type { Current, Step, Tour } from "../../shared/tour.ts";
 import { wrapUntrusted } from "../../shared/untrusted.ts";
 import { addUsage, noUsage, type Usage } from "../../shared/usage.ts";
 import { resolveAnchor } from "../code/anchor-resolver.ts";
 import { redact } from "../files/redact.ts";
 import { logError } from "../log.ts";
 import type { Conversation } from "./conversation.ts";
+import { describePosition } from "./position.ts";
 import { buildRequest } from "./prompt.ts";
 import { type LLMProvider, lostThread } from "./provider.ts";
 import { checkSelection } from "./selection.ts";
@@ -59,6 +60,7 @@ type AskOptions = {
   question: string;
   ack: string;
   selection?: Selection | undefined;
+  current?: Current | undefined;
   signal: AbortSignal;
   bruteForceTokens?: number | undefined;
   callLog?: { provider: string; write(record: CallRecord): Promise<void> } | undefined;
@@ -116,10 +118,16 @@ async function* answer(
   const steps: Step[] = [];
   const allRanges: (ResolvedAnchor | null)[][] = [];
   let checkQuestion: string | undefined;
+  let scope: Tour["scope"];
   let turnMessages: AgentMessage[] | undefined;
   let contextLength = 0;
   const progressSent = new Set<string>();
   const replyLines: string[] = [];
+  const keepPartialTour = () => {
+    if (steps.length > 0) {
+      options.conversation.add(options.question, { question: options.question, steps });
+    }
+  };
   try {
     let selection = options.selection;
     if (selection) {
@@ -137,8 +145,12 @@ async function* answer(
       options.conversation.size(),
     );
     contextLength = built.request.context.length;
+    const earlier = options.current && options.conversation.tourAsked(options.current.tour);
+    const position =
+      options.current && earlier && (await describePosition(root, earlier, options.current));
     const request: LLMRequest = {
       ...built.request,
+      question: position ? `${built.request.question}\n\n${position}` : built.request.question,
       conversation: options.conversation.render(),
       history: options.conversation.messages(contextLength),
     };
@@ -149,7 +161,10 @@ async function* answer(
     while (true) {
       let invalidStepErrors: string | undefined;
       for await (const event of options.provider.ask(attempt, signal)) {
-        if (signal.aborted) return;
+        if (signal.aborted) {
+          keepPartialTour();
+          return;
+        }
         if (event.type === "tool_call") {
           const opened = openedFileSchema.safeParse(event.input);
           if (event.name === "read_file" && opened.success)
@@ -173,6 +188,8 @@ async function* answer(
           yield { type: "step", step: event.step, ranges };
         } else if (event.type === "checkQuestion") {
           checkQuestion = event.text;
+        } else if (event.type === "scope") {
+          scope = event.scope;
         } else if (event.type === "text") {
           progress.firstContentMs ??= performance.now() - started;
           replyLines.push(event.text);
@@ -202,13 +219,20 @@ async function* answer(
       };
     }
   } catch (error) {
+    if (signal.aborted) {
+      keepPartialTour();
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
     progress.outcome = "error";
     logError(`Ask failed: ${message}`);
     yield { type: "error", message };
     return;
   }
-  if (signal.aborted) return;
+  if (signal.aborted) {
+    keepPartialTour();
+    return;
+  }
 
   if (steps.length > 0 && replyLines.length > 0) {
     logError(`Ignored text outside the steps: ${replyLines.join(" ")}`);
@@ -225,6 +249,7 @@ async function* answer(
     steps,
     ...(checkQuestion === undefined ? {} : { checkQuestion }),
     ...(reply === undefined ? {} : { reply }),
+    ...(scope === undefined ? {} : { scope }),
   };
   if (steps.length > 0 || reply) {
     options.conversation.add(options.question, tour, turnMessages);

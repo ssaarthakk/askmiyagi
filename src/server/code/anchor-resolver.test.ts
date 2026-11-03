@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { createRepo as createGitRepo } from "../../../test/git-helpers.ts";
 import type { Anchor } from "../../shared/anchor.ts";
 import { resolveAnchor } from "./anchor-resolver.ts";
 
@@ -295,6 +296,80 @@ describe("resolveAnchor over the basic fixture", () => {
     ).resolves.toEqual({
       ok: true,
       value: { file: "src/upload.ts", start: 2, end: 2, capped: false },
+    });
+  });
+});
+
+describe("resolveAnchor with a side", () => {
+  async function createChangedRepo() {
+    const root = await createGitRepo();
+    await writeFile(
+      join(root, "src", "upload.ts"),
+      "export function limit() {\n  return 2;\n}\nexport const added = 1;\n",
+    );
+    return root;
+  }
+
+  it("resolves an old-side anchor against the base version and keeps the side", async () => {
+    const root = await createChangedRepo();
+
+    await expect(
+      resolveAnchor(
+        root,
+        { file: "src/upload.ts", line: 1, text: "export const limit = 1", side: "old" },
+        "uncommitted",
+      ),
+    ).resolves.toEqual({
+      ok: true,
+      value: { file: "src/upload.ts", start: 1, end: 1, capped: false, side: "old" },
+    });
+    await expect(
+      resolveAnchor(root, { file: "src/old.ts", symbol: "old", side: "old" }, "uncommitted"),
+    ).resolves.toEqual({
+      ok: true,
+      value: { file: "src/old.ts", start: 1, end: 1, capped: false, side: "old" },
+    });
+  });
+
+  it("fails an old-side anchor whose text is only in the working copy", async () => {
+    const root = await createChangedRepo();
+
+    await expect(
+      resolveAnchor(
+        root,
+        { file: "src/upload.ts", line: 4, text: "export const added = 1;", side: "old" },
+        "uncommitted",
+      ),
+    ).resolves.toMatchObject({ ok: false });
+  });
+
+  it("resolves a new-side anchor against the working copy and keeps the side", async () => {
+    const root = await createChangedRepo();
+
+    await expect(
+      resolveAnchor(root, { file: "src/upload.ts", symbol: "limit", side: "new" }, "uncommitted"),
+    ).resolves.toEqual({
+      ok: true,
+      value: { file: "src/upload.ts", start: 1, end: 3, capped: false, side: "new" },
+    });
+  });
+
+  it("fails an old-side anchor when no base is given", async () => {
+    const root = await createChangedRepo();
+
+    await expect(
+      resolveAnchor(root, { file: "src/old.ts", symbol: "old", side: "old" }),
+    ).resolves.toEqual({ ok: false, error: "An old-side anchor needs a diff base" });
+  });
+
+  it("leaves the side off an anchor that has none", async () => {
+    const root = await createChangedRepo();
+
+    const result = await resolveAnchor(root, { file: "src/old.ts", symbol: "old" }, "uncommitted");
+
+    expect(result).toEqual({
+      ok: true,
+      value: { file: "src/old.ts", start: 1, end: 1, capped: false },
     });
   });
 });

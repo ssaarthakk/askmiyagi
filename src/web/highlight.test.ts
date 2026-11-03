@@ -42,3 +42,18 @@ describe("moveHighlight", () => {
     expect(moveHighlight(first, "a.ts", { start: 2, end: 4 }).previous).toBeNull();
   });
 });
+
+describe("moveHighlight in a diff", () => {
+  const old = { start: 2, end: 4, side: "old" as const };
+  const added = { start: 2, end: 4, side: "new" as const };
+
+  it("keeps the diff base on the highlight", () => {
+    expect(moveHighlight(undefined, "a.ts", old, "branch").base).toBe("branch");
+  });
+
+  it("dims the previous range when the same lines are shown on the other side", () => {
+    const first = moveHighlight(undefined, "a.ts", old, "branch");
+
+    expect(moveHighlight(first, "a.ts", added, "branch").previous).toEqual(old);
+  });
+});

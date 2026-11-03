@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { AgentMessage } from "../../shared/agent-message.ts";
 import type { ResolvedAnchor, Selection } from "../../shared/anchor.ts";
 import type { CallRecord } from "../../shared/call-log.ts";
+import type { DiffRequest } from "../../shared/diff-base.ts";
 import type { AskEvent } from "../../shared/events.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
 import type { SessionRecord } from "../../shared/session.ts";
@@ -19,10 +20,18 @@ import { resolveAnchor } from "../code/anchor-resolver.ts";
 import { redact } from "../files/redact.ts";
 import { logError } from "../log.ts";
 import type { Conversation } from "./conversation.ts";
+import { buildDiffContext, diffRules } from "./diff-context.ts";
 import { describePosition } from "./position.ts";
 import { buildRequest } from "./prompt.ts";
 import { type LLMProvider, lostThread } from "./provider.ts";
 import { checkSelection } from "./selection.ts";
+import {
+  anchorStackTrace,
+  formatStackTrace,
+  parseStackTrace,
+  stackTraceRules,
+  stackTraceWarnings,
+} from "./stack-trace.ts";
 import { createSummariser } from "./summariser.ts";
 
 const openedFileSchema = z.object({ path: readFileInputSchema.shape.path });
@@ -65,6 +74,7 @@ type AskOptions = {
   ack: string;
   selection?: Selection | undefined;
   current?: Current | undefined;
+  diff?: DiffRequest | undefined;
   signal: AbortSignal;
   bruteForceTokens?: number | undefined;
   callLog?: { provider: string; write(record: CallRecord): Promise<void> } | undefined;
@@ -129,7 +139,12 @@ async function* answer(
   const replyLines: string[] = [];
   const keepPartialTour = () => {
     if (steps.length > 0) {
-      options.conversation.add(options.question, { question: options.question, steps });
+      options.conversation.add(
+        options.question,
+        { question: options.question, steps },
+        [],
+        options.diff?.base,
+      );
     }
   };
   try {
@@ -141,20 +156,37 @@ async function* answer(
         selection = undefined;
       }
     }
+    const diffContext = options.diff && (await buildDiffContext(root, options.diff));
+    if (diffContext && !diffContext.ok) {
+      progress.outcome = "error";
+      logError(`Ask failed: ${diffContext.error}`);
+      yield { type: "error", message: diffContext.error };
+      return;
+    }
+    const parsedTrace = parseStackTrace(options.question);
+    const trace = parsedTrace && (await anchorStackTrace(root, parsedTrace));
+    for (const warning of trace ? stackTraceWarnings(trace) : []) {
+      yield { type: "progress", text: `Warning: ${warning}` };
+    }
     const built = await buildRequest(
       root,
-      options.question,
+      trace ? formatStackTrace(trace) : options.question,
       options.bruteForceTokens,
       selection,
       options.conversation.size(),
     );
     contextLength = built.request.context.length;
-    const earlier = options.current && options.conversation.tourAsked(options.current.tour);
+    const earlier = options.current && options.conversation.turnAsked(options.current.tour);
     const position =
-      options.current && earlier && (await describePosition(root, earlier, options.current));
+      options.current &&
+      earlier &&
+      (await describePosition(root, earlier.tour, options.current, earlier.base));
     const request: LLMRequest = {
       ...built.request,
-      question: position ? `${built.request.question}\n\n${position}` : built.request.question,
+      system: [built.request.system, diffContext && diffRules, trace && stackTraceRules]
+        .filter(Boolean)
+        .join("\n\n"),
+      question: [built.request.question, diffContext?.value, position].filter(Boolean).join("\n\n"),
       conversation: options.conversation.render(),
       history: options.conversation.messages(contextLength),
     };
@@ -182,7 +214,7 @@ async function* answer(
           progress.firstContentMs ??= performance.now() - started;
           const ranges = await Promise.all(
             event.step.anchors.map(async (anchor) => {
-              const resolved = await resolveAnchor(root, anchor);
+              const resolved = await resolveAnchor(root, anchor, options.diff?.base);
               if (!resolved.ok) logError(`No highlight for ${anchor.file}: ${resolved.error}`);
               return resolved.ok ? resolved.value : null;
             }),
@@ -256,7 +288,7 @@ async function* answer(
     ...(scope === undefined ? {} : { scope }),
   };
   if (steps.length > 0 || reply) {
-    options.conversation.add(options.question, tour, turnMessages);
+    options.conversation.add(options.question, tour, turnMessages, options.diff?.base);
     void options.conversation.summarise(contextLength, createSummariser(options.provider, root));
   }
   progress.outcome = "done";

@@ -94,3 +94,24 @@ describe("createAskHandler current position", () => {
     expect(tooLong.status).toBe(400);
   });
 });
+
+describe("createAskHandler diff", () => {
+  it("accepts a diff base with or without a why and refuses a bad one", async () => {
+    const { post } = await startAsk(false);
+    const question = "Explain my diff (uncommitted changes)";
+
+    const accepted = await post({ question, diff: { base: "uncommitted", why: "Raise the cap" } });
+    const events = await accepted.text();
+    const unknownBase = await post({ question, diff: { base: "stash" } });
+    const missingBase = await post({ question, diff: { why: "Raise the cap" } });
+    const emptyWhy = await post({ question, diff: { base: "branch", why: "   " } });
+    const longWhy = await post({ question, diff: { base: "branch", why: "x".repeat(2001) } });
+
+    expect(accepted.status).toBe(200);
+    expect(events).toContain('"type":"error"');
+    expect(unknownBase.status).toBe(400);
+    expect(missingBase.status).toBe(400);
+    expect(emptyWhy.status).toBe(400);
+    expect(longWhy.status).toBe(400);
+  });
+});

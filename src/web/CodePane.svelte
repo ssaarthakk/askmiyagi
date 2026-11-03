@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import type { Selection } from "../shared/anchor.ts";
+import DiffViewer from "./DiffViewer.svelte";
 import type { Highlight } from "./highlight.ts";
 import Viewer from "./Viewer.svelte";
 import Welcome from "./Welcome.svelte";
@@ -34,13 +35,24 @@ let {
   {/if}
   {#if highlight}
     {#key reloads}
-      <Viewer
-        path={highlight.file}
-        {token}
-        current={highlight.current}
-        previous={highlight.previous}
-        {onpick}
-      />
+      {#if highlight.base}
+        <DiffViewer
+          path={highlight.file}
+          base={highlight.base}
+          {token}
+          current={highlight.current}
+          previous={highlight.previous}
+          {onpick}
+        />
+      {:else}
+        <Viewer
+          path={highlight.file}
+          {token}
+          current={highlight.current}
+          previous={highlight.previous}
+          {onpick}
+        />
+      {/if}
     {/key}
   {:else if welcome}
     <Welcome {projectName} {onsuggest} />

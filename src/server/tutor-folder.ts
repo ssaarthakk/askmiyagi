@@ -24,7 +24,7 @@ async function checkNotLinked(realRoot: string, path: string): Promise<Result<bo
   }
 }
 
-async function privateFileOrProblem(root: string, name: string): Promise<Result<string>> {
+export async function privateFileOrProblem(root: string, name: string): Promise<Result<string>> {
   const realRoot = await realpath(root);
   const tutorDir = join(realRoot, ".tutor");
   const privateDir = join(tutorDir, "private");

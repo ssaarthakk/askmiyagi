@@ -1,6 +1,7 @@
-import { cp, readFile, writeFile } from "node:fs/promises";
+import { cp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createRepo } from "../../test/git-helpers.ts";
 import { tempDir } from "../../test/temp-dir.ts";
 import type { Anchor } from "../shared/anchor.ts";
 import type { WatchEvent } from "../shared/events.ts";
@@ -66,6 +67,30 @@ describe("createTourWatch", () => {
 
     expect(events).toEqual([
       { type: "ranges", ranges: [[{ file, start: 3, end: 5, capped: false }]] },
+    ]);
+  });
+
+  it("keeps resolving an old-side anchor against the diff base of the ask", async () => {
+    const root = await createRepo();
+    const old = {
+      file: "src/old.ts",
+      line: 1,
+      text: "export const old = true",
+      side: "old",
+    } as const;
+    const events: WatchEvent[] = [];
+    const watch = createTourWatch({ root, publish: (event) => events.push(event) });
+    watch.start("uncommitted");
+    watch.addStep([old], [{ file: old.file, start: 1, end: 1, capped: false, side: "old" }]);
+    await rm(join(root, "src", "old.ts"));
+
+    await watch.changed(["src/old.ts"]);
+
+    expect(events).toEqual([
+      {
+        type: "ranges",
+        ranges: [[{ file: old.file, start: 1, end: 1, capped: false, side: "old" }]],
+      },
     ]);
   });
 

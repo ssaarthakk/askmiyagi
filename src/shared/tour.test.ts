@@ -28,6 +28,17 @@ describe("anchors", () => {
     expect(error).toContain("{ file, line, text }");
   });
 
+  it("keeps an old or new side on either anchor shape and rejects any other side", () => {
+    for (const side of ["old", "new"]) {
+      const symbol = { ...symbolAnchor, side };
+      const line = { ...lineAnchor, side };
+      expect(parseContract(anchorSchema, symbol)).toEqual({ ok: true, value: symbol });
+      expect(parseContract(anchorSchema, line)).toEqual({ ok: true, value: line });
+    }
+    expect(parseContract(anchorSchema, { ...symbolAnchor, side: "both" }).ok).toBe(false);
+    expect(parseContract(anchorSchema, { ...lineAnchor, side: "left" }).ok).toBe(false);
+  });
+
   it("rejects a non-positive or fractional line", () => {
     expect(parseContract(anchorSchema, { ...lineAnchor, line: 0 }).ok).toBe(false);
     expect(parseContract(anchorSchema, { ...lineAnchor, line: 1.5 }).ok).toBe(false);
@@ -37,6 +48,8 @@ describe("anchors", () => {
     const resolved = { file: "a.ts", start: 3, end: 9, capped: false };
     expect(parseContract(resolvedAnchorSchema, resolved)).toEqual({ ok: true, value: resolved });
     expect(parseContract(resolvedAnchorSchema, { ...resolved, capped: "no" }).ok).toBe(false);
+    const old = { ...resolved, side: "old" };
+    expect(parseContract(resolvedAnchorSchema, old)).toEqual({ ok: true, value: old });
     const selection: Selection = { file: "a.ts", start: 3, end: 9, text: "code" };
     expect(parseContract(selectionSchema, selection)).toEqual({ ok: true, value: selection });
     expect(parseContract(selectionSchema, { ...selection, text: undefined }).ok).toBe(false);

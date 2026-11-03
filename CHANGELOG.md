@@ -54,6 +54,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Side questions know where you are: "that await" means the line being highlighted. After a side answer the earlier tour picks up on its own; after a new topic it waits until you say or press resume.
 - Hands-free mode (off by default): turn it on beside the microphone button and just speak. The tour gets quieter when you start talking and stops once your speech is recognised; noise and coughs let it carry on. Voice detection (Silero) runs in the browser from files served by Miyagi.
 - The tutor can read your git changes and history with a read-only `git` tool (`diff`, `show`, `log`). Other commands and flags are refused, hidden files such as `.env` and lockfiles are left out, and the output is redacted (private keys inside diff lines included) and capped.
+- Explain my diff: choose your uncommitted changes, everything since the branch started, or a snapshot, add an optional note on why, and get a tour of the change that goes from the problem to the intent to how it works. Small changes such as whitespace or renames share one step. A last "Things to verify" step lists removed guards and throws, changed error handling and deleted tests. With no note, the tutor says "it looks like" before it guesses the intent.
+- `askmiyagi snapshot` saves a copy of the visible files to compare against later.
+- Old and new code can be shown side by side, with highlights on either side.
+- Paste a Node or browser stack trace into the question box to get a tour from the symptom back to where the bad value was made, then a few ways to fix it. Each frame points at its file and line in the project, source maps are followed, and Node and `node_modules` frames are hidden. You get a warning when a function isn't at the line the trace names.
 
 ### Changed
 

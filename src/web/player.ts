@@ -1,8 +1,13 @@
 import type { ResolvedAnchor } from "../shared/anchor.ts";
+import type { DiffBase } from "../shared/diff-base.ts";
 import type { Step } from "../shared/tour.ts";
 import type { LineRange } from "./highlight.ts";
 
-export type PlayerStep = { step: Step; ranges: (ResolvedAnchor | null)[] };
+export type PlayerStep = {
+  step: Step;
+  ranges: (ResolvedAnchor | null)[];
+  base?: DiffBase | undefined;
+};
 export type Position = { step: number; segment: number };
 
 function positions(steps: PlayerStep[]) {
@@ -21,10 +26,10 @@ export function neighbour(steps: PlayerStep[], from: Position, offset: 1 | -1) {
   return all[index + offset];
 }
 
-export function anchorTarget({ step, ranges }: PlayerStep, segment: number) {
+export function anchorTarget({ step, ranges, base }: PlayerStep, segment: number) {
   const index = step.narration[segment]?.anchor ?? 0;
   const anchor = step.anchors[index];
   if (!anchor) return undefined;
   const range: LineRange | null = ranges[index] ?? null;
-  return { file: anchor.file, range };
+  return { file: anchor.file, range, base };
 }

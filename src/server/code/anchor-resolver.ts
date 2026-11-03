@@ -1,7 +1,9 @@
 import type { Tree } from "web-tree-sitter";
 import type { Anchor, ResolvedAnchor } from "../../shared/anchor.ts";
+import type { DiffBase } from "../../shared/diff-base.ts";
 import type { Result } from "../../shared/result.ts";
 import { readRedactedFile } from "../files/path-guard.ts";
+import { readBaseFile } from "../source/diff-base.ts";
 import { parseFile } from "./parse-cache.ts";
 import { uniqueDefinition } from "./symbols.ts";
 
@@ -86,10 +88,11 @@ function enclosingStatement(tree: Tree, text: string, line: number) {
   return node;
 }
 
-export async function resolveAnchor(root: string, anchor: Anchor): Promise<Result<ResolvedAnchor>> {
-  const file = await readRedactedFile(root, anchor.file);
-  if (!file.ok) return file;
-  const { relPath, source } = file.value;
+async function resolveInFile(
+  relPath: string,
+  source: string,
+  anchor: Anchor,
+): Promise<Result<ResolvedAnchor>> {
   const tree = await parseFile(relPath, source);
 
   if ("symbol" in anchor) {
@@ -119,4 +122,23 @@ export async function resolveAnchor(root: string, anchor: Anchor): Promise<Resul
   return statement
     ? block(relPath, statement.startPosition.row + 1, statement.endPosition.row + 1, line)
     : block(relPath, line, line);
+}
+
+export async function resolveAnchor(
+  root: string,
+  anchor: Anchor,
+  base?: DiffBase,
+): Promise<Result<ResolvedAnchor>> {
+  if (anchor.side === "old" && !base) {
+    return { ok: false, error: "An old-side anchor needs a diff base" };
+  }
+  const file =
+    anchor.side === "old" && base
+      ? await readBaseFile(root, base, anchor.file)
+      : await readRedactedFile(root, anchor.file);
+  if (!file.ok) return file;
+  const resolved = await resolveInFile(file.value.relPath, file.value.source, anchor);
+  return resolved.ok && anchor.side
+    ? { ok: true, value: { ...resolved.value, side: anchor.side } }
+    : resolved;
 }

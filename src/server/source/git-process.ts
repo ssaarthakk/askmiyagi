@@ -1,10 +1,22 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { killTree, stderrTailLength } from "../llm/claude-process.ts";
+import { killTree, stderrTailLength, withoutVoiceKey } from "../llm/claude-process.ts";
 
 const maximumOutputBytes = 2_000_000;
 
-type GitOptions = { cwd?: string; env: NodeJS.ProcessEnv; signal: AbortSignal };
+type GitOptions = {
+  cwd?: string;
+  env: NodeJS.ProcessEnv;
+  signal: AbortSignal;
+  successCodes?: number[];
+};
+
+export function gitEnvironment() {
+  const inherited = Object.entries(withoutVoiceKey(process.env)).filter(
+    ([name]) => !name.toUpperCase().startsWith("GIT_"),
+  );
+  return { ...Object.fromEntries(inherited), GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" };
+}
 
 function isTimeout(reason: unknown) {
   return reason instanceof DOMException && reason.name === "TimeoutError";
@@ -22,7 +34,7 @@ async function exitCode(child: ReturnType<typeof spawn>) {
   }
 }
 
-export async function runGit(args: string[], { cwd, env, signal }: GitOptions) {
+export async function runGit(args: string[], { cwd, env, signal, successCodes = [0] }: GitOptions) {
   const child = spawn("git", args, {
     cwd,
     env,
@@ -58,7 +70,8 @@ export async function runGit(args: string[], { cwd, env, signal }: GitOptions) {
           : "stopped before it finished",
       );
     }
-    if (code !== 0 && !truncated) throw new Error(stderr.trim() || "git failed");
+    if (!successCodes.includes(code ?? -1) && !truncated)
+      throw new Error(stderr.trim() || "git failed");
     return { stdout: Buffer.concat(chunks).toString("utf8"), truncated };
   } finally {
     signal.removeEventListener("abort", stop);

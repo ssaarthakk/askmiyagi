@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { fileResponseSchema } from "../src/shared/file.ts";
 import { requestPath, root, startServer } from "./cli-harness.ts";
+import { createRepo } from "./git-helpers.ts";
 
 const fixture = join(root, "test", "fixtures", "basic");
 
@@ -65,6 +66,58 @@ describe("GET /api/file", () => {
       expect(response.body).not.toContain("sk-ant-");
     } finally {
       await rm(folder, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("GET /api/file with side=old", () => {
+  async function startRepoServer() {
+    const repo = await createRepo();
+    await writeFile(join(repo, "src", "upload.ts"), "export const limit = 2\n");
+    return startServer(repo);
+  }
+
+  function getOldFile(url: string, token: string, query: string) {
+    return requestPath(url, `/api/file?${query}`, { "x-miyagi-token": token });
+  }
+
+  it("returns the base version of a file for the given base", async () => {
+    const { url, token } = await startRepoServer();
+
+    const response = await getOldFile(url, token, "path=src%2Fupload.ts&side=old&base=uncommitted");
+
+    expect(response.status).toBe(200);
+    expect(fileResponseSchema.parse(JSON.parse(response.body))).toEqual({
+      path: "src/upload.ts",
+      content: "export const limit = 1\n",
+    });
+  });
+
+  it("returns the working copy for side=new", async () => {
+    const { url, token } = await startRepoServer();
+
+    const response = await getOldFile(url, token, "path=src%2Fupload.ts&side=new");
+
+    expect(JSON.parse(response.body)).toEqual({
+      path: "src/upload.ts",
+      content: "export const limit = 2\n",
+    });
+  });
+
+  it("answers 400 without a valid base, with a bad side, or for a hidden or escaping path", async () => {
+    const { url, token } = await startRepoServer();
+
+    for (const query of [
+      "path=src%2Fupload.ts&side=old",
+      "path=src%2Fupload.ts&side=old&base=other",
+      "path=src%2Fupload.ts&side=both&base=uncommitted",
+      "path=.env&side=old&base=uncommitted",
+      "path=..%2Fupload.ts&side=old&base=uncommitted",
+      "path=src%2Fmissing.ts&side=old&base=uncommitted",
+    ]) {
+      const response = await getOldFile(url, token, query);
+      expect(response.status, query).toBe(400);
+      expect(JSON.parse(response.body)).toEqual({ error: expect.any(String) });
     }
   });
 });

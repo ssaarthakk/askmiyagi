@@ -84,6 +84,12 @@ describe("anchorTarget", () => {
     expect(anchorTarget(entry, 1)).toEqual({ file: "a.ts", range: first });
   });
 
+  it("carries the diff base of the step", () => {
+    const entry = { ...(steps[0] as PlayerStep), base: "snapshot" } as const;
+
+    expect(anchorTarget(entry, 0)).toEqual({ file: "b.ts", range: second, base: "snapshot" });
+  });
+
   it("gives a null range when the anchor could not be resolved", () => {
     const entry = steps[1] as PlayerStep;
 

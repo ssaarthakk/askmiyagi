@@ -1,14 +1,19 @@
 import type { Anchor } from "../../shared/anchor.ts";
+import type { DiffBase } from "../../shared/diff-base.ts";
 import type { Current, Tour } from "../../shared/tour.ts";
 import { wrapUntrusted } from "../../shared/untrusted.ts";
 import { resolveAnchor } from "../code/anchor-resolver.ts";
 import { readRedactedFile, sourceLines } from "../files/path-guard.ts";
 import { redact } from "../files/redact.ts";
+import { readBaseFile } from "../source/diff-base.ts";
 
-async function highlightedCode(root: string, anchor: Anchor) {
-  const range = await resolveAnchor(root, anchor);
+async function highlightedCode(root: string, anchor: Anchor, base: DiffBase | undefined) {
+  const range = await resolveAnchor(root, anchor, base);
   if (!range.ok) return undefined;
-  const file = await readRedactedFile(root, range.value.file);
+  const file =
+    range.value.side === "old" && base
+      ? await readBaseFile(root, base, range.value.file)
+      : await readRedactedFile(root, range.value.file);
   if (!file.ok) return undefined;
   const { start, end } = range.value;
   const code = sourceLines(file.value.source)
@@ -18,12 +23,17 @@ async function highlightedCode(root: string, anchor: Anchor) {
   return `The highlighted code is lines ${start}-${end} of ${range.value.file}:\n${wrapUntrusted("highlighted_code", code)}`;
 }
 
-export async function describePosition(root: string, tour: Tour, current: Current) {
+export async function describePosition(
+  root: string,
+  tour: Tour,
+  current: Current,
+  base?: DiffBase,
+) {
   const step = tour.steps[current.step];
   const segment = step?.narration[current.segmentIndex];
   if (!step || !segment) return undefined;
   const anchor = step.anchors[segment.anchor ?? 0];
-  const code = anchor && (await highlightedCode(root, anchor));
+  const code = anchor && (await highlightedCode(root, anchor, base));
   return redact(
     [
       `The learner is looking at step ${current.step + 1} of your tour for "${tour.question}". The step and the narration they have just heard:`,

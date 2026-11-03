@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 import { selectionSchema } from "../../shared/anchor.ts";
+import { diffRequestSchema } from "../../shared/diff-base.ts";
 import { parseContract } from "../../shared/parse.ts";
 import { ackPhrases } from "../../shared/phrases.ts";
 import { currentSchema } from "../../shared/tour.ts";
@@ -18,6 +19,7 @@ const askBodySchema = z.object({
   question: z.string().trim().min(1).max(2000),
   selection: selectionSchema.optional(),
   current: currentSchema.optional(),
+  diff: diffRequestSchema.optional(),
 });
 
 export function sendError(response: ServerResponse, status: number, message: string, reason = "") {
@@ -88,7 +90,7 @@ export function createAskHandler(options: {
     response.on("close", () => controller.abort());
     response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
     const ack = ackPhrases[asked++ % ackPhrases.length] ?? "";
-    options.tourWatch?.start();
+    options.tourWatch?.start(body.diff?.base);
     try {
       for await (const event of askEvents({
         root: options.root,
@@ -97,6 +99,7 @@ export function createAskHandler(options: {
         question: body.question,
         selection: body.selection,
         current: body.current,
+        diff: body.diff,
         ack,
         signal: controller.signal,
         bruteForceTokens: options.bruteForceTokens,

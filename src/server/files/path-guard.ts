@@ -22,7 +22,11 @@ function isAbsoluteInput(path: string) {
   return isAbsolute(path) || win32.isAbsolute(path) || /^[a-z]:/i.test(path);
 }
 
-export async function guardPath(root: string, requested: string): Promise<Result<GuardedPath>> {
+export async function guardPath(
+  root: string,
+  requested: string,
+  { filtered = true } = {},
+): Promise<Result<GuardedPath>> {
   if (!requested || isAbsoluteInput(requested)) {
     return { ok: false, error: "Path must be project-relative" };
   }
@@ -57,14 +61,16 @@ export async function guardPath(root: string, requested: string): Promise<Result
     return { ok: false, error: "Path is not a visible file" };
   }
 
-  let visible: boolean;
-  try {
-    visible = await isVisible(realRoot, normalizedPath);
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    return { ok: false, error: reason.replace(/[\r\n]+/g, " ") };
+  if (filtered) {
+    let visible: boolean;
+    try {
+      visible = await isVisible(realRoot, normalizedPath);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      return { ok: false, error: reason.replace(/[\r\n]+/g, " ") };
+    }
+    if (!visible) return { ok: false, error: "Path is not a visible file" };
   }
-  if (!visible) return { ok: false, error: "Path is not a visible file" };
 
   return { ok: true, value: { realPath, relPath: normalizedPath } };
 }

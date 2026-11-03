@@ -1,4 +1,5 @@
 import type { AgentMessage } from "../../shared/agent-message.ts";
+import type { DiffBase } from "../../shared/diff-base.ts";
 import type { SessionRecord } from "../../shared/session.ts";
 import type { Tour } from "../../shared/tour.ts";
 import { wrapUntrusted } from "../../shared/untrusted.ts";
@@ -18,6 +19,7 @@ type Turn = {
   record: string;
   answer: string;
   messages: AgentMessage[];
+  base: DiffBase | undefined;
 };
 
 function recordOf(tour: Tour) {
@@ -129,17 +131,19 @@ export function createConversation({
   }
 
   return {
-    add(question: string, tour: Tour, messages: AgentMessage[] = []) {
+    add(question: string, tour: Tour, messages: AgentMessage[] = [], base?: DiffBase) {
       turns.push({
         question: redact(question),
         tour,
         record: redact(recordOf(tour)),
         answer: redact(answerOf(tour)),
         messages: messages.map(redactMessage),
+        base,
       });
     },
-    tourAsked(question: string) {
-      return turns.findLast((turn) => turn.question === redact(question))?.tour;
+    turnAsked(question: string) {
+      const turn = turns.findLast((asked) => asked.question === redact(question));
+      return turn && { tour: turn.tour, base: turn.base };
     },
     render,
     size,

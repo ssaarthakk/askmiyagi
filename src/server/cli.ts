@@ -21,6 +21,7 @@ import { createTranscribeHandler } from "./http/transcribe-route.ts";
 import { chooseProvider } from "./llm/choose-provider.ts";
 import { logError } from "./log.ts";
 import { runMcpCommand } from "./mcp/server.ts";
+import { runSnapshotCommand } from "./snapshot-command.ts";
 import { openGitClone } from "./source/git-clone.ts";
 import { type CodeSource, openLocalFolder } from "./source/local-folder.ts";
 import { chooseApp, findApps } from "./source/monorepo.ts";
@@ -77,6 +78,11 @@ async function runCli() {
   const [subcommand, ...subcommandArgs] = process.argv.slice(2);
   if (subcommand === "mcp") {
     await runMcpCommand(subcommandArgs);
+    return;
+  }
+
+  if (subcommand === "snapshot") {
+    await runSnapshotCommand(subcommandArgs);
     return;
   }
 

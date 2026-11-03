@@ -2,8 +2,7 @@ import type { z } from "zod";
 import { gitInputSchema } from "../../shared/tool-inputs.ts";
 import type { ToolResult } from "../../shared/tool-result.ts";
 import { isVisibleInDiff, readProjectConfig } from "../files/file-filter.ts";
-import { withoutVoiceKey } from "../llm/claude-process.ts";
-import { runGit } from "../source/git-process.ts";
+import { gitEnvironment, runGit } from "../source/git-process.ts";
 import { runTool, toolResult } from "./run-tool.ts";
 
 type GitInput = z.output<typeof gitInputSchema>;
@@ -12,6 +11,7 @@ type Listing = { hidden: Set<string>; checked: Set<string> };
 
 const timeoutMs = 30_000;
 const maximumLines = 200;
+export const noChanges = "No changes.";
 const defaultLogCount = 50;
 const maximumExcludeLength = 20_000;
 const maximumListingRounds = 10;
@@ -23,16 +23,17 @@ const lockedDownConfig = [
   "core.quotepath=false",
   "-c",
   "log.showSignature=false",
+  "-c",
+  "diff.noprefix=false",
+  "-c",
+  "diff.mnemonicPrefix=false",
+  "-c",
+  "diff.srcPrefix=a/",
+  "-c",
+  "diff.dstPrefix=b/",
 ];
 const filterAttribute = /(?:^|\s)filter=(\S+)/g;
 const filterName = /^[\w.-]+$/;
-
-function gitEnvironment() {
-  const inherited = Object.entries(withoutVoiceKey(process.env)).filter(
-    ([name]) => !name.toUpperCase().startsWith("GIT_"),
-  );
-  return { ...Object.fromEntries(inherited), GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" };
-}
 
 async function filterOverrides(root: string) {
   const attributes = (await readProjectConfig(root, ".gitattributes")) ?? "";
@@ -100,16 +101,16 @@ async function hiddenPaths(context: GitContext, input: GitInput) {
   throw new Error(`Too many hidden files in this change; ${narrowHint}`);
 }
 
-function limitLines(text: string, truncated: boolean) {
+export function limitLines(text: string, truncated: boolean, maximum = maximumLines) {
   const lines = text.replace(/\n+$/, "").split("\n");
   if (truncated) lines.pop();
-  const extra = lines.length - maximumLines;
+  const extra = lines.length - maximum;
   if (!truncated && extra <= 0) return lines.join("\n");
   const note = truncated ? "More lines were cut" : `${extra} more lines`;
-  return [...lines.slice(0, maximumLines), note].join("\n");
+  return [...lines.slice(0, maximum), note].join("\n");
 }
 
-async function runGitTool(root: string, input: GitInput): Promise<ToolResult> {
+async function runGitTool(root: string, input: GitInput, maximum: number): Promise<ToolResult> {
   const config = [...lockedDownConfig, ...(await filterOverrides(root))];
   const context: GitContext = { root, config, signal: AbortSignal.timeout(timeoutMs) };
   const listing = await hiddenPaths(context, input);
@@ -124,9 +125,9 @@ async function runGitTool(root: string, input: GitInput): Promise<ToolResult> {
   if (await findsNewHiddenPaths(context, input, listing)) {
     throw new Error("Files changed while git was reading them; try again");
   }
-  return toolResult(limitLines(run.stdout, run.truncated) || "No changes.");
+  return toolResult(limitLines(run.stdout, run.truncated, maximum) || noChanges);
 }
 
-export function gitTool(root: string, input: unknown): Promise<ToolResult> {
-  return runTool(root, "git", gitInputSchema, input, (parsed) => runGitTool(root, parsed));
+export function gitTool(root: string, input: unknown, maximum = maximumLines): Promise<ToolResult> {
+  return runTool(root, "git", gitInputSchema, input, (parsed) => runGitTool(root, parsed, maximum));
 }

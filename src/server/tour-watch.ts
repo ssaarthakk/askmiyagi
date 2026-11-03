@@ -1,4 +1,5 @@
 import type { Anchor, ResolvedAnchor } from "../shared/anchor.ts";
+import type { DiffBase } from "../shared/diff-base.ts";
 import type { WatchEvent } from "../shared/events.ts";
 import { resolveAnchor } from "./code/anchor-resolver.ts";
 
@@ -11,11 +12,13 @@ function samePath(path: string) {
 export function createTourWatch(options: { root: string; publish: (event: WatchEvent) => void }) {
   let steps: TourStep[] = [];
   let generation = 0;
+  let diffBase: DiffBase | undefined;
 
   return {
-    start() {
+    start(base?: DiffBase) {
       generation += 1;
       steps = [];
+      diffBase = base;
     },
 
     addStep(anchors: Anchor[], ranges: (ResolvedAnchor | null)[]) {
@@ -35,7 +38,7 @@ export function createTourWatch(options: { root: string; publish: (event: WatchE
         tour.map((step) =>
           Promise.all(
             step.anchors.map(async (anchor) => {
-              const result = await resolveAnchor(options.root, anchor);
+              const result = await resolveAnchor(options.root, anchor, diffBase);
               return result.ok ? result.value : null;
             }),
           ),

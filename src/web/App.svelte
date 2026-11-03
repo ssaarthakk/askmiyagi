@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { ResolvedAnchor, Selection } from "../shared/anchor.ts";
+import type { DiffRequest } from "../shared/diff-base.ts";
 import { spokenProgress } from "./announcer.ts";
 import { ask, interruptAsk } from "./ask.ts";
 import CodePane from "./CodePane.svelte";
@@ -55,7 +56,7 @@ const next = $derived(position && neighbour(steps, position, 1));
 function showCode(chosen: Position) {
   const entry = steps[chosen.step];
   const target = entry && anchorTarget(entry, chosen.segment);
-  if (target) highlight = moveHighlight(highlight, target.file, target.range);
+  if (target) highlight = moveHighlight(highlight, target.file, target.range, target.base);
 }
 
 function select(chosen: Position) {
@@ -70,7 +71,7 @@ function applyRanges(ranges: (ResolvedAnchor | null)[][]) {
   reloads += 1;
   const entry = position && steps[position.step];
   const target = position && entry && anchorTarget(entry, position.segment);
-  if (target) highlight = { file: target.file, current: target.range, previous: null };
+  if (target) highlight = { file: target.file, current: target.range, previous: null, base: target.base };
 }
 
 void watchCode(token, (event) => {
@@ -163,6 +164,11 @@ function askText(text: string) {
   return sendQuestion();
 }
 
+function explainDiff(text: string, diff: DiffRequest) {
+  question = text;
+  return sendQuestion(diff);
+}
+
 function runCommand(command: Command) {
   if (command === "back" && previous) go(previous);
   else if (command === "skip" && next) go(next);
@@ -191,7 +197,7 @@ function pauseForTalk() {
   voice.pause();
 }
 
-async function sendQuestion() {
+async function sendQuestion(diff?: DiffRequest) {
   const text = question.trim();
   if (!text) return;
   const streaming = running !== undefined;
@@ -230,7 +236,7 @@ async function sendQuestion() {
   staleNotice = "";
   let progressSpoken = 0;
   try {
-    await ask(text, token, attached, onScreen, (askEvent) => {
+    await ask(text, token, attached, onScreen, diff, (askEvent) => {
       if (controller.signal.aborted) return;
       if (askEvent.type === "ack") {
         note("ack", askEvent.text);
@@ -244,7 +250,7 @@ async function sendQuestion() {
         }
       } else if (askEvent.type === "step") {
         voice.announcer?.dropWaiting();
-        steps.push({ step: askEvent.step, ranges: askEvent.ranges });
+        steps.push({ step: askEvent.step, ranges: askEvent.ranges, base: diff?.base });
         const resumeAt = voice.caughtUp && position && neighbour(steps, position, 1);
         if (resumeAt) go(resumeAt);
         else if (!tourStarted) selectFirst();
@@ -252,6 +258,7 @@ async function sendQuestion() {
         steps = askEvent.tour.steps.map((step, index) => ({
           step,
           ranges: askEvent.ranges[index] ?? [],
+          base: diff?.base,
         }));
         if (!tourStarted || (position && !steps[position.step]?.step.narration[position.segment])) {
           selectFirst();
@@ -337,6 +344,7 @@ const micNotice = $derived(
     handsFree={talk.handsFree !== "off"}
     {asking}
     onsend={sendQuestion}
+    onexplaindiff={explainDiff}
     onremoveselection={() => (selection = undefined)}
     onmicdown={talk.pointerdown}
     onmicup={talk.stop}

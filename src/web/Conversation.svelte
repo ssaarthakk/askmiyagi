@@ -5,6 +5,8 @@ export type Turn = { question: string; notes: Note[]; titles: string[]; check: s
 
 <script lang="ts">
 import type { Snippet } from "svelte";
+import type { DiffRequest } from "../shared/diff-base.ts";
+import DiffForm from "./DiffForm.svelte";
 
 let {
   turns,
@@ -20,6 +22,7 @@ let {
   handsFree,
   asking,
   onsend,
+  onexplaindiff,
   onremoveselection,
   onmicdown,
   onmicup,
@@ -38,6 +41,7 @@ let {
   handsFree: boolean;
   asking: boolean;
   onsend: () => void;
+  onexplaindiff: (question: string, diff: DiffRequest) => void;
   onremoveselection: () => void;
   onmicdown: (event: PointerEvent) => void;
   onmicup: () => void;
@@ -96,6 +100,7 @@ function keydown(event: KeyboardEvent) {
       {/if}
     {/each}
   </ul>
+  <DiffForm {asking} onexplain={onexplaindiff} />
   <form onsubmit={submit}>
     {#if selectionLabel}
       <p class="chip">

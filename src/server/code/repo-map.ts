@@ -61,29 +61,39 @@ async function relativeImports(path: string, source: string) {
   return [...imports];
 }
 
+export async function resolveRelativeImports(
+  from: string,
+  source: string,
+  known: { has(path: string): boolean },
+) {
+  const resolvedPaths = new Set<string>();
+  for (const specifier of await relativeImports(from, source)) {
+    const target = posix.normalize(posix.join(posix.dirname(from), specifier));
+    const extension = posix.extname(target);
+    const candidates = extension
+      ? [
+          target,
+          ...(substitutions[extension] ?? []).map(
+            (replacement) => `${target.slice(0, -extension.length)}${replacement}`,
+          ),
+        ]
+      : [
+          target,
+          ...moduleExtensions.map((suffix) => `${target}${suffix}`),
+          ...moduleExtensions.map((suffix) => `${target}/index${suffix}`),
+        ];
+    const resolved = candidates.find((candidate) => known.has(candidate) && candidate !== from);
+    if (resolved) resolvedPaths.add(resolved);
+  }
+  return resolvedPaths;
+}
+
 async function importCounts(sources: Map<string, string>, paths: string[]) {
   const counts = new Map(paths.map((path) => [path, 0]));
   for (const [from, source] of sources) {
-    const importedPaths = new Set<string>();
-    for (const specifier of await relativeImports(from, source)) {
-      const target = posix.normalize(posix.join(posix.dirname(from), specifier));
-      const extension = posix.extname(target);
-      const candidates = extension
-        ? [
-            target,
-            ...(substitutions[extension] ?? []).map(
-              (replacement) => `${target.slice(0, -extension.length)}${replacement}`,
-            ),
-          ]
-        : [
-            target,
-            ...moduleExtensions.map((suffix) => `${target}${suffix}`),
-            ...moduleExtensions.map((suffix) => `${target}/index${suffix}`),
-          ];
-      const resolved = candidates.find((candidate) => counts.has(candidate) && candidate !== from);
-      if (resolved) importedPaths.add(resolved);
+    for (const path of await resolveRelativeImports(from, source, counts)) {
+      counts.set(path, (counts.get(path) ?? 0) + 1);
     }
-    for (const path of importedPaths) counts.set(path, (counts.get(path) ?? 0) + 1);
   }
   return counts;
 }

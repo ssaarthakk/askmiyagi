@@ -9,16 +9,6 @@ Technical gaps a smaller model would have to guess at, found by a read-through o
 - **Explain-my-diff tour:** too big for one session; split into (a) context sources and flow order, (b) risk flags and test handling. Triggered by an "Explain my diff" action with a base picker. Risk flags become a final step titled "Things to verify", detected in code (removed guards or throws, changed try/catch, deleted tests). Trivial means whitespace, comments, import order or rename-only. "Changed tests as proof of intent" needs a test-to-source link: a test file covers the source files it imports through relative imports (the repo map already computes these). When `find_callers` exists, "Things to verify" also lists callers of changed exported functions outside the diff, at most 5.
 - **Stack trace walkthrough:** too big for one session; split into (a) parse and collapse, (b) anchor verification and source maps, (c) the tour. Pasted text with 2 or more `at ` frames is detected in the question box. Source maps are read through the path guard only, never sent to the model; warn when the frame's function isn't at that line.
 
-## Phase 12: Teach mode
-
-- **`.tutor/` store:** files `profile.json`, `goal.json`, `learner.json`, `session.json`, `calls.jsonl`. "Reported" means a console warning plus a `.corrupt` backup. Cloned sources store under `~/.askmiyagi/<owner>-<repo>/`, because the temp folder is deleted.
-- **Learner intent:** inferred by the merged small-model call; an override lasts until reset. Rename to avoid clashing with the repo goal file. Onboarding's architecture emphasis uses graph-hint layers when a graph exists, else the model infers layers from the repo map. Contributing's "tests" emphasis uses the Phase 11 test-to-source link.
-- **Learner record:** add `concepts: { name, important, kind: "repo" | "language" }[]` to the model output. Language concepts come from a fixed list in `src/shared` (async/await, promises, closures, generics, destructuring, spread, optional chaining, classes, modules, error handling, higher-order functions, type narrowing), so the record tracks them across repos. Seen when a step plays, explained when the tour finishes, checked on a passed explain-back, reviewed on a passed review.
-- **Question policy:** 2 skips suppress the next 3 eligible tours. Light, Normal and Frequent mean every 3rd, every 2nd and every eligible tour.
-- **Explain-back loop:** passes at a score of at least 4/5. Grader output `{ score, gaps (at most 2), anchors }`. Reviews after 1, 3 and 7 days.
-- **Model routing:** too big for one session; split by call type. Keep Phase 9's local cleanup; the small model only classifies, in parallel with the ack, so it never adds latency.
-- **Learning path:** order the path's concepts by relative-import dependency, files nobody imports last and leaf modules first, so each tour builds on ones already taken. Break import cycles by path order.
-
 ## Phase 13: Saved tours
 
 - **Save:** author from `os.userInfo()` (no `git config`). Slug is the slugified question, with a numeric suffix on collision. Hash is SHA-256 of the block with line endings normalised to LF. `baseCommit` is `null` outside git. Add a "Save tour" button.

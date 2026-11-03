@@ -256,19 +256,65 @@ Recording the demo needs a person.
 ## Phase 12: Teach mode
 
 - [ ] **`.tutor/` store.** It is created on first launch with a `.tutor/.gitignore` that shares only `tours/`. At first launch it asks for the profile (experience level, preferences) and the repo goal, one question at a time; the user can edit or skip them. Files are zod-validated, and a corrupt file is reported and replaced, never fatal.
-- [ ] **Learner intent.** Per-question intent (interview prep, onboarding, contributing, debugging) is inferred, shown and can be overridden. It changes the tour's emphasis: why and tradeoffs; architecture and conventions; where to change things and tests; data flow and failure points.
+  - The learner's files sit in `.tutor/private/` and use the call log's guarded write (`privateFileOrProblem`): `profile.json` is `{ level: "beginner" | "intermediate" | "advanced", mode: "teach" | "answer", frequency: "light" | "normal" | "frequent", goal: string | null }`, and `learner.json` is described under Learner record. "Reported" means one `logError` line. "Replaced" means the file is renamed to `<name>.corrupt` and then treated as missing.
+  - A GitClone source keeps its store in `~/.askmiyagi/<owner>-<repo>/.tutor/`, because the temp folder is deleted. From now on it writes the call log and the session record there too.
+  - First launch: when `profile.json` is missing, the conversation panel asks four questions as tutor messages, one at a time. They are spoken when voice is on. Experience level, default mode and question frequency are answered with buttons. The last question is "What do you want to do with this repo?", answered by typing or push-to-talk. Every question has a Skip button, and a skipped question takes its default (intermediate, teach, normal, no goal). The profile is written after the last question, so the questions are asked only once. A Profile button in the panel header asks the same questions again, with the current answers already chosen.
+  - `GET /api/profile` returns the profile or `null`. `PUT /api/profile` saves one (token checked, zod, 400 otherwise). Every ask's prompt gets the level and the goal; the goal is redacted and wrapped as untrusted.
+- [ ] **Question intent.** Each question's intent (interview prep, onboarding, contributing, debugging) is inferred, shown and can be overridden. It changes the tour's emphasis: why and tradeoffs; architecture and conventions; where to change things and tests; data flow and failure points.
+  - The strong model infers the intent in the call that answers, so there is no extra call and no added latency. It reports the intent as `intent` on the final line, next to `scope`.
+  - The learner's question bubble shows the intent as a chip. If the learner picks another intent from the chip's menu, every later ask body carries that `intent` until the learner picks Auto.
+  - For onboarding's architecture emphasis, the model infers the layers from the repo map, because graph hints are unscheduled. Contributing's tests emphasis uses Phase 11's test-to-source link.
 - [ ] **Teach and answer modes.** Answer mode gives just the tour and never asks a question. Teach mode turns on the teaching flow.
+  - Teach is the default. The panel header has a Teach/Answer toggle, and its value is saved as the profile's `mode`.
+  - In answer mode there is no check question, PRIMM or explain-back. A `checkQuestion` that the model still returns is dropped.
+  - `npm run eval` gains `--mode teach|answer` (default `teach`). In answer mode, the Phase 7 question check requires zero questions in the tour.
 - [ ] **Learner record.** Each concept moves through seen → explained → checked → reviewed, stored in `.tutor/private/`, and updated in the background off the critical path.
+  - `learner.json` is `{ concepts: [{ name, kind: "repo" | "language", important, state, rubric: string | null, attempts, reviewsDone, nextReview: string | null }] }`. Names are matched ignoring case.
+  - The tour's final line gains `concepts: { name, important, kind }[]`. A language concept's name comes from a fixed list in `src/shared`: async/await, promises, closures, generics, destructuring, spread, optional chaining, classes, modules, error handling, higher-order functions and type narrowing.
+  - A tour's concepts become seen when it ends with `done`. They become explained when its last segment has played: the browser then sends `POST /api/played { tour }`. With voice off, the browser sends it as soon as the tour is shown. A concept becomes checked on a passed explain-back, and reviewed on a passed review.
+  - Learner-record updates are made by code, with no LLM, and are written after the response is sent.
 - [ ] **Question policy.** Code decides eligibility: teach mode only, end of a tour only, only an important concept not yet checked, at most one per tour, none right after a side question, and backing off after skips. The frequency setting is Light, Normal or Frequent. The LLM may return "no question."
+  - Code decides before the request and tells the model in the prompt. The prompt also lists the concepts that are already checked.
+  - The model names the question's concept as `checkConcept`. Code drops the question when that concept is missing from the tour's `concepts`, is not important, or is already checked. A tour that ends with `scope: "side"` never keeps a question.
+  - Light, Normal and Frequent mean every 3rd, every 2nd and every eligible tour. Two skipped questions in a row suppress the next 3 eligible tours. The counters are kept in memory for the session.
+  - The question is the explain-back prompt. In a PRIMM tour it is the modify prompt.
 - [ ] **PRIMM flow.** In teach mode the learner predicts before the reveal, then investigates, then gets a modify prompt. Any step can be skipped.
+  - At most one step per tour carries `primm: { predict: string, investigate: string, target: Anchor }`. The model puts it on the step for the tour's most important concept that is not yet checked. Code keeps only the first one, and only in a tour that is eligible for a question.
+  - Predict: when the step's highlight appears, playback stops and the tutor says the predict prompt. The learner answers by typing or speaking, or skips. `POST /api/predict { tour, step, prediction }` (token checked, redacted) makes a small-model call that compares the prediction with the step's narration and returns one sentence. The tutor speaks it, and then the narration plays.
+  - Investigate: after the narration, the tutor says the investigate prompt (for example "Click the line where the clip is saved"). A click inside the target's resolved range is right. Any other click gets "Not quite, it's here" and the target is highlighted. Investigate uses no LLM.
+  - Modify: the tour's end question is the modify prompt ("How would you change this to…"). The learner answers in words, and the answer is graded like an explain-back.
+  - Every part has a Skip button. Only a skipped end question counts as a skip for the question policy.
 - [ ] **Explain-back loop.**
   - It is offered, never forced. A rubric is written in the background.
   - The learner's explanation is graded, and only 1–2 gaps are named, with the code highlighted.
   - It passes at about 4/5. After 3 attempts the tutor gives a model answer and schedules a spaced review. The learner record is updated.
-- [ ] **Model routing.** A strong model (the provider's default) handles exploration, tours and grading. A small model (`claude-haiku-5-5` on the Claude API) handles transcript cleanup plus classification (one merged call), rubrics, learner updates and summaries. Commands and acknowledgements use no LLM. Usage is logged per call type.
-- [ ] **Learning path.** A big goal produces an ordered path of concepts and tours over the repo.
+  - In an eligible teach-mode tour without PRIMM, the end question is "Explain <concept> back to me in your own words.", with a Skip button. When the tour finishes, a small-model call writes the concept's rubric in the background and saves it in the learner record.
+  - While an explain-back waits, a chip above the composer shows it, and the next message is graded instead of asked. Skip clears the chip.
+  - `POST /api/explain-back { concept, answer }` (token checked, redacted) grades the answer with the strong model, tools off, against the rubric and the tour's anchored code. If the rubric is still being written, it waits for it. The grader returns `{ score (1–5), gaps (at most 2), anchors, modelAnswer }`.
+  - A score of 4 or more passes. The concept becomes checked, and reviews are scheduled after 1, 3 and 7 days. After 3 failed attempts the tutor gives the model answer and schedules a review after 1 day.
+  - Due reviews: a review is due when its `nextReview` time has passed. `GET /api/reviews` returns `{ due: string[] }`, the due concepts. The welcome pane shows "N reviews due" with a Start button. After a finished teach-mode tour that asked no question, one tutor bubble offers the first due review, with Start and Skip. Reviews are never offered during a tour or in answer mode.
+  - A review is an explain-back on that concept with its stored rubric. A pass sets the concept to reviewed and schedules the next interval. A fail starts the schedule again at 1 day. A skip moves the review 1 day later. After the 7-day review passes, there are no more reviews.
+- [ ] **Model routing.** A strong model (the provider's default) handles exploration, tours, intent and grading. A small model handles rubrics, prediction checks and summaries. Commands, acknowledgements and learner-record updates use no LLM. Usage is logged per call type.
+  - The small model is `claude-haiku-5-5` on the Claude API and on ClaudeHeadless (passed as `--model`). Gemini uses its one model for both.
+  - Transcript cleanup stays local (Phase 9). There is no small-model classification call; the strong model infers the intent.
+  - The call log's `callType` becomes `ask | summary | rubric | prediction | grade`. The Phase 8 summary call is logged from now on.
 
-**Gate:** `npm run check` passes, with fake-provider tests for every question-policy rule, the explain-back states, learner-record transitions, the answer-mode no-question rule and model routing.
+**Gate:** `npm run check` and `npm run e2e` pass:
+- fake-provider tests for every question-policy rule, the explain-back states, the learner-record transitions, the answer-mode no-question rule and model routing;
+- store tests for a corrupt file and for a GitClone source's store;
+- e2e tests for the first-launch questions and for PRIMM predict and investigate with the stub speaker.
+
+## Phase 12.5: Learning path
+
+Moved out of Phase 12 on 4 November 2026, because it needs the learner record and nothing else in Phase 12 needs it.
+
+- [ ] **Learning path.** A big goal produces an ordered path of concepts and tours over the repo.
+  - It starts only when the learner asks: a "Plan a learning path" button in the conversation panel. The button uses the profile's goal, and asks for a goal first when there is none.
+  - The strong model returns 5–10 items `{ concept, question, file }`. Code orders them by the relative-import dependency of their files: leaf modules first, files nobody imports last, and import cycles broken by path order. Each tour then builds on the ones before it.
+  - The path is saved in `.tutor/private/path.json` (zod, using the same guarded write).
+  - It is shown as a checklist card in the conversation panel and on the welcome pane. Next asks the question of the next unticked item, and clicking any item asks its question. An item is ticked when its concept becomes explained. There is one path at a time, and planning a new one replaces it.
+
+**Gate:** `npm run check` passes, with tests for the ordering (leaf first, unimported last, cycles), ticking, replacing a path and a corrupt path file.
 
 ## Phase 13: Saved tours
 
@@ -312,11 +358,6 @@ The first `claude-headless` run of the fixtures suite (2026-10-31) had no retrie
 
 Each one blocks only the phase named. Answer it before that phase starts.
 
-- **First launch** (Phase 12). Where the profile and goal questions are asked (browser, terminal or voice), and which preferences exist.
-- **Default mode** (Phase 12). Teach or answer by default, and whether it's a toggle or a profile preference.
-- **PRIMM details** (Phase 12). What the learner sees and does in predict, investigate and modify, and which steps get them.
-- **Due reviews** (Phase 12). When and where spaced reviews are offered.
-- **Learning path** (Phase 12). What triggers it, what it looks like, where it's saved, and how the user moves through it.
 - **Broken tour** (Phase 13). Fail only on an unresolvable anchor and warn on a changed hash, or fail on both?
 - **Interview format** (Phase 14). Questions per session, default timebox, what friendly, realistic and tough mean, and the probe limit.
 - **Interview scorecard** (Phase 14). Its dimensions and scale.

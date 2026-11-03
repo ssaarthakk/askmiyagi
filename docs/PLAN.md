@@ -236,18 +236,19 @@ Recording the demo needs a person.
 
 ## Phase 11: Explain my diff and stack traces
 
-- [ ] **Read-only git tool.** `git({ command: "diff" | "show" | "log", args })` allows only those subcommands, with validated arguments; anything else is refused. A diff base can be the last commit, the branch start (merge-base with the default branch), or a snapshot taken with `askmiyagi snapshot`.
-- [ ] **Diff anchors.** Anchors can carry `side: "old" | "new"`. The resolver verifies old-side anchors against the base version of the file.
-- [ ] **Explain-my-diff tour.**
+- [ ] **Read-only git tool.** `git({ command: "diff" | "show" | "log", args })` runs one of those subcommands in the project root and returns the output; any other command is refused. `args` is a list of at most 20 strings. Each one is a revision (such as `HEAD`, `main...HEAD` or a commit hash), a path after `--`, or one of the flags `--stat`, `--name-only`, `--name-status`, `--oneline`, `--no-color`, `-n <count>` (1–200) and `-U<n>`; every other flag, including `-c`, `--output` and `--no-index`, is refused with a readable error result, and so is a path that is absolute, contains `..` or starts with `:`. Miyagi always adds `--no-ext-diff` and `--no-textconv`, runs git with `core.fsmonitor` off and `GIT_OPTIONAL_LOCKS=0`, spawns it with an argument array and `shell: false`, and kills it after a 30 s timeout. A file the shared file filter hides (a file deleted since is judged by its path alone) is left out of `diff`, `show` and `log` patches and of `--stat`, `--name-only` and `--name-status` lists, a commit that changed only hidden files is left out, and every revision must name a commit, so a blob or tree can't be read by its hash. What remains is redacted and capped at 200 lines with an `N more lines` note. It is added to the MCP server and the API providers' tools, with the progress text "Looking at the changes".
+- [ ] **Diff bases.** A diff base is the uncommitted changes since the last commit (`git diff HEAD`), the branch start (`git diff <default>...HEAD`, where the default branch is the first of `origin/HEAD`, `main` and `master` that exists), or a snapshot. `askmiyagi snapshot` copies the visible files into `.tutor/private/snapshot/`, and a snapshot base is compared with `git diff --no-index`, run by Miyagi and never from model input.
+- [ ] **Diff anchors.** Anchors can carry `side: "old" | "new"`. The resolver verifies old-side anchors against the base version of the file, which `GET /api/file?path=&side=old` serves.
+- [ ] **Explain-my-diff tour, context.** An "Explain my diff" action with a base picker starts the tour.
   - The "why" comes from the commit message, an AI session log path, a PR description or the user. When there is none, the tutor says "it looks like…".
   - Steps run problem → intent → how, following the flow.
-  - Trivial changes share one step. Removed checks, changed error handling and deleted tests are flagged as "things to verify." Changed tests are shown as proof of intent.
+- [ ] **Explain-my-diff tour, risk flags.**
+  - Trivial changes (whitespace, comments, import order, rename-only) share one step.
+  - A final step titled "Things to verify" lists removed guards or throws, changed `try`/`catch` and deleted tests, found in code. A test file covers the source files it imports through relative imports (the repo map already computes these); changed tests are shown as proof of intent.
 - [ ] **Side-by-side view.** Old and new code are shown side by side with `@codemirror/merge`, highlighted on either side.
-- [ ] **Stack trace walkthrough.**
-  - A pasted Node or browser stack trace is parsed into frames; `node:` and `node_modules` frames are collapsed.
-  - Each frame is anchored by file and line, and verified to lie inside the named function. Source maps are used for compiled code.
-  - A warning is shown when the trace doesn't match the current code.
-  - The tour runs symptom → trace back to where the bad value was created → fix options.
+- [ ] **Stack trace parsing.** Pasted text with two or more `at ` frames in the question box is detected as a Node or browser stack trace and parsed into frames; `node:` and `node_modules` frames are collapsed.
+- [ ] **Stack trace anchors.** Each frame is anchored by file and line, and verified to lie inside the named function. Source maps are read through the path guard only and never sent to the model. A warning is shown when the frame's function isn't at that line.
+- [ ] **Stack trace tour.** The tour runs symptom → trace back to where the bad value was created → fix options.
 
 **Gate:** `npm run check` passes, with tests on a fixture git repo built during test setup, covering every diff base, old/new anchors, the risk flags, and stack traces with and without source maps.
 
@@ -310,7 +311,6 @@ The first `claude-headless` run of the fixtures suite (2026-10-31) had no retrie
 
 Each one blocks only the phase named. Answer it before that phase starts.
 
-- **"Last commit" diff base** (Phase 11). The uncommitted changes since HEAD, or the changes inside HEAD?
 - **AI session logs** (Phase 11). Which tools' logs to read for the "why", now or later. They live outside the repo and are private.
 - **First launch** (Phase 12). Where the profile and goal questions are asked (browser, terminal or voice), and which preferences exist.
 - **Default mode** (Phase 12). Teach or answer by default, and whether it's a toggle or a profile preference.

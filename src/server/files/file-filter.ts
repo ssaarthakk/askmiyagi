@@ -82,7 +82,7 @@ function isExcludedName(relPath: string, isDirectory: boolean) {
   });
 }
 
-async function readProjectConfig(root: string, relPath: string) {
+export async function readProjectConfig(root: string, relPath: string) {
   let absolutePath: string;
   try {
     absolutePath = await realpath(resolve(root, ...relPath.split("/")));

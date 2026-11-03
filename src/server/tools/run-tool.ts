@@ -22,6 +22,7 @@ export async function runTool<Input>(
     return await run(parsed.data);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return toolResult(message.replaceAll(root, "."), true);
+    const withoutRoot = message.replaceAll(root, ".").replaceAll(root.replaceAll("\\", "/"), ".");
+    return toolResult(withoutRoot, true);
   }
 }

@@ -114,6 +114,22 @@ describe("gitTool", () => {
     expect(existsSync(join(root, "fsmonitor-ran"))).toBe(false);
   });
 
+  it.each(["evil", "lfs"])(
+    "does not run the %s clean filter that .gitattributes names",
+    async (name) => {
+      const root = await createRepo();
+      git(root, "config", `filter.${name}.clean`, "touch filter-ran");
+      git(root, "config", `filter.${name}.required`, "true");
+      await writeFile(join(root, ".gitattributes"), `*.ts filter=${name}\n`);
+      await writeFile(join(root, "src", "upload.ts"), "export const limit = 2\n");
+
+      const result = await gitTool(root, { command: "diff", args: ["HEAD"] });
+
+      expect(result.text).toContain("+export const limit = 2");
+      expect(existsSync(join(root, "filter-ran"))).toBe(false);
+    },
+  );
+
   it("caps long output at 200 lines and says how many were left out", async () => {
     const root = await createRepo();
     const lines = Array.from(

@@ -29,6 +29,17 @@ describe("secret redaction", () => {
     expect(result).toBe("[REDACTED]\n[REDACTED]\n[REDACTED]\nafter");
   });
 
+  it.each(["+", "-"])("redacts private key blocks in diff lines starting with %s", (prefix) => {
+    const text = [
+      `${prefix}${["-----BEGIN RSA ", "PRIVATE KEY-----"].join("")}`,
+      `${prefix}MIIEvQIBADANBgkqhkiG9w0BAQEFAASC`,
+      `${prefix}${["-----END RSA ", "PRIVATE KEY-----"].join("")}`,
+      " after",
+    ].join("\n");
+
+    expect(redact(text)).toBe("[REDACTED]\n[REDACTED]\n[REDACTED]\n after");
+  });
+
   it("redacts high-entropy assigned values and preserves ordinary code", () => {
     const secret = "aB3$dE6@gH9#jK2%mN5!";
     const text = [

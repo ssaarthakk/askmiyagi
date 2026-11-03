@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseGitArgs } from "./git-args.ts";
 
 export const symbolKinds = [
   "function",
@@ -31,4 +32,18 @@ export const grepInputSchema = z.object({
 export const findSymbolInputSchema = z.object({
   name: z.string().trim().min(1),
   kind: z.enum(symbolKinds).optional(),
+});
+
+export const gitInputSchema = z.object({
+  command: z.enum(["diff", "show", "log"]),
+  args: z
+    .array(z.string())
+    .max(20)
+    .default([])
+    .transform((args, context) => {
+      const parsed = parseGitArgs(args);
+      if (parsed.ok) return parsed.value;
+      context.addIssue({ code: "custom", message: parsed.error });
+      return z.NEVER;
+    }),
 });

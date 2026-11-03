@@ -1,4 +1,4 @@
-import { readdir, readFile, realpath, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep, win32 } from "node:path";
 import ignore from "ignore";
 
@@ -152,10 +152,31 @@ async function isGeneratedByAttributes(root: string, relPath: string) {
   return patterns.length > 0 && ignore().add(patterns).ignores(relPath);
 }
 
+function isMissing(error: unknown) {
+  const { code } = error as NodeJS.ErrnoException;
+  return code === "ENOENT" || code === "ENOTDIR";
+}
+
+async function pathExists(root: string, relPath: string) {
+  try {
+    await lstat(resolve(root, ...relPath.split("/")));
+    return true;
+  } catch (error) {
+    if (isMissing(error)) return false;
+    throw error;
+  }
+}
+
+async function isVisibleName(root: string, relPath: string, isDirectory: boolean) {
+  return (
+    isInAppScope(root, relPath, isDirectory) &&
+    !isExcludedName(relPath, isDirectory) &&
+    !(await matchesGitignore(root, relPath, isDirectory))
+  );
+}
+
 async function isVisiblePath(root: string, relPath: string, isDirectory: boolean) {
-  if (!isInAppScope(root, relPath, isDirectory)) return false;
-  if (isExcludedName(relPath, isDirectory)) return false;
-  if (await matchesGitignore(root, relPath, isDirectory)) return false;
+  if (!(await isVisibleName(root, relPath, isDirectory))) return false;
 
   let absolutePath: string;
   let fileStat: Awaited<ReturnType<typeof stat>>;
@@ -163,7 +184,7 @@ async function isVisiblePath(root: string, relPath: string, isDirectory: boolean
     absolutePath = await realpath(resolve(root, ...relPath.split("/")));
     fileStat = await stat(absolutePath);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    if (isMissing(error)) return false;
     throw error;
   }
 
@@ -187,6 +208,16 @@ export async function isVisible(root: string, relPath: string): Promise<boolean>
   const normalizedPath = normalizeRelativePath(relPath);
   if (normalizedPath === null) return false;
   return isVisiblePath(root, normalizedPath, false);
+}
+
+export async function isVisibleInDiff(root: string, relPath: string): Promise<boolean> {
+  const normalizedPath = normalizeRelativePath(relPath);
+  if (normalizedPath === null) return false;
+  if (await pathExists(root, normalizedPath)) return isVisiblePath(root, normalizedPath, false);
+  return (
+    (await isVisibleName(root, normalizedPath, false)) &&
+    !(await isGeneratedByAttributes(root, normalizedPath))
+  );
 }
 
 export async function listVisibleFiles(root: string): Promise<string[]> {

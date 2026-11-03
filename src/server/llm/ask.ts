@@ -8,6 +8,7 @@ import type { LLMRequest } from "../../shared/llm-request.ts";
 import type { SessionRecord } from "../../shared/session.ts";
 import {
   findSymbolInputSchema,
+  gitInputSchema,
   grepInputSchema,
   readFileInputSchema,
 } from "../../shared/tool-inputs.ts";
@@ -38,6 +39,9 @@ function progressText(name: string, input: unknown) {
   if (name === "find_symbol") {
     const parsed = findSymbolInputSchema.safeParse(input);
     return parsed.success ? `Finding ${parsed.data.name}` : undefined;
+  }
+  if (name === "git") {
+    return gitInputSchema.safeParse(input).success ? "Looking at the changes" : undefined;
   }
   return undefined;
 }

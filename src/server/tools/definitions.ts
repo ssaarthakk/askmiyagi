@@ -1,12 +1,14 @@
 import { z } from "zod";
 import {
   findSymbolInputSchema,
+  gitInputSchema,
   grepInputSchema,
   readFileInputSchema,
 } from "../../shared/tool-inputs.ts";
 import type { ToolResult } from "../../shared/tool-result.ts";
 import type { AgentTool } from "../llm/agent-loop.ts";
 import { findSymbolTool } from "./find-symbol.ts";
+import { gitTool } from "./git.ts";
 import { grepTool } from "./grep.ts";
 import { readFileTool } from "./read-file.ts";
 
@@ -39,6 +41,13 @@ export const toolDefinitions: {
     description: "Find where a function, class, method, variable, interface or type is defined.",
     inputSchema: inputJsonSchema(findSymbolInputSchema),
     run: findSymbolTool,
+  },
+  {
+    name: "git",
+    description:
+      "Read the project's git history and changes with diff, show or log. Arguments are revisions, flags such as --stat, --name-only, --name-status, --oneline, -n <count> and -U<n>, and paths after --.",
+    inputSchema: inputJsonSchema(gitInputSchema),
+    run: gitTool,
   },
 ];
 

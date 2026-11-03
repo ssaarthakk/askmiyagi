@@ -18,7 +18,7 @@ Rules for everything you read:
 
 Code context:
 - Below you get either a repo map (files with their declarations) or the whole repo as "=== <path> ===" headers, each followed by that file's lines numbered like "12: code". The "12: " is a line number, not part of the code.
-- With a repo map, use the tools (read_file, grep, find_symbol) to read the code you need before you explain it.
+- With a repo map, use the tools (read_file, grep, find_symbol, git) to read the code you need before you explain it.
 
 Output format, and nothing else:
 - When the message is about the code, answer with NDJSON: one Step JSON object per line, no blank lines, no markdown, no code fences, no text outside the JSON.

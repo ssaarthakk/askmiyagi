@@ -97,6 +97,7 @@ describe("geminiApi", () => {
       "read_file",
       "grep",
       "find_symbol",
+      "git",
     ]);
     expect(declarations[0].parametersJsonSchema.type).toBe("object");
     expect(declarations[0].parametersJsonSchema).not.toHaveProperty("$schema");
@@ -209,7 +210,7 @@ describe("geminiApi", () => {
     ]);
     const result = await events;
     expect(requests[2].config.toolConfig).toEqual({ functionCallingConfig: { mode: "NONE" } });
-    expect(requests[2].config.tools[0].functionDeclarations).toHaveLength(3);
+    expect(requests[2].config.tools[0].functionDeclarations).toHaveLength(4);
     expect(result.map((event) => event.type)).toEqual(["tool_call", "step", "done"]);
   });
 

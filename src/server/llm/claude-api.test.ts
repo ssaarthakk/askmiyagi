@@ -106,6 +106,7 @@ describe("claudeApi", () => {
       "read_file",
       "grep",
       "find_symbol",
+      "git",
     ]);
     expect(sent.tools[0].input_schema.type).toBe("object");
     expect(sent.system).toBe(request.system);
@@ -240,7 +241,7 @@ describe("claudeApi", () => {
     ]);
     const result = await events;
     expect(requests[2].tool_choice).toEqual({ type: "none" });
-    expect(requests[2].tools).toHaveLength(3);
+    expect(requests[2].tools).toHaveLength(4);
     expect(result.map((event) => event.type)).toEqual(["tool_call", "step", "done"]);
   });
 

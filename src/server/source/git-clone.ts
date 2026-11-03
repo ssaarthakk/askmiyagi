@@ -1,10 +1,9 @@
-import { spawn } from "node:child_process";
-import { once } from "node:events";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Result } from "../../shared/result.ts";
-import { killTree, stderrTailLength, withoutVoiceKey } from "../llm/claude-process.ts";
+import { withoutVoiceKey } from "../llm/claude-process.ts";
+import { runGit } from "./git-process.ts";
 import { parseGitHubUrl } from "./github-url.ts";
 import type { CodeSource } from "./local-folder.ts";
 
@@ -21,35 +20,6 @@ const lockedDownArgs = [
   "credential.helper=",
 ];
 
-async function runClone(args: string[], signal: AbortSignal) {
-  const child = spawn("git", args, {
-    env: {
-      ...withoutVoiceKey(process.env),
-      GIT_TERMINAL_PROMPT: "0",
-      GIT_ASKPASS: "",
-      GCM_INTERACTIVE: "Never",
-    },
-    shell: false,
-    windowsHide: true,
-    detached: process.platform !== "win32",
-    stdio: ["ignore", "ignore", "pipe"],
-  });
-  let stderr = "";
-  child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
-    stderr = (stderr + chunk).slice(-stderrTailLength);
-  });
-  const stop = () => void killTree(child);
-  signal.addEventListener("abort", stop, { once: true });
-  if (signal.aborted) stop();
-  try {
-    const [code] = await once(child, "close");
-    if (signal.aborted) throw new Error("stopped before it finished");
-    if (code !== 0) throw new Error(stderr.trim());
-  } finally {
-    signal.removeEventListener("abort", stop);
-  }
-}
-
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -62,7 +32,7 @@ export async function cloneRepository(
   const root = join(folder, "repo");
   const dispose = () => rm(folder, { recursive: true, force: true, maxRetries: 3 });
   try {
-    await runClone(
+    await runGit(
       [
         ...lockedDownArgs,
         "clone",
@@ -74,7 +44,15 @@ export async function cloneRepository(
         cloneUrl,
         root,
       ],
-      AbortSignal.any([signal, AbortSignal.timeout(cloneTimeoutMs)]),
+      {
+        env: {
+          ...withoutVoiceKey(process.env),
+          GIT_TERMINAL_PROMPT: "0",
+          GIT_ASKPASS: "",
+          GCM_INTERACTIVE: "Never",
+        },
+        signal: AbortSignal.any([signal, AbortSignal.timeout(cloneTimeoutMs)]),
+      },
     );
   } catch (error) {
     const cleanup = await dispose().then(

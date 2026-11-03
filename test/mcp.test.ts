@@ -36,12 +36,17 @@ afterEach(async () => {
 });
 
 describe("askmiyagi mcp", () => {
-  it("exposes read_file, grep and find_symbol and nothing else", async () => {
+  it("exposes read_file, grep, find_symbol and git and nothing else", async () => {
     const client = await connect(fixture);
 
     const { tools } = await client.listTools();
 
-    expect(tools.map((tool) => tool.name).sort()).toEqual(["find_symbol", "grep", "read_file"]);
+    expect(tools.map((tool) => tool.name).sort()).toEqual([
+      "find_symbol",
+      "git",
+      "grep",
+      "read_file",
+    ]);
   });
 
   it("wraps each tool result in an untrusted block labelled with the tool", async () => {

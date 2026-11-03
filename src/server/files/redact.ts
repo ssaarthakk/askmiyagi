@@ -1,5 +1,5 @@
-const privateKeyStart = /^\s*-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----\s*$/;
-const privateKeyEnd = /^\s*-----END [A-Z0-9 ]*PRIVATE KEY-----\s*$/;
+const privateKeyStart = /^[+-]?\s*-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----\s*$/;
+const privateKeyEnd = /^[+-]?\s*-----END [A-Z0-9 ]*PRIVATE KEY-----\s*$/;
 const secretPatterns = [
   /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g,
   /\b(?:github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,})\b/g,

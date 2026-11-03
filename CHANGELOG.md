@@ -53,6 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Speak while an answer is still streaming to interrupt it: the steps already received go on the tour stack and nothing is dropped.
 - Side questions know where you are: "that await" means the line being highlighted. After a side answer the earlier tour picks up on its own; after a new topic it waits until you say or press resume.
 - Hands-free mode (off by default): turn it on beside the microphone button and just speak. The tour gets quieter when you start talking and stops once your speech is recognised; noise and coughs let it carry on. Voice detection (Silero) runs in the browser from files served by Miyagi.
+- The tutor can read your git changes and history with a read-only `git` tool (`diff`, `show`, `log`). Other commands and flags are refused, hidden files such as `.env` and lockfiles are left out, and the output is redacted (private keys inside diff lines included) and capped.
 
 ### Changed
 

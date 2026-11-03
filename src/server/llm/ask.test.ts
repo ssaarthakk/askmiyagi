@@ -52,6 +52,7 @@ describe("askEvents", () => {
           { type: "tool_call", name: "read_file", input: { path: "src/clip-service.ts" } },
           { type: "tool_call", name: "grep", input: { patterns: ["upload", "post", "publish"] } },
           { type: "tool_call", name: "find_symbol", input: { name: "ClipService.save" } },
+          { type: "tool_call", name: "git", input: { command: "diff", args: ["HEAD"] } },
           { type: "done", usage },
         ]),
       ),
@@ -60,6 +61,7 @@ describe("askEvents", () => {
       { type: "progress", text: "Looking at clip-service.ts" },
       { type: "progress", text: "Searching for upload or post or publish" },
       { type: "progress", text: "Finding ClipService.save" },
+      { type: "progress", text: "Looking at the changes" },
     ]);
   });
 

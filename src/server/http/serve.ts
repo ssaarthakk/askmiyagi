@@ -75,6 +75,14 @@ export async function serveRequest(
     await ask.played(request, response);
     return;
   }
+  if (pathname === "/api/skipped" && request.method === "POST") {
+    await ask.skipped(request, response);
+    return;
+  }
+  if (pathname === "/api/predict" && request.method === "POST") {
+    await ask.predict(request, response);
+    return;
+  }
   if (pathname === "/api/interrupt" && request.method === "POST") {
     await ask.interrupt();
     response.writeHead(204);

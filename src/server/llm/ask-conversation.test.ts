@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { saveStep, scripted, stream, usage } from "../../../test/ask-helpers.ts";
+import {
+  checkEvents,
+  questionOptions,
+  saveStep,
+  scripted,
+  stream,
+  usage,
+} from "../../../test/ask-helpers.ts";
 import { turnMessages } from "../../../test/conversation-helpers.ts";
 import { collect } from "../../../test/fake-claude.ts";
 import type { ProviderEvent } from "../../shared/events.ts";
@@ -14,14 +21,14 @@ afterEach(() => {
 describe("askEvents conversation", () => {
   const finished: ProviderEvent[] = [
     { type: "step", step: saveStep },
-    { type: "checkQuestion", text: "What does save return?" },
+    ...checkEvents,
     { type: "done", usage },
   ];
 
   it("sends the first question and a record of its tour with the next request", async () => {
     const conversation = createConversation();
     const seen: LLMRequest[] = [];
-    await collect(stream(scripted(finished, seen), undefined, conversation));
+    await collect(stream(scripted(finished, seen), undefined, conversation, questionOptions()));
     expect(seen[0]?.conversation).toBe("");
 
     await collect(stream(scripted(finished, seen), undefined, conversation));

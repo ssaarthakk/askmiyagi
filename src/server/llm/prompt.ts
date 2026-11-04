@@ -41,8 +41,14 @@ Concepts:
 - Mark a concept important only when the learner needs it to understand the code they are looking at. List at most 5 concepts, and none when the tour taught nothing new.
 
 Check questions are rare:
-- Only after a walkthrough that taught an important idea the learner will need, and only when checking it really helps them learn, add one final line {"checkQuestion": "..."} with one short question.
-- Never ask one after a simple or factual answer, after a plain reply, or right after the learner answered a check question. Most answers end without a question.
+- The message says whether a check question is allowed this time. Only when it is, after a walkthrough that taught an important idea the learner will need, and only when checking it really helps them learn, add one final line {"checkQuestion": "...", "checkConcept": "..."} with one short question. "checkConcept" is the exact name of one important concept from the "concepts" list on your final line, and the question is about that concept. Never use a concept the message lists as already checked.
+- Never ask one after a simple or factual answer, after a plain reply, after a side question, or right after the learner answered a check question. Most answers end without a question, and returning no question is always fine.
+
+Predict, investigate, modify (PRIMM):
+- When the message allows a check question, you may also give at most one step of the tour a "primm" field: {"primm": {"predict": string, "investigate": string, "target": Anchor}}. Put it on the step for the most important concept that is not yet checked, and only when that step is a good moment to stop and think.
+- "predict" is a short question the learner answers before they hear the step, such as "What do you think happens when the upload fails?". "investigate" is a short instruction heard after the step, asking the learner to click one line, such as "Click the line where the clip is saved.". "target" is a line anchor for exactly that line.
+- When a step has "primm", the check question on the final line is the modify prompt: it asks how the learner would change the code to do something new, such as "How would you change this to retry twice?".
+- Never add "primm" to an answer to a side question.
 
 Answer length fits the question:
 - A simple or factual question ("what does X return", "where is Y") gets exactly one step with one to three narration parts.
@@ -64,6 +70,15 @@ Narration is written for the ear, because it is spoken aloud:
 export const answerModeRules = `Answer mode:
 - The learner wants answers only. Give just the tour or the reply.
 - Never add a final checkQuestion line, and never ask the learner a question.`;
+
+export function questionRules(allowed: boolean, checkedConcepts: string[]) {
+  if (!allowed) return "Do not add a checkQuestion line to this answer.";
+  const allowance =
+    "You may end this answer with one check question, and give one step a primm field, under the rules above.";
+  if (checkedConcepts.length === 0) return allowance;
+  const checked = wrapUntrusted("checked_concepts", redact(checkedConcepts.join("\n")));
+  return `${allowance}\nThese concepts are already checked:\n${checked}`;
+}
 
 async function bruteForceContext(root: string, maxCharacters: number) {
   const parts: string[] = [];

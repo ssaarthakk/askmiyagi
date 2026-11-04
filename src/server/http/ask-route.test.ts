@@ -1,64 +1,13 @@
-import { cp, mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
-import { createServer } from "node:http";
-import { tmpdir } from "node:os";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { saveStep } from "../../../test/ask-helpers.ts";
+import { saveStep, usage } from "../../../test/ask-helpers.ts";
+import { cleanAskRoute, requests, startAsk } from "../../../test/ask-route-harness.ts";
 import { learnerSchema } from "../../shared/learner.ts";
-import type { LLMRequest } from "../../shared/llm-request.ts";
 import type { LLMProvider } from "../llm/provider.ts";
 import { writeProfile } from "../teach/profile.ts";
-import { createAskHandler } from "./ask-route.ts";
 
-const usage = {
-  inputTokens: 1,
-  outputTokens: 1,
-  cacheReadTokens: 0,
-  cacheWriteTokens: 0,
-  costUsd: null,
-};
-
-const requests: LLMRequest[] = [];
-
-const provider: LLMProvider = {
-  async *ask(request) {
-    requests.push(request);
-    yield { type: "step", step: saveStep };
-    yield { type: "done", usage };
-  },
-};
-
-const cleanups: (() => Promise<unknown>)[] = [];
-
-afterEach(async () => {
-  requests.length = 0;
-  await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
-});
-
-async function startAsk(separateTutorRoot = false, chosen = provider) {
-  const parent = await mkdtemp(join(tmpdir(), "miyagi-ask-route-"));
-  cleanups.push(() => rm(parent, { recursive: true, force: true }));
-  const root = join(parent, "project");
-  await cp("test/fixtures/basic", root, { recursive: true });
-  const tutorRoot = separateTutorRoot ? join(parent, "store") : root;
-  if (separateTutorRoot) await mkdir(tutorRoot);
-  const ask = createAskHandler({ root, provider: chosen, providerName: "fake", tutorRoot });
-  const server = createServer(
-    (request, response) =>
-      void (request.url === "/api/played" ? ask.played : ask.handle)(request, response),
-  );
-  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
-  cleanups.push(() => new Promise((done) => server.close(done)));
-  const address = server.address();
-  const port = typeof address === "object" && address ? address.port : 0;
-  const post = (body: object, path = "/api/ask") =>
-    fetch(`http://127.0.0.1:${port}${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  return { root, tutorRoot, post };
-}
+afterEach(cleanAskRoute);
 
 async function askOnce(separateTutorRoot: boolean) {
   const started = await startAsk(separateTutorRoot);

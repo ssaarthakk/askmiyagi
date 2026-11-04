@@ -10,8 +10,9 @@ import { type Command, matchCommand } from "./commands.ts";
 import { chooseDetector } from "./hands-free.ts";
 import { type Highlight, moveHighlight } from "./highlight.ts";
 import Player from "./Player.svelte";
-import { postPlayed } from "./played.ts";
+import { postPlayed, postSkipped } from "./played.ts";
 import { anchorTarget, firstPosition, neighbour, type PlayerStep, type Position } from "./player.ts";
+import { createPrimm } from "./primm.svelte.ts";
 import { createSetup } from "./setup.svelte.ts";
 import { createTalk } from "./talk.svelte.ts";
 import { chooseTranscriber } from "./transcribe.ts";
@@ -51,7 +52,7 @@ type EarlierTour = {
 const earlierTours: EarlierTour[] = [];
 let tourQuestion = "";
 let talkPausedPlayback = false;
-let awaitingAnswer = false;
+let awaitingAnswer = $state(false);
 let running: AbortController | undefined;
 let intentChoice = $state<Intent>();
 const previous = $derived(position && neighbour(steps, position, -1));
@@ -87,12 +88,22 @@ void watchCode(token, (event) => {
   staleNotice = "Code changed; highlight removed";
 }).catch((error: unknown) => console.warn("Stopped watching the code", error));
 
+const primm = createPrimm({
+  token,
+  tour: () => tourQuestion,
+  steps: () => steps,
+  show: showCode,
+  showFile: (file, range) => (highlight = { file, current: range, previous: null }),
+  tell: (text) => note("tutor", text),
+});
+
 const voice = createVoice({
   choice: voiceChoice,
   token,
   steps: () => steps,
   closing: () => tutorLine,
   onLead: showCode,
+  interlude: primm.interlude,
   onStart: select,
   onEnd: () => {
     if (!asking) markPlayed();
@@ -208,13 +219,18 @@ function canRun(command: Command | undefined) {
 
 async function sendTyped() {
   const text = question.trim();
+  if (text && primm.predicting) {
+    question = "";
+    primm.predict(text);
+    return;
+  }
   if (!text || !setup.askingGoal) return sendQuestion();
   if (await setup.answer(text, text)) question = "";
 }
 
 async function handleTranscript(text: string) {
   const command = matchCommand(text);
-  if (command && canRun(command)) runCommand(command);
+  if (command && canRun(command) && !primm.predicting) runCommand(command);
   else {
     question = text;
     await sendTyped();
@@ -222,6 +238,7 @@ async function handleTranscript(text: string) {
 }
 
 function pauseForTalk() {
+  if (primm.predicting) return;
   talkPausedPlayback = voice.playing;
   voice.pause();
 }
@@ -256,6 +273,7 @@ async function sendQuestion(diff?: DiffRequest) {
   if (setAside) earlierTours.push(setAside);
   tourQuestion = text;
   awaitingAnswer = false;
+  primm.reset();
   startTurn(text, []);
   steps = [];
   tutorLine = undefined;
@@ -295,6 +313,7 @@ async function sendQuestion(diff?: DiffRequest) {
           selectFirst();
         }
         if (setAside) setAside.waits = askEvent.tour.scope === "new";
+        if (askEvent.tour.scope === "side") primm.skip();
         tutorLine = askEvent.tour.reply ?? askEvent.tour.checkQuestion;
         awaitingAnswer = !askEvent.tour.reply && askEvent.tour.checkQuestion !== undefined;
         const current = turns.at(-1);
@@ -315,6 +334,14 @@ async function sendQuestion(diff?: DiffRequest) {
   asking = false;
   voice.answered();
   if (toured && (!voice.on || (voice.caughtUp && !voice.playing))) markPlayed();
+  resumeEarlierTour();
+}
+
+function skipCheck() {
+  awaitingAnswer = false;
+  postSkipped(tourQuestion, token).catch((error: unknown) =>
+    console.warn("Could not report the skipped question", error),
+  );
   resumeEarlierTour();
 }
 
@@ -358,6 +385,7 @@ const micNotice = $derived(
     welcome={turns.length === 0}
     {projectName}
     onpick={(picked) => (selection = picked)}
+    online={primm.clicked}
     onsuggest={askText}
   >
     {#if voice.on && steps.length > 0}
@@ -401,6 +429,10 @@ const micNotice = $derived(
     onmicdown={talk.pointerdown}
     onmicup={talk.stop}
     ontogglehandsfree={talk.toggleHandsFree}
+    primm={primm.view}
+    onprimmskip={primm.skip}
+    checkOpen={awaitingAnswer}
+    oncheckskip={skipCheck}
   />
 </main>
 

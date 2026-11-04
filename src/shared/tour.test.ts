@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { anchorSchema, resolvedAnchorSchema, type Selection, selectionSchema } from "./anchor.ts";
 import { parseContract } from "./parse.ts";
-import { type Step, stepSchema, type Tour, tourSchema } from "./tour.ts";
+import { type Step, stepAnchors, stepSchema, type Tour, tourSchema } from "./tour.ts";
 
 const symbolAnchor = { file: "src/clip.ts", symbol: "ClipService.save" };
 const lineAnchor = { file: "src/clip.ts", line: 12, text: "return save(clip)" };
@@ -88,12 +88,44 @@ describe("steps", () => {
   });
 });
 
+describe("primm steps", () => {
+  const primm = {
+    predict: "What do you think happens when the upload fails?",
+    investigate: "Click the line where the clip is saved.",
+    target: lineAnchor,
+  };
+
+  it("accepts a step with a predict prompt, an investigate prompt and a target anchor", () => {
+    expect(parseContract(stepSchema, { ...step, primm })).toEqual({
+      ok: true,
+      value: { ...step, primm },
+    });
+  });
+
+  it("rejects a primm with a missing prompt or a bad target", () => {
+    expect(
+      errorOf(parseContract(stepSchema, { ...step, primm: { ...primm, predict: "" } })),
+    ).toContain("primm.predict");
+    const noTarget = { predict: primm.predict, investigate: primm.investigate };
+    expect(errorOf(parseContract(stepSchema, { ...step, primm: noTarget }))).toContain(
+      "primm.target",
+    );
+  });
+
+  it("lists the target after the anchors, and only the anchors when there is no primm", () => {
+    expect(stepAnchors(step)).toEqual([symbolAnchor]);
+    expect(stepAnchors({ ...step, primm })).toEqual([symbolAnchor, lineAnchor]);
+  });
+});
+
 describe("tours", () => {
   it("accepts a tour with and without a check question", () => {
     const tour: Tour = { question: "How are clips saved?", steps: [step] };
     expect(parseContract(tourSchema, tour)).toEqual({ ok: true, value: tour });
     const withCheck = { ...tour, checkQuestion: "What does save return?" };
     expect(parseContract(tourSchema, withCheck)).toEqual({ ok: true, value: withCheck });
+    const withConcept = { ...withCheck, checkConcept: "upload retries" };
+    expect(parseContract(tourSchema, withConcept)).toEqual({ ok: true, value: withConcept });
   });
 
   it("names the failing step when one step is invalid", () => {

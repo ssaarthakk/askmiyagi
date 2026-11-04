@@ -6,7 +6,7 @@ import { languageConcepts } from "../../shared/learner.ts";
 import { llmRequestSchema } from "../../shared/llm-request.ts";
 import { buildRepoMap } from "../code/repo-map.ts";
 import { readRedactedFile } from "../files/path-guard.ts";
-import { buildRequest, renderPrompt } from "./prompt.ts";
+import { buildRequest, questionRules, renderPrompt } from "./prompt.ts";
 
 vi.mock("../files/path-guard.ts", async (importOriginal) => {
   const original = await importOriginal<typeof import("../files/path-guard.ts")>();
@@ -46,6 +46,7 @@ describe("system prompt", () => {
     expect(request.system).toMatch(/"anchor" is the index into the step's anchors/i);
     expect(request.system).toMatch(/no text outside the JSON/i);
     expect(request.system).toContain('{"checkQuestion"');
+    expect(request.system).toContain('"checkConcept"');
     expect(request.system).toMatch(/written for the ear/i);
     expect(request.system).toMatch(/never write code symbols such as \(\) or \{/i);
     expect(request.system).toMatch(/"symbol"/);
@@ -242,5 +243,23 @@ describe("concepts", () => {
     expect(request.system).toContain('"concepts"');
     expect(request.system).toMatch(/important/);
     for (const name of languageConcepts) expect(request.system).toContain(name);
+  });
+});
+
+describe("PRIMM instructions", () => {
+  it("describes the primm field of a step, once, in the system prompt", async () => {
+    const root = await createRepo({ "a.ts": "export const a = 1;\n" });
+    const { request } = await buildRequest(root, "What is a?");
+
+    expect(request.system).toContain(
+      '"primm": {"predict": string, "investigate": string, "target": Anchor}',
+    );
+    expect(request.system).toMatch(/at most one step/i);
+    expect(request.system).toMatch(/modify/i);
+  });
+
+  it("offers primm only in the rules for an allowed question", () => {
+    expect(questionRules(true, [])).toContain("primm");
+    expect(questionRules(false, [])).not.toContain("primm");
   });
 });

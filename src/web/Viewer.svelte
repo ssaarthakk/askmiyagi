@@ -13,12 +13,14 @@ let {
   current,
   previous,
   onpick,
+  online,
 }: {
   path: string;
   token: string;
   current: LineRange | null;
   previous: LineRange | null;
   onpick: (selection: Selection) => void;
+  online: (file: string, line: number) => void;
 } = $props();
 
 let host = $state<HTMLDivElement>();
@@ -37,6 +39,12 @@ $effect(() => {
       javascript({ jsx: true, typescript: true }),
       readOnly,
       EditorView.domEventHandlers({
+        click: (event, editor) => {
+          const position = editor.posAtCoords({ x: event.clientX, y: event.clientY });
+          if (position !== null && loadedPath === path) {
+            online(path, editor.state.doc.lineAt(position).number);
+          }
+        },
         mouseup: (_event, editor) => {
           if (loadedPath !== path) return;
           const picked = pickSelection(editor.state, path);

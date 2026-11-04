@@ -101,6 +101,7 @@ describe("ProviderEvent", () => {
       { type: "text", text: "hi" },
       { type: "step", step },
       { type: "checkQuestion", text: "What does save return?" },
+      { type: "checkQuestion", text: "What does save return?", concept: "upload retries" },
       { type: "tool_call", name: "grep", input: { patterns: ["a"] } },
       { type: "done", usage },
       { type: "done", usage, messages },

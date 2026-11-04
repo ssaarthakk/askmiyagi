@@ -3,18 +3,20 @@ import { z } from "zod";
 import { selectionSchema } from "../../shared/anchor.ts";
 import { diffRequestSchema } from "../../shared/diff-base.ts";
 import { intentSchema } from "../../shared/intent.ts";
-import { playedSchema } from "../../shared/learner.ts";
+import { tourNameSchema } from "../../shared/learner.ts";
 import { parseContract } from "../../shared/parse.ts";
 import { ackPhrases } from "../../shared/phrases.ts";
-import { currentSchema } from "../../shared/tour.ts";
+import { currentSchema, type Step, stepAnchors } from "../../shared/tour.ts";
 import { appendCallLog } from "../call-log.ts";
 import { askEvents } from "../llm/ask.ts";
 import { createConversation } from "../llm/conversation.ts";
+import { createPredictor } from "../llm/predictor.ts";
 import type { LLMProvider } from "../llm/provider.ts";
 import { logError } from "../log.ts";
 import { writeSessionRecord } from "../session-record.ts";
 import { createLearnerRecord } from "../teach/learner.ts";
 import { readProfile } from "../teach/profile.ts";
+import { createQuestionPolicy } from "../teach/question-policy.ts";
 import type { createTourWatch } from "../tour-watch.ts";
 
 const maxBodyBytes = 100_000;
@@ -25,6 +27,12 @@ const askBodySchema = z.object({
   current: currentSchema.optional(),
   diff: diffRequestSchema.optional(),
   intent: intentSchema.optional(),
+});
+
+const predictBodySchema = z.object({
+  ...tourNameSchema.shape,
+  step: z.number().int().nonnegative(),
+  prediction: z.string().trim().min(1).max(2000),
 });
 
 export function sendError(response: ServerResponse, status: number, message: string, reason = "") {
@@ -81,6 +89,9 @@ export function createAskHandler(options: {
   let asked = 0;
   const conversation = createConversation({ contextTokens: options.contextTokens });
   const learner = createLearnerRecord(options.tutorRoot);
+  const questionPolicy = createQuestionPolicy();
+  const predictor = createPredictor(options.provider, options.root);
+  let streaming: { tour: string; steps: Step[] } = { tour: "", steps: [] };
 
   async function handle(request: IncomingMessage, response: ServerResponse) {
     const body = await readJsonBody(request, response, askBodySchema);
@@ -97,6 +108,7 @@ export function createAskHandler(options: {
     response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
     const ack = ackPhrases[asked++ % ackPhrases.length] ?? "";
     options.tourWatch?.start(body.diff?.base);
+    streaming = { tour: body.question, steps: [] };
     try {
       for await (const event of askEvents({
         root: options.root,
@@ -108,6 +120,8 @@ export function createAskHandler(options: {
         diff: body.diff,
         intent: body.intent,
         markSeen: learner.markSeen,
+        questionPolicy,
+        checkedConcepts: learner.checkedConcepts,
         loadProfile: () => readProfile(options.tutorRoot),
         ack,
         signal: controller.signal,
@@ -118,7 +132,10 @@ export function createAskHandler(options: {
         },
         saveSession: (session) => writeSessionRecord(options.tutorRoot, session),
       })) {
-        if (event.type === "step") options.tourWatch?.addStep(event.step.anchors, event.ranges);
+        if (event.type === "step") {
+          streaming.steps.push(event.step);
+          options.tourWatch?.addStep(stepAnchors(event.step), event.ranges);
+        }
         response.write(`data: ${JSON.stringify(event)}\n\n`);
       }
     } finally {
@@ -129,7 +146,7 @@ export function createAskHandler(options: {
   }
 
   async function played(request: IncomingMessage, response: ServerResponse) {
-    const body = await readJsonBody(request, response, playedSchema);
+    const body = await readJsonBody(request, response, tourNameSchema);
     if (!body) return;
     response.writeHead(204);
     response.end();
@@ -137,10 +154,43 @@ export function createAskHandler(options: {
     if (concepts) await learner.markExplained(concepts);
   }
 
+  async function skipped(request: IncomingMessage, response: ServerResponse) {
+    const body = await readJsonBody(request, response, tourNameSchema);
+    if (!body) return;
+    response.writeHead(204);
+    response.end();
+    if (conversation.turnAsked(body.tour)?.tour.checkQuestion) questionPolicy.skipped();
+  }
+
+  async function predict(request: IncomingMessage, response: ServerResponse) {
+    const body = await readJsonBody(request, response, predictBodySchema);
+    if (!body) return;
+    const steps =
+      streaming.tour === body.tour
+        ? streaming.steps
+        : conversation.turnAsked(body.tour)?.tour.steps;
+    const step = steps?.[body.step];
+    if (!step?.primm) {
+      sendError(response, 400, "That step has nothing to predict");
+      return;
+    }
+    const result = await predictor({
+      predict: step.primm.predict,
+      narration: step.narration.map((part) => part.text),
+      prediction: body.prediction,
+    });
+    if (!result.ok) {
+      sendError(response, 502, result.error);
+      return;
+    }
+    response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+    response.end(JSON.stringify({ feedback: result.value }));
+  }
+
   async function interrupt() {
     running?.controller.abort();
     await running?.finished;
   }
 
-  return { handle, played, interrupt };
+  return { handle, played, skipped, predict, interrupt };
 }

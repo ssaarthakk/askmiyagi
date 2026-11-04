@@ -34,6 +34,18 @@ describe("conversation text", () => {
     expect(rendered).toContain("What does save return?");
   });
 
+  it("renders the concept a check question is about on the same final line", () => {
+    const conversation = createConversation();
+    conversation.add("How are clips saved?", {
+      ...tour(["Saving a clip"], "What does save return?"),
+      checkConcept: "upload retries",
+    });
+
+    expect(conversation.render()).toContain(
+      JSON.stringify({ checkQuestion: "What does save return?", checkConcept: "upload retries" }),
+    );
+  });
+
   it("renders a plain reply as the answer", () => {
     const conversation = createConversation();
     conversation.add("I don't know", {

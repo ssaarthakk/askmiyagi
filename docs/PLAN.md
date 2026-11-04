@@ -273,12 +273,12 @@ Recording the demo needs a person.
   - The tour's final line gains `concepts: { name, important, kind }[]`. A language concept's name comes from a fixed list in `src/shared`: async/await, promises, closures, generics, destructuring, spread, optional chaining, classes, modules, error handling, higher-order functions and type narrowing.
   - A tour's concepts become seen when it ends with `done`. They become explained when its last segment has played: the browser then sends `POST /api/played { tour }`. With voice off, the browser sends it as soon as the tour is shown. A concept becomes checked on a passed explain-back, and reviewed on a passed review.
   - Learner-record updates are made by code, with no LLM, and are written after the response is sent.
-- [ ] **Question policy.** Code decides eligibility: teach mode only, end of a tour only, only an important concept not yet checked, at most one per tour, none right after a side question, and backing off after skips. The frequency setting is Light, Normal or Frequent. The LLM may return "no question."
+- [x] **Question policy.** Code decides eligibility: teach mode only, end of a tour only, only an important concept not yet checked, at most one per tour, none right after a side question, and backing off after skips. The frequency setting is Light, Normal or Frequent. The LLM may return "no question."
   - Code decides before the request and tells the model in the prompt. The prompt also lists the concepts that are already checked.
   - The model names the question's concept as `checkConcept`. Code drops the question when that concept is missing from the tour's `concepts`, is not important, or is already checked. A tour that ends with `scope: "side"` never keeps a question.
   - Light, Normal and Frequent mean every 3rd, every 2nd and every eligible tour. Two skipped questions in a row suppress the next 3 eligible tours. The counters are kept in memory for the session.
   - The question is the explain-back prompt. In a PRIMM tour it is the modify prompt.
-- [ ] **PRIMM flow.** In teach mode the learner predicts before the reveal, then investigates, then gets a modify prompt. Any step can be skipped.
+- [x] **PRIMM flow.** In teach mode the learner predicts before the reveal, then investigates, then gets a modify prompt. Any step can be skipped.
   - At most one step per tour carries `primm: { predict: string, investigate: string, target: Anchor }`. The model puts it on the step for the tour's most important concept that is not yet checked. Code keeps only the first one, and only in a tour that is eligible for a question.
   - Predict: when the step's highlight appears, playback stops and the tutor says the predict prompt. The learner answers by typing or speaking, or skips. `POST /api/predict { tour, step, prediction }` (token checked, redacted) makes a small-model call that compares the prediction with the step's narration and returns one sentence. The tutor speaks it, and then the narration plays.
   - Investigate: after the narration, the tutor says the investigate prompt (for example "Click the line where the clip is saved"). A click inside the target's resolved range is right. Any other click gets "Not quite, it's here" and the target is highlighted. Investigate uses no LLM.
@@ -316,7 +316,19 @@ Moved out of Phase 12 on 4 November 2026, because it needs the learner record an
 
 **Gate:** `npm run check` passes, with tests for the ordering (leaf first, unimported last, cycles), ticking, replacing a path and a corrupt path file.
 
-## Phase 13: Saved tours
+## Phase 13: Interview prep
+
+Moved ahead of Saved tours on 4 November 2026, because interview prep is needed sooner and does not use saved tours.
+
+- [ ] **Question generation.** Questions come from dependencies, the repo map, git history, failure points and the learner's weak spots. Follow-ups react to the answers.
+- [ ] **Session rules.** No hints during the session. Vague answers get probed and weak ones pushed back on. Sessions are timeboxed. Difficulty is friendly, realistic or tough. Voice-only mode is optional.
+- [ ] **Debugging drills.** A virtual "what if" diff is applied in memory only; the repo is never edited.
+- [ ] **"Why" questions** are graded on reasoning, never on an invented answer.
+- [ ] **Debrief.** A scorecard, gaps shown with code, model answers, and weak topics fed into teach mode.
+
+**Gate:** `npm run check` passes, with fake-provider tests for generation, the session rules and the debrief, plus a test proving every fixture file's hash is unchanged after a drill.
+
+## Phase 14: Saved tours
 
 - [ ] **Save.** A tour is saved with author, date, intent, level, base commit and a hash per anchored block to `.tutor/tours/<slug>.json`. Text only; audio is made at play time.
 - [ ] **Replay.**
@@ -328,16 +340,6 @@ Moved out of Phase 12 on 4 November 2026, because it needs the learner record an
 - [ ] **Broken-tour check.** `askmiyagi check-tours` exits non-zero and lists each broken step (for example "this change breaks step 3 of the onboarding tour"). `docs/` includes an example GitHub Action that runs it on pull requests with GitHub's built-in token.
 
 **Gate:** `npm run check` passes, with fixture-repo tests that change code to produce each replay outcome, and a test of `askmiyagi check-tours` exit codes.
-
-## Phase 14: Interview prep
-
-- [ ] **Question generation.** Questions come from dependencies, the repo map, git history, failure points and the learner's weak spots. Follow-ups react to the answers.
-- [ ] **Session rules.** No hints during the session. Vague answers get probed and weak ones pushed back on. Sessions are timeboxed. Difficulty is friendly, realistic or tough. Voice-only mode is optional.
-- [ ] **Debugging drills.** A virtual "what if" diff is applied in memory only; the repo is never edited.
-- [ ] **"Why" questions** are graded on reasoning, never on an invented answer.
-- [ ] **Debrief.** A scorecard, gaps shown with code, model answers, and weak topics fed into teach mode.
-
-**Gate:** `npm run check` passes, with fake-provider tests for generation, the session rules and the debrief, plus a test proving every fixture file's hash is unchanged after a drill.
 
 ## Phase 15: PR review
 
@@ -358,6 +360,6 @@ The first `claude-headless` run of the fixtures suite (2026-10-31) had no retrie
 
 Each one blocks only the phase named. Answer it before that phase starts.
 
-- **Broken tour** (Phase 13). Fail only on an unresolvable anchor and warn on a changed hash, or fail on both?
-- **Interview format** (Phase 14). Questions per session, default timebox, what friendly, realistic and tough mean, and the probe limit.
-- **Interview scorecard** (Phase 14). Its dimensions and scale.
+- **Interview format** (Phase 13). Questions per session, default timebox, what friendly, realistic and tough mean, and the probe limit.
+- **Interview scorecard** (Phase 13). Its dimensions and scale.
+- **Broken tour** (Phase 14). Fail only on an unresolvable anchor and warn on a changed hash, or fail on both?

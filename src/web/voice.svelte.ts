@@ -1,7 +1,7 @@
 import { createAnnouncer } from "./announcer.ts";
 import { steppedSpeed } from "./commands.ts";
 import { createFirstSound, postFirstSound } from "./first-sound.ts";
-import { createPlayback } from "./playback.ts";
+import { createPlayback, type InterludeHook } from "./playback.ts";
 import type { PlayerStep, Position } from "./player.ts";
 import { chooseSpeaker, localVoices, noLocalVoice, type Speaker } from "./speaker.ts";
 
@@ -16,6 +16,7 @@ export function createVoice(options: {
   onStart: (position: Position) => void;
   onEnd: () => void;
   onTextMode: (interrupted: Position | undefined) => void;
+  interlude: InterludeHook;
 }) {
   const injectedSpeaker = (window as { __MIYAGI_SPEAKER__?: Speaker }).__MIYAGI_SPEAKER__;
   let notice = $state("");
@@ -47,6 +48,7 @@ export function createVoice(options: {
       closing: options.closing,
       ready: () => announcer?.finished() ?? Promise.resolve(),
       onLead: options.onLead,
+      interlude: options.interlude,
       onStart: (started) => {
         firstSound.started();
         options.onStart(started);

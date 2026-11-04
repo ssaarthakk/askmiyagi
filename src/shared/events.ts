@@ -11,7 +11,11 @@ const ranges = z.array(resolvedAnchorSchema.nullable());
 export const providerEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("text"), text: z.string() }),
   z.object({ type: z.literal("step"), step: stepSchema }),
-  z.object({ type: z.literal("checkQuestion"), text: z.string().min(1) }),
+  z.object({
+    type: z.literal("checkQuestion"),
+    text: z.string().min(1),
+    concept: z.string().min(1).optional(),
+  }),
   z.object({ type: z.literal("scope"), scope: scopeSchema }),
   z.object({ type: z.literal("intent"), intent: intentSchema }),
   z.object({ type: z.literal("concepts"), concepts: z.array(tourConceptSchema) }),

@@ -7,12 +7,14 @@ import type { AskEvent } from "../../shared/events.ts";
 import { ackPhrases } from "../../shared/phrases.ts";
 import type { Profile } from "../../shared/profile.ts";
 import type { Result } from "../../shared/result.ts";
+import { anchorRanges } from "../../shared/tour.ts";
 import { usageSchema } from "../../shared/usage.ts";
 import { askEvents } from "../llm/ask.ts";
 import { createConversation } from "../llm/conversation.ts";
 import type { LLMProvider } from "../llm/provider.ts";
 import { logError } from "../log.ts";
 import { isUrl } from "../source/github-url.ts";
+import type { QuestionPolicy } from "../teach/question-policy.ts";
 import { runCodeChecks } from "./code-checks.ts";
 import { classifyFailure } from "./failure.ts";
 import { judgeRun } from "./judge.ts";
@@ -28,6 +30,12 @@ type RunSuiteOptions = {
   judge?: boolean | undefined;
   mode?: Profile["mode"] | undefined;
   signal?: AbortSignal | undefined;
+};
+
+const alwaysAsk: QuestionPolicy = {
+  mayAsk: () => true,
+  tourEnded: () => undefined,
+  skipped: () => undefined,
 };
 
 const fakeKeyFile = "ANTHROPIC_API_KEY=sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789\n";
@@ -61,6 +69,7 @@ async function runCase(
     question: `Intent: ${evalCase.intent}\n${evalCase.question}`,
     ack: ackPhrases[0] ?? "",
     mode: options.mode,
+    questionPolicy: alwaysAsk,
     signal,
     callLog: {
       provider: options.providerName,
@@ -93,7 +102,7 @@ async function runCase(
     root,
     evalCase,
     tour: tour.tour,
-    ranges: tour.ranges,
+    ranges: anchorRanges(tour.tour.steps, tour.ranges),
     signal,
   });
   signal.throwIfAborted();

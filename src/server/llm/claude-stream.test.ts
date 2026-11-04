@@ -244,6 +244,19 @@ describe("parseClaudeStream", () => {
   );
 });
 
+describe("check question line", () => {
+  it("carries the concept the question is about", () => {
+    const line = JSON.stringify({ checkQuestion: "Why?", checkConcept: "upload retries" });
+
+    expect([...modelLineEvents(line)]).toEqual([
+      { type: "checkQuestion", text: "Why?", concept: "upload retries" },
+    ]);
+    expect([...modelLineEvents(JSON.stringify({ checkQuestion: "Why?" }))]).toEqual([
+      { type: "checkQuestion", text: "Why?" },
+    ]);
+  });
+});
+
 describe("concepts on the final line", () => {
   const retries = { name: "upload retries", important: true, kind: "repo" };
 
@@ -297,5 +310,35 @@ describe("concepts on the final line", () => {
     expect([...modelLineEvents(JSON.stringify({ concepts: many }))]).toEqual([
       { type: "concepts", concepts: many.slice(0, 5) },
     ]);
+  });
+});
+
+describe("primm on a step line", () => {
+  const step = {
+    title: "Saving",
+    anchors: [{ file: "src/clip-service.ts", symbol: "ClipService.save" }],
+    narration: [{ text: "Clips are saved here." }],
+  };
+  const primm = {
+    predict: "What does save return?",
+    investigate: "Click the line that saves the clip.",
+    target: { file: "src/clip-service.ts", line: 5, text: "await store.put(clip);" },
+  };
+
+  it("passes a valid primm on with the step", () => {
+    expect([...modelLineEvents(JSON.stringify({ ...step, primm }))]).toEqual([
+      { type: "step", step: { ...step, primm } },
+    ]);
+  });
+
+  it("drops a primm that is not valid and keeps the step", () => {
+    const silence = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const broken = { ...primm, target: { file: "src/clip-service.ts" } };
+
+    expect([...modelLineEvents(JSON.stringify({ ...step, primm: broken }))]).toEqual([
+      { type: "step", step },
+    ]);
+    expect(silence.mock.calls.join("")).toContain("Primm dropped");
+    silence.mockRestore();
   });
 });

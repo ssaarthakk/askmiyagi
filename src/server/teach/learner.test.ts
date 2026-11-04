@@ -98,6 +98,46 @@ describe("createLearnerRecord", () => {
     expect((await stored(root)).concepts).toEqual([{ ...advanced.concepts[0], important: true }]);
   });
 
+  it("lists the concepts that are checked or reviewed, and none when there is no record", async () => {
+    const root = await tempDir();
+    const record = createLearnerRecord(root);
+    expect(await record.checkedConcepts()).toEqual([]);
+    const concept = (name: string, state: Learner["concepts"][number]["state"]) => ({
+      name,
+      kind: "repo" as const,
+      important: true,
+      state,
+      rubric: null,
+      attempts: 0,
+      reviewsDone: 0,
+      nextReview: null,
+    });
+    await record.markSeen([retries]);
+    await writeFile(
+      join(root, ".tutor", "private", "learner.json"),
+      JSON.stringify({
+        concepts: [
+          concept("Seen one", "seen"),
+          concept("Explained one", "explained"),
+          concept("Checked one", "checked"),
+          concept("Reviewed one", "reviewed"),
+        ],
+      }),
+    );
+
+    expect(await record.checkedConcepts()).toEqual(["Checked one", "Reviewed one"]);
+  });
+
+  it("waits for a queued write before it reads the record", async () => {
+    const root = await tempDir();
+    const record = createLearnerRecord(root);
+
+    void record.markSeen([retries]);
+
+    expect(await record.checkedConcepts()).toEqual([]);
+    expect((await stored(root)).concepts).toHaveLength(1);
+  });
+
   it("keeps every update when several arrive at once", async () => {
     const root = await tempDir();
     const record = createLearnerRecord(root);

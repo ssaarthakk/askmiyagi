@@ -14,6 +14,7 @@ let {
   welcome,
   projectName,
   onpick,
+  online,
   onsuggest,
   children,
 }: {
@@ -24,6 +25,7 @@ let {
   welcome: boolean;
   projectName: string;
   onpick: (selection: Selection) => void;
+  online: (file: string, line: number) => void;
   onsuggest: (text: string) => void;
   children: Snippet;
 } = $props();
@@ -51,6 +53,7 @@ let {
           current={highlight.current}
           previous={highlight.previous}
           {onpick}
+          {online}
         />
       {/if}
     {/key}

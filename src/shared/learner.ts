@@ -47,7 +47,7 @@ const learnerConceptSchema = z.object({
 
 export const learnerSchema = z.object({ concepts: z.array(learnerConceptSchema) });
 
-export const playedSchema = z.object({ tour: z.string().min(1).max(2000) });
+export const tourNameSchema = z.object({ tour: z.string().min(1).max(2000) });
 
 export type TourConcept = z.infer<typeof tourConceptSchema>;
 export type ConceptState = (typeof conceptStates)[number];

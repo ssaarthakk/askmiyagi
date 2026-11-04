@@ -56,7 +56,18 @@ export function createLearnerRecord(root: string) {
     return queue;
   }
 
+  async function checkedConcepts() {
+    const read = queue.then(() => readPrivateJson(root, learnerFile, learnerSchema));
+    queue = read.then(() => undefined);
+    const current = await read;
+    if (!current.ok || current.value === null) return [];
+    return current.value.concepts
+      .filter(({ state }) => state === "checked" || state === "reviewed")
+      .map(({ name }) => name);
+  }
+
   return {
+    checkedConcepts,
     markSeen: (concepts: TourConcept[]) => reach(concepts, "seen"),
     markExplained: (concepts: TourConcept[]) => reach(concepts, "explained"),
   };

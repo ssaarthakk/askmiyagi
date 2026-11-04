@@ -4,7 +4,7 @@ import type { ProviderEvent } from "../../shared/events.ts";
 import { intentSchema } from "../../shared/intent.ts";
 import { type TourConcept, tourConceptSchema } from "../../shared/learner.ts";
 import { parseContract } from "../../shared/parse.ts";
-import { scopeSchema, stepSchema } from "../../shared/tour.ts";
+import { primmSchema, scopeSchema, stepSchema } from "../../shared/tour.ts";
 import { logError } from "../log.ts";
 import { lostThread } from "./provider.ts";
 
@@ -49,7 +49,10 @@ const resultSchema = z.object({
     .prefault({}),
 });
 
-const checkQuestionSchema = z.object({ checkQuestion: z.string().min(1) });
+const checkQuestionSchema = z.object({
+  checkQuestion: z.string().min(1),
+  checkConcept: z.string().min(1).optional(),
+});
 const finalLineSchema = z.object({
   scope: scopeSchema.optional(),
   intent: z.unknown().optional(),
@@ -99,6 +102,15 @@ function withoutBadAnchors(json: object) {
   return { ...json, anchors: kept.map((index) => anchors[index]), narration };
 }
 
+function withoutBadPrimm(json: object) {
+  if (!("primm" in json)) return json;
+  const primm = parseContract(primmSchema, json.primm);
+  if (primm.ok) return json;
+  logError(`Primm dropped: ${primm.error}`);
+  const { primm: _dropped, ...rest } = json;
+  return rest;
+}
+
 function parseModelLine(line: string): ProviderEvent[] {
   let json: unknown;
   try {
@@ -110,7 +122,11 @@ function parseModelLine(line: string): ProviderEvent[] {
     const parsed = parseContract(checkQuestionSchema, json);
     return [
       parsed.ok
-        ? { type: "checkQuestion", text: parsed.value.checkQuestion }
+        ? {
+            type: "checkQuestion",
+            text: parsed.value.checkQuestion,
+            ...(parsed.value.checkConcept && { concept: parsed.value.checkConcept }),
+          }
         : modelFailure(parsed.error),
     ];
   }
@@ -134,7 +150,7 @@ function parseModelLine(line: string): ProviderEvent[] {
   }
   const parsed = parseContract(
     stepSchema,
-    typeof json === "object" && json !== null ? withoutBadAnchors(json) : json,
+    typeof json === "object" && json !== null ? withoutBadAnchors(withoutBadPrimm(json)) : json,
   );
   return [parsed.ok ? { type: "step", step: parsed.value } : modelFailure(parsed.error, true)];
 }

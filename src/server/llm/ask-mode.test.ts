@@ -1,17 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { root, saveStep, scripted, usage } from "../../../test/ask-helpers.ts";
+import { checkEvents, root, saveStep, scripted, usage } from "../../../test/ask-helpers.ts";
 import { collect } from "../../../test/fake-claude.ts";
 import type { ProviderEvent } from "../../shared/events.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
 import { defaultProfile, type Profile } from "../../shared/profile.ts";
+import { createQuestionPolicy } from "../teach/question-policy.ts";
 import { askEvents } from "./ask.ts";
 import { createConversation } from "./conversation.ts";
 
+const frequent: Profile = { ...defaultProfile, frequency: "frequent" };
+
 const events: ProviderEvent[] = [
   { type: "step", step: saveStep },
-  { type: "checkQuestion", text: "What does save return?" },
+  ...checkEvents,
   { type: "done", usage },
 ];
+
+function secondEligibleTour() {
+  const questionPolicy = createQuestionPolicy();
+  questionPolicy.tourEnded(false);
+  return questionPolicy;
+}
 
 async function ask(options: { profile?: Profile | null; mode?: Profile["mode"] }) {
   const seen: LLMRequest[] = [];
@@ -24,7 +33,8 @@ async function ask(options: { profile?: Profile | null; mode?: Profile["mode"] }
       ack: "One moment.",
       signal: new AbortController().signal,
       conversation,
-      loadProfile: async () => options.profile ?? null,
+      questionPolicy: secondEligibleTour(),
+      loadProfile: async () => (options.profile === undefined ? frequent : options.profile),
       mode: options.mode,
     }),
   );
@@ -56,7 +66,10 @@ describe("teach and answer modes", () => {
     const answer = await ask({ profile: null, mode: "answer" });
     expect(answer.tour.checkQuestion).toBeUndefined();
 
-    const teach = await ask({ profile: { ...defaultProfile, mode: "answer" }, mode: "teach" });
+    const teach = await ask({
+      profile: { ...defaultProfile, mode: "answer", frequency: "frequent" },
+      mode: "teach",
+    });
     expect(teach.tour.checkQuestion).toBe("What does save return?");
   });
 });

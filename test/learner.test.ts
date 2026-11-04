@@ -47,4 +47,29 @@ describe("learner record", () => {
 
     expect((await post(url, undefined, "/api/played", { tour: question })).status).toBe(401);
   });
+
+  it("needs the session token for /api/skipped and /api/predict", async () => {
+    const { url } = await startServer("test/fixtures/basic", args);
+
+    expect((await post(url, undefined, "/api/skipped", { tour: question })).status).toBe(401);
+    expect(
+      (await post(url, undefined, "/api/predict", { tour: question, step: 0, prediction: "x" }))
+        .status,
+    ).toBe(401);
+  });
+
+  it("serves /api/skipped and /api/predict, refusing a bad body and a step with nothing to predict", async () => {
+    const { url, token } = await startServer("test/fixtures/basic", args);
+
+    expect((await post(url, token, "/api/skipped", { tour: question })).status).toBe(204);
+    expect((await post(url, token, "/api/skipped", {})).status).toBe(400);
+    expect((await post(url, token, "/api/predict", { tour: question })).status).toBe(400);
+    const nothing = await post(url, token, "/api/predict", {
+      tour: question,
+      step: 0,
+      prediction: "x",
+    });
+    expect(nothing.status).toBe(400);
+    expect(await nothing.json()).toEqual({ error: "That step has nothing to predict" });
+  });
 });

@@ -3,8 +3,11 @@ import { vi } from "vitest";
 import { askEvents } from "../src/server/llm/ask.ts";
 import { createConversation } from "../src/server/llm/conversation.ts";
 import { type LLMProvider, lostThread } from "../src/server/llm/provider.ts";
+import { createQuestionPolicy, type QuestionPolicy } from "../src/server/teach/question-policy.ts";
 import type { ProviderEvent } from "../src/shared/events.ts";
+import type { TourConcept } from "../src/shared/learner.ts";
 import type { LLMRequest } from "../src/shared/llm-request.ts";
+import { defaultProfile, type Profile } from "../src/shared/profile.ts";
 import type { Step } from "../src/shared/tour.ts";
 
 export const root = resolve(import.meta.dirname, "fixtures/basic");
@@ -63,10 +66,41 @@ export function attempts(scripts: ProviderEvent[][], seen: LLMRequest[] = []): L
   };
 }
 
+export const retryConcept: TourConcept = {
+  name: "upload retries",
+  important: true,
+  kind: "repo",
+};
+
+export const checkEvents: ProviderEvent[] = [
+  { type: "checkQuestion", text: "What does save return?", concept: retryConcept.name },
+  { type: "concepts", concepts: [retryConcept] },
+];
+
+export function questionOptions(
+  options: {
+    frequency?: Profile["frequency"];
+    mode?: Profile["mode"];
+    policy?: QuestionPolicy;
+    checked?: string[];
+  } = {},
+) {
+  return {
+    questionPolicy: options.policy ?? createQuestionPolicy(),
+    loadProfile: async () => ({
+      ...defaultProfile,
+      frequency: options.frequency ?? "frequent",
+      mode: options.mode ?? "teach",
+    }),
+    checkedConcepts: async () => options.checked ?? [],
+  };
+}
+
 export function stream(
   provider: LLMProvider,
   signal = new AbortController().signal,
   conversation = createConversation(),
+  extra: Partial<Parameters<typeof askEvents>[0]> = {},
 ) {
   return askEvents({
     root,
@@ -75,5 +109,6 @@ export function stream(
     ack: "One moment.",
     signal,
     conversation,
+    ...extra,
   });
 }

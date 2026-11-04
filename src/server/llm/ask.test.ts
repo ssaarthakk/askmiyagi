@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  checkEvents,
+  questionOptions,
+  retryConcept,
   root,
   saveStep,
   scripted,
@@ -71,9 +74,12 @@ describe("askEvents", () => {
         scripted([
           { type: "step", step: saveStep },
           { type: "step", step: uploadStep },
-          { type: "checkQuestion", text: "What does save return?" },
+          ...checkEvents,
           { type: "done", usage },
         ]),
+        undefined,
+        undefined,
+        questionOptions(),
       ),
     );
     const saveRanges = [{ file: "src/clip-service.ts", start: 2, end: 4, capped: false }];
@@ -88,6 +94,8 @@ describe("askEvents", () => {
           question: "How are clips saved?",
           steps: [saveStep, uploadStep],
           checkQuestion: "What does save return?",
+          checkConcept: "upload retries",
+          concepts: [retryConcept],
         },
         ranges: [saveRanges, uploadRanges],
       },

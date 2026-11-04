@@ -1,6 +1,17 @@
 import { anchorTarget, neighbour, type PlayerStep, type Position } from "./player.ts";
 import { noLocalVoice, type Speaker } from "./speaker.ts";
 
+type Interlude = {
+  prompt: string;
+  reply: Promise<string | undefined>;
+};
+
+export type InterludeHook = (
+  at: Position,
+  when: "before" | "after",
+  signal: AbortSignal,
+) => Interlude | undefined;
+
 type PlaybackHooks = {
   steps: () => PlayerStep[];
   ready: () => Promise<void>;
@@ -8,6 +19,7 @@ type PlaybackHooks = {
   onLead: (position: Position) => void;
   onStart: (position: Position) => void;
   onEnd: (error?: Error) => void;
+  interlude?: InterludeHook | undefined;
 };
 
 const scrollLeadMs = 200;
@@ -56,6 +68,15 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
         console.warn("Skipped a narration part that could not be spoken", error);
       }
     }
+    async function interlude(at: Position, when: "before" | "after", signal: AbortSignal) {
+      const turn = hooks.interlude?.(at, when, signal);
+      if (!turn) return;
+      await say(turn.prompt, signal, () => undefined);
+      if (signal.aborted) return;
+      const feedback = await turn.reply;
+      if (signal.aborted || !feedback) return;
+      await say(feedback, signal, () => undefined);
+    }
     try {
       await hooks.ready();
       if (mine.signal.aborted) return;
@@ -72,6 +93,10 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
           await wait(scrollLeadMs, mine.signal);
           if (mine.signal.aborted) return;
         }
+        if (at.segment === 0) {
+          await interlude(at, "before", mine.signal);
+          if (mine.signal.aborted) return;
+        }
         await say(segment.text, mine.signal, () => {
           if (mine.signal.aborted) return;
           hooks.onStart(started);
@@ -81,6 +106,10 @@ export function createPlayback(speaker: Speaker, hooks: PlaybackHooks) {
         });
         if (mine.signal.aborted) return;
         previous = at;
+        if (neighbour(hooks.steps(), at, 1)?.step !== at.step) {
+          await interlude(at, "after", mine.signal);
+          if (mine.signal.aborted) return;
+        }
         at = neighbour(hooks.steps(), at, 1);
       }
       const closing = hooks.closing();

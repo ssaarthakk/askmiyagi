@@ -1,5 +1,5 @@
 <script lang="ts" module>
-export type Note = { kind: "ack" | "progress" | "error"; text: string };
+export type Note = { kind: "ack" | "progress" | "error" | "tutor"; text: string };
 export type Turn = {
   question: string;
   notes: Note[];
@@ -16,6 +16,7 @@ import type { Intent } from "../shared/intent.ts";
 import type { Profile } from "../shared/profile.ts";
 import DiffForm from "./DiffForm.svelte";
 import IntentTag from "./IntentTag.svelte";
+import type { PrimmView } from "./primm.svelte.ts";
 import SetupItems from "./SetupItems.svelte";
 import type { SetupView } from "./setup.svelte.ts";
 
@@ -47,6 +48,10 @@ let {
   onmicdown,
   onmicup,
   ontogglehandsfree,
+  primm,
+  onprimmskip,
+  checkOpen,
+  oncheckskip,
 }: {
   turns: Turn[];
   tourVisible: boolean;
@@ -75,7 +80,13 @@ let {
   onmicdown: (event: PointerEvent) => void;
   onmicup: () => void;
   ontogglehandsfree: () => void;
+  primm: PrimmView | undefined;
+  onprimmskip: () => void;
+  checkOpen: boolean;
+  oncheckskip: () => void;
 } = $props();
+
+const predicting = $derived(primm?.phase === "predict");
 
 let list = $state<HTMLUListElement>();
 const lastIntentTurn = $derived(turns.findLastIndex((turn) => turn.intent !== undefined));
@@ -140,7 +151,7 @@ function keydown(event: KeyboardEvent) {
         />
       {/if}
       {#each turn.notes as note}
-        <li class="note {note.kind}">{note.text}</li>
+        <li class={note.kind === "tutor" ? "tutor" : `note ${note.kind}`}>{note.text}</li>
       {/each}
       {#if index === turns.length - 1}
         {#if tourVisible}
@@ -151,6 +162,11 @@ function keydown(event: KeyboardEvent) {
       {/if}
       {#if turn.check}
         <li class="tutor">{turn.check}</li>
+        {#if checkOpen && index === turns.length - 1}
+          <li>
+            <button type="button" onclick={oncheckskip}>Skip question</button>
+          </li>
+        {/if}
       {/if}
       {#if setup && setup.after === index + 1}
         <SetupItems {setup} {onanswer} {onskip} />
@@ -165,13 +181,19 @@ function keydown(event: KeyboardEvent) {
         <button type="button" aria-label="Remove selection" onclick={onremoveselection}>×</button>
       </p>
     {/if}
+    {#if primm}
+      <p class="chip">
+        <span>{primm.phase === "predict" ? "Predict" : "Investigate"}: {primm.prompt}</span>
+        <button type="button" onclick={onprimmskip}>Skip</button>
+      </p>
+    {/if}
     <p role="status" class="muted">{micNotice}</p>
     <textarea
       aria-label="Question"
-      placeholder="Ask about the code"
+      placeholder={predicting ? "Type your prediction" : "Ask about the code"}
       rows="2"
       bind:value={question}
-      disabled={asking}
+      disabled={asking && !predicting}
       autocomplete="off"
       onkeydown={keydown}
     ></textarea>
@@ -185,7 +207,7 @@ function keydown(event: KeyboardEvent) {
         onpointercancel={onmicup}
       >Hold to talk</button>
       <button type="button" aria-pressed={handsFree} onclick={ontogglehandsfree}>Hands-free</button>
-      <button type="submit" class="primary" disabled={asking}>Send</button>
+      <button type="submit" class="primary" disabled={asking && !predicting}>Send</button>
     </div>
   </form>
 </aside>

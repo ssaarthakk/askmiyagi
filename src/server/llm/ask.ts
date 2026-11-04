@@ -6,18 +6,25 @@ import type { AskEvent } from "../../shared/events.ts";
 import type { Intent } from "../../shared/intent.ts";
 import type { TourConcept } from "../../shared/learner.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
-import type { Profile } from "../../shared/profile.ts";
+import { defaultProfile, type Profile } from "../../shared/profile.ts";
 import type { SessionRecord } from "../../shared/session.ts";
-import type { Current, Step, Tour } from "../../shared/tour.ts";
+import {
+  anchorRanges,
+  type Current,
+  type Step,
+  stepAnchors,
+  type Tour,
+} from "../../shared/tour.ts";
 import { addUsage, noUsage, type Usage } from "../../shared/usage.ts";
 import { resolveAnchor } from "../code/anchor-resolver.ts";
 import { logError } from "../log.ts";
 import { profileContext } from "../teach/profile.ts";
+import { type QuestionPolicy, vetQuestion } from "../teach/question-policy.ts";
 import { openedFileSchema, progressText, retryQuestion } from "./ask-progress.ts";
 import type { Conversation } from "./conversation.ts";
 import { buildDiffContext, diffRules } from "./diff-context.ts";
 import { describePosition } from "./position.ts";
-import { answerModeRules, buildRequest } from "./prompt.ts";
+import { answerModeRules, buildRequest, questionRules } from "./prompt.ts";
 import { type LLMProvider, lostThread } from "./provider.ts";
 import { checkSelection } from "./selection.ts";
 import {
@@ -42,6 +49,8 @@ type AskOptions = {
   mode?: Profile["mode"] | undefined;
   intent?: Intent | undefined;
   markSeen?: ((concepts: TourConcept[]) => Promise<void>) | undefined;
+  questionPolicy?: QuestionPolicy | undefined;
+  checkedConcepts?: (() => Promise<string[]>) | undefined;
   signal: AbortSignal;
   bruteForceTokens?: number | undefined;
   callLog?: { provider: string; write(record: CallRecord): Promise<void> } | undefined;
@@ -97,7 +106,11 @@ async function* answer(
   const steps: Step[] = [];
   const allRanges: (ResolvedAnchor | null)[][] = [];
   let checkQuestion: string | undefined;
+  let checkConcept: string | undefined;
+  let checked: string[] = [];
+  let questionAllowed = false;
   let answerMode = false;
+  let primmKept = false;
   let scope: Tour["scope"];
   let intent = options.intent;
   let concepts: TourConcept[] | undefined;
@@ -138,6 +151,10 @@ async function* answer(
     }
     const profile = await options.loadProfile?.();
     answerMode = (options.mode ?? profile?.mode) === "answer";
+    questionAllowed =
+      !answerMode &&
+      options.questionPolicy?.mayAsk(profile?.frequency ?? defaultProfile.frequency) === true;
+    if (questionAllowed) checked = (await options.checkedConcepts?.()) ?? [];
     const built = await buildRequest(
       root,
       trace ? formatStackTrace(trace) : options.question,
@@ -164,6 +181,7 @@ async function* answer(
       question: [
         built.request.question,
         profile && profileContext(profile),
+        options.questionPolicy && !answerMode && questionRules(questionAllowed, checked),
         options.intent && `The learner chose the intent "${options.intent}" for this question.`,
         diffContext?.value,
         position,
@@ -195,18 +213,23 @@ async function* answer(
           }
         } else if (event.type === "step") {
           progress.firstContentMs ??= performance.now() - started;
+          const keepPrimm: boolean =
+            event.step.primm !== undefined && questionAllowed && !primmKept;
+          primmKept ||= keepPrimm;
+          const step = keepPrimm ? event.step : withoutPrimm(event.step);
           const ranges = await Promise.all(
-            event.step.anchors.map(async (anchor) => {
+            stepAnchors(step).map(async (anchor) => {
               const resolved = await resolveAnchor(root, anchor, options.diff?.base);
               if (!resolved.ok) logError(`No highlight for ${anchor.file}: ${resolved.error}`);
               return resolved.ok ? resolved.value : null;
             }),
           );
-          steps.push(event.step);
+          steps.push(step);
           allRanges.push(ranges);
-          yield { type: "step", step: event.step, ranges };
+          yield { type: "step", step, ranges };
         } else if (event.type === "checkQuestion") {
           checkQuestion = event.text;
+          checkConcept = event.concept;
         } else if (event.type === "scope") {
           scope = event.scope;
         } else if (event.type === "intent") {
@@ -267,10 +290,25 @@ async function* answer(
     yield { type: "error", message: lostThread };
     return;
   }
+  const side = scope === "side";
+  const eligible = !answerMode && steps.length > 0 && !side;
+  const question =
+    checkQuestion === undefined
+      ? undefined
+      : vetQuestion({
+          allowed: questionAllowed && eligible,
+          concept: checkConcept,
+          concepts: concepts ?? [],
+          checked,
+        });
+  if (question && !question.ok) logError(`Check question dropped: ${question.error}`);
+  if (eligible) options.questionPolicy?.tourEnded(question?.ok === true);
   const tour = {
     question: options.question,
-    steps,
-    ...(checkQuestion === undefined || answerMode ? {} : { checkQuestion }),
+    steps: side ? steps.map(withoutPrimm) : steps,
+    ...(checkQuestion === undefined || !question?.ok
+      ? {}
+      : { checkQuestion, checkConcept: question.value }),
     ...(reply === undefined ? {} : { reply }),
     ...(scope === undefined ? {} : { scope }),
     ...(intent === undefined ? {} : { intent }),
@@ -282,6 +320,11 @@ async function* answer(
   }
   progress.outcome = "done";
   if (concepts?.length) void options.markSeen?.(concepts);
-  yield { type: "tour", tour, ranges: allRanges };
+  const ranges = side ? anchorRanges(steps, allRanges) : allRanges;
+  yield { type: "tour", tour, ranges };
   yield { type: "done" };
+}
+
+function withoutPrimm({ primm, ...plain }: Step): Step {
+  return plain;
 }

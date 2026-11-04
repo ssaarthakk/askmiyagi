@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { check, run, step, uploadClip } from "../../../test/eval-helpers.ts";
+import type { Step } from "../../shared/tour.ts";
 import type { EvalRun } from "./code-checks.ts";
 
 describe("no code symbols in narration", () => {
@@ -32,7 +33,31 @@ describe("no code symbols in narration", () => {
     const withQuestion = run([{ range: uploadClip }], { checkQuestion: "What does `save` do?" });
     expect((await check(withQuestion)).noCodeInNarration).toBe(false);
   });
+
+  it("also covers the spoken primm prompts", async () => {
+    for (const primm of [
+      { predict: "What does save() return?", investigate: "Click where it returns." },
+      { predict: "What comes back?", investigate: "Click the {block}." },
+    ]) {
+      const withPrimm = withStep(run([{ range: uploadClip }]), (step) => ({
+        ...step,
+        primm: { ...primm, target: { file: "src/upload.ts", symbol: "uploadClip" } },
+      }));
+      expect((await check(withPrimm)).noCodeInNarration).toBe(false);
+    }
+  });
 });
+
+function withStep(evalRun: EvalRun, change: (step: Step) => Step): EvalRun {
+  return {
+    ...evalRun,
+    events: evalRun.events.map((event) =>
+      event.type === "tour"
+        ? { ...event, tour: { ...event.tour, steps: event.tour.steps.map(change) } }
+        : event,
+    ),
+  };
+}
 
 describe("questions", () => {
   it("allows the check question at the end of a tour", async () => {
@@ -96,6 +121,19 @@ describe("blocked reads and secrets", () => {
       events: [{ type: "progress", text: `Found ${["AKIA", "ABCDEFGHIJKLMNOP"].join("")}` }],
     };
     expect((await check(inProgress)).noSecrets).toBe(false);
+    const inTarget = withStep(run([{ range: uploadClip }]), (step) => ({
+      ...step,
+      primm: {
+        predict: "What comes back?",
+        investigate: "Click where it returns.",
+        target: {
+          file: "src/upload.ts",
+          line: 1,
+          text: "const key = 'sk-ant-abcdefghijklmnopqrstuvwxyz0123'",
+        },
+      },
+    }));
+    expect((await check(inTarget)).noSecrets).toBe(false);
   });
 
   it("fails when a secret appears only in a streamed step before an error", async () => {

@@ -1,7 +1,7 @@
 import type { ResolvedAnchor } from "../../shared/anchor.ts";
 import type { EvalCase } from "../../shared/eval-suite.ts";
 import type { AskEvent } from "../../shared/events.ts";
-import type { Step } from "../../shared/tour.ts";
+import { anchorRanges, type Step, stepAnchors } from "../../shared/tour.ts";
 import type { Usage } from "../../shared/usage.ts";
 import { resolveAnchor } from "../code/anchor-resolver.ts";
 import { guardPath } from "../files/path-guard.ts";
@@ -52,9 +52,16 @@ function inOrder(references: (Range | null)[], ranges: (Range | null)[]) {
   return true;
 }
 
+function spokenLines(step: Step) {
+  const prompts = step.primm ? [step.primm.predict, step.primm.investigate] : [];
+  return [...step.narration.map((part) => part.text), ...prompts];
+}
+
 function stepLines(step: Step) {
-  const anchorTexts = step.anchors.flatMap((anchor) => ("text" in anchor ? [anchor.text] : []));
-  return [step.title, ...anchorTexts, ...step.narration.map((part) => part.text)];
+  const anchorTexts = stepAnchors(step).flatMap((anchor) =>
+    "text" in anchor ? [anchor.text] : [],
+  );
+  return [step.title, ...anchorTexts, ...spokenLines(step)];
 }
 
 function outputLines(events: AskEvent[]) {
@@ -79,7 +86,7 @@ export async function runCodeChecks(
   const tourEvent = run.events.find((event) => event.type === "tour");
   const failed = run.events.some((event) => event.type === "error");
   const validJson = tourEvent !== undefined && !failed;
-  const ranges = validJson ? tourEvent.ranges.flat() : [];
+  const ranges = validJson ? anchorRanges(tourEvent.tour.steps, tourEvent.ranges).flat() : [];
   const references = await Promise.all(
     [...testCase.mustHighlight, ...testCase.expectedOrder].map((reference) =>
       resolveReference(root, reference),
@@ -93,7 +100,7 @@ export async function runCodeChecks(
   const reply = tour?.reply;
   const checkQuestion = tour?.checkQuestion;
   const replySentences = (reply ?? "").split(/(?<=[.!?])\s+/);
-  const spoken = [...narration, reply ?? "", checkQuestion ?? ""];
+  const spoken = [...(tour?.steps ?? []).flatMap(spokenLines), reply ?? "", checkQuestion ?? ""];
   const heard = [...narration, reply ?? ""].join("\n").toLowerCase();
   const output = outputLines(run.events).join("\n");
   const blocked = await Promise.all(

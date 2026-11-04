@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { ask } from "./ask.ts";
+import { ask, bodiesPostedTo } from "./ask.ts";
 import { holdMicrophone, stubMicrophone } from "./microphone-stub.ts";
 import { finishSpeech, spoken, stubSpeaker, useElevenLabsVoice } from "./speaker-stub.ts";
 
@@ -26,7 +26,12 @@ async function startTour(page: Page) {
     { type: "step", step, ranges },
     {
       type: "tour",
-      tour: { question: "How are clips saved?", steps: [step], checkQuestion },
+      tour: {
+        question: "How are clips saved?",
+        steps: [step],
+        checkQuestion,
+        checkConcept: "clip saving",
+      },
       ranges: [ranges],
     },
     { type: "done" },
@@ -46,15 +51,6 @@ async function speaksNext(page: Page, text: string) {
 }
 
 const skipChip = (page: Page) => page.locator("form").getByRole("button", { name: "Skip" });
-const skipQuestion = (page: Page) => page.getByRole("button", { name: "Skip question" });
-
-function bodiesPostedTo(page: Page, path: string) {
-  const bodies: unknown[] = [];
-  page.on("request", (request) => {
-    if (request.url().endsWith(path)) bodies.push(request.postDataJSON());
-  });
-  return bodies;
-}
 
 test("the tutor asks for a prediction before the narration, speaks the feedback, then plays the narration", async ({
   page,
@@ -169,15 +165,26 @@ test("a click on another line gets 'Not quite' and the right line is highlighted
   await expect(page.locator(".cm-line").nth(2)).toHaveClass(/cm-highlight-current/);
 });
 
-test("skipping the end question tells the server, and the Skip button goes away", async ({
+test("after investigate the modify prompt gets the explain-back chip, and skipping it tells the server", async ({
   page,
 }) => {
   const skipped = bodiesPostedTo(page, "/api/skipped");
   await startTour(page);
-  await expect(page.getByText(checkQuestion)).toBeVisible();
+  await speaksNext(page, "What does save return?");
+  await skipChip(page).click();
+  await speaksNext(page, "Save returns the clip.");
+  await expect(page.getByText("Investigate:")).toBeVisible();
+  await expect(page.getByText("Explain back: clip saving")).toBeHidden();
+  await skipChip(page).click();
+  expect(skipped).toEqual([]);
 
-  await skipQuestion(page).click();
+  await expect(page.getByText(checkQuestion)).toBeVisible();
+  await speaksNext(page, "Click the line that returns the clip.");
+  await speaksNext(page, checkQuestion);
+  await expect(page.getByText("Explain back: clip saving")).toBeVisible();
+
+  await skipChip(page).click();
 
   await expect.poll(() => skipped).toEqual([{ tour: "How are clips saved?" }]);
-  await expect(skipQuestion(page)).toBeHidden();
+  await expect(skipChip(page)).toBeHidden();
 });

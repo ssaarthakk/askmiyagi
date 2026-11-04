@@ -47,7 +47,7 @@ describe("teach and answer modes", () => {
   it("keeps the check question in teach mode, which is the default", async () => {
     const { tour, request } = await ask({ profile: null });
 
-    expect(tour.checkQuestion).toBe("What does save return?");
+    expect(tour.checkQuestion).toBe("Explain upload retries back to me in your own words.");
     expect(request?.system).not.toContain("Answer mode");
   });
 
@@ -70,6 +70,6 @@ describe("teach and answer modes", () => {
       profile: { ...defaultProfile, mode: "answer", frequency: "frequent" },
       mode: "teach",
     });
-    expect(teach.tour.checkQuestion).toBe("What does save return?");
+    expect(teach.tour.checkQuestion).toBe("Explain upload retries back to me in your own words.");
   });
 });

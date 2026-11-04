@@ -5,7 +5,7 @@ import type { LLMRequest } from "../../shared/llm-request.ts";
 import type { Usage } from "../../shared/usage.ts";
 import { agentProvider, cutOffError, ModelStopError } from "./agent-events.ts";
 import type { AgentModel, AgentTool } from "./agent-loop.ts";
-import type { LLMProvider } from "./provider.ts";
+import { type LLMProvider, smallClaudeModel } from "./provider.ts";
 
 type MessagesClient = {
   messages: {
@@ -45,10 +45,11 @@ function usageOf(model: string, usage: Anthropic.Usage): Usage {
 
 function anthropicModel(
   client: MessagesClient,
-  model: string,
+  strongModel: string,
   request: LLMRequest,
   tools: AgentTool[],
 ): AgentModel {
+  const model = request.model === "small" ? smallClaudeModel : strongModel;
   const definitions = tools.map(({ name, description, inputSchema }) => ({
     name,
     description,

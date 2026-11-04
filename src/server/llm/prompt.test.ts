@@ -263,3 +263,12 @@ describe("PRIMM instructions", () => {
     expect(questionRules(false, [])).not.toContain("primm");
   });
 });
+
+describe("explain-back instructions", () => {
+  it("makes the check question of a tour without primm the explain-back prompt for the check concept", async () => {
+    const root = await createRepo({ "a.ts": "export const a = 1;\n" });
+    const { request } = await buildRequest(root, "What is a?");
+
+    expect(request.system).toContain("Explain <checkConcept> back to me in your own words.");
+  });
+});

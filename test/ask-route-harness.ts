@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,6 +25,14 @@ export async function cleanAskRoute() {
   await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
 }
 
+export async function loggedCallTypes(tutorRoot: string) {
+  const log = await readFile(join(tutorRoot, ".tutor", "private", "calls.jsonl"), "utf8");
+  return log
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line).callType as string);
+}
+
 export async function saveFrequentProfile(tutorRoot: string) {
   const saved = await writeProfile(tutorRoot, {
     level: "intermediate",
@@ -37,7 +45,7 @@ export async function saveFrequentProfile(tutorRoot: string) {
 
 export async function startAsk(separateTutorRoot = false, chosen = provider) {
   const parent = await mkdtemp(join(tmpdir(), "miyagi-ask-route-"));
-  cleanups.push(() => rm(parent, { recursive: true, force: true }));
+  cleanups.push(() => rm(parent, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
   const root = join(parent, "project");
   await cp("test/fixtures/basic", root, { recursive: true });
   const tutorRoot = separateTutorRoot ? join(parent, "store") : root;
@@ -47,6 +55,9 @@ export async function startAsk(separateTutorRoot = false, chosen = provider) {
     "/api/played": ask.played,
     "/api/skipped": ask.skipped,
     "/api/predict": ask.predict,
+    "/api/explain-back": ask.explainBack,
+    "/api/review-skipped": ask.reviewSkipped,
+    "/api/reviews": (_request, response) => ask.reviews(response),
   };
   const server = createServer(
     (request, response) => void (handlers[request.url ?? ""] ?? ask.handle)(request, response),
@@ -61,5 +72,6 @@ export async function startAsk(separateTutorRoot = false, chosen = provider) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-  return { root, tutorRoot, post };
+  const get = (path: string) => fetch(`http://127.0.0.1:${port}${path}`);
+  return { root, tutorRoot, post, get };
 }

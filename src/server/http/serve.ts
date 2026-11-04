@@ -83,6 +83,18 @@ export async function serveRequest(
     await ask.predict(request, response);
     return;
   }
+  if (pathname === "/api/explain-back" && request.method === "POST") {
+    await ask.explainBack(request, response);
+    return;
+  }
+  if (pathname === "/api/reviews" && request.method === "GET") {
+    await ask.reviews(response);
+    return;
+  }
+  if (pathname === "/api/review-skipped" && request.method === "POST") {
+    await ask.reviewSkipped(request, response);
+    return;
+  }
   if (pathname === "/api/interrupt" && request.method === "POST") {
     await ask.interrupt();
     response.writeHead(204);

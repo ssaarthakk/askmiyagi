@@ -1,5 +1,5 @@
 <script lang="ts" module>
-export type Note = { kind: "ack" | "progress" | "error" | "tutor"; text: string };
+export type Note = { kind: "ack" | "progress" | "error" | "tutor" | "learner"; text: string };
 export type Turn = {
   question: string;
   notes: Note[];
@@ -50,8 +50,11 @@ let {
   ontogglehandsfree,
   primm,
   onprimmskip,
-  checkOpen,
-  oncheckskip,
+  explainConcept,
+  onexplainskip,
+  reviewOffer,
+  onreviewstart,
+  onreviewskip,
 }: {
   turns: Turn[];
   tourVisible: boolean;
@@ -82,8 +85,11 @@ let {
   ontogglehandsfree: () => void;
   primm: PrimmView | undefined;
   onprimmskip: () => void;
-  checkOpen: boolean;
-  oncheckskip: () => void;
+  explainConcept: string | undefined;
+  onexplainskip: () => void;
+  reviewOffer: string | undefined;
+  onreviewstart: () => void;
+  onreviewskip: () => void;
 } = $props();
 
 const predicting = $derived(primm?.phase === "predict");
@@ -100,6 +106,11 @@ $effect(() => {
   observer.observe(element, { childList: true, subtree: true });
   return () => observer.disconnect();
 });
+
+function noteClass(note: Note) {
+  if (note.kind === "tutor") return "tutor";
+  return note.kind === "learner" ? "question" : `note ${note.kind}`;
+}
 
 function submit(event: SubmitEvent) {
   event.preventDefault();
@@ -151,7 +162,7 @@ function keydown(event: KeyboardEvent) {
         />
       {/if}
       {#each turn.notes as note}
-        <li class={note.kind === "tutor" ? "tutor" : `note ${note.kind}`}>{note.text}</li>
+        <li class={noteClass(note)}>{note.text}</li>
       {/each}
       {#if index === turns.length - 1}
         {#if tourVisible}
@@ -162,16 +173,18 @@ function keydown(event: KeyboardEvent) {
       {/if}
       {#if turn.check}
         <li class="tutor">{turn.check}</li>
-        {#if checkOpen && index === turns.length - 1}
-          <li>
-            <button type="button" onclick={oncheckskip}>Skip question</button>
-          </li>
-        {/if}
       {/if}
       {#if setup && setup.after === index + 1}
         <SetupItems {setup} {onanswer} {onskip} />
       {/if}
     {/each}
+    {#if reviewOffer}
+      <li class="tutor">A review is due: {reviewOffer}. Want to try it now?</li>
+      <li class="offer">
+        <button type="button" onclick={onreviewstart}>Start review</button>
+        <button type="button" onclick={onreviewskip}>Skip review</button>
+      </li>
+    {/if}
   </ul>
   <DiffForm {asking} onexplain={onexplaindiff} />
   <form onsubmit={submit}>
@@ -187,10 +200,20 @@ function keydown(event: KeyboardEvent) {
         <button type="button" onclick={onprimmskip}>Skip</button>
       </p>
     {/if}
+    {#if explainConcept && !primm}
+      <p class="chip">
+        <span>Explain back: {explainConcept}</span>
+        <button type="button" onclick={onexplainskip}>Skip</button>
+      </p>
+    {/if}
     <p role="status" class="muted">{micNotice}</p>
     <textarea
       aria-label="Question"
-      placeholder={predicting ? "Type your prediction" : "Ask about the code"}
+      placeholder={predicting
+        ? "Type your prediction"
+        : explainConcept
+          ? "Explain it in your own words"
+          : "Ask about the code"}
       rows="2"
       bind:value={question}
       disabled={asking && !predicting}
@@ -286,6 +309,11 @@ function keydown(event: KeyboardEvent) {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
+  }
+
+  .offer {
+    display: flex;
+    gap: var(--space);
   }
 
   .actions {

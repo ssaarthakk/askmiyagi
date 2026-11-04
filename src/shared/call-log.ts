@@ -4,7 +4,7 @@ import { usageSchema } from "./usage.ts";
 const milliseconds = z.number().nonnegative();
 
 export const callRecordSchema = usageSchema.extend({
-  callType: z.literal("ask"),
+  callType: z.enum(["ask", "summary", "rubric", "prediction", "grade"]),
   provider: z.string().min(1),
   mode: z.enum(["brute-force", "agentic"]).nullable(),
   startedAt: z.iso.datetime(),

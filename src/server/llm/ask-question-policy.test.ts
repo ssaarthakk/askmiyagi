@@ -62,7 +62,7 @@ describe("askEvents question policy", () => {
   it("keeps a question about an important concept of the tour that is not checked yet, and names the concept", async () => {
     const { tour } = await ask(tourEvents());
 
-    expect(tour.checkQuestion).toBe("Why does it retry?");
+    expect(tour.checkQuestion).toBe("Explain Upload retries back to me in your own words.");
     expect(tour.checkConcept).toBe("Upload retries");
   });
 
@@ -94,7 +94,9 @@ describe("askEvents question policy", () => {
   it("never keeps a question on a tour that ends with the side scope", async () => {
     terminal();
     expect((await ask(tourEvents({ scope: "side" }))).tour.checkQuestion).toBeUndefined();
-    expect((await ask(tourEvents({ scope: "new" }))).tour.checkQuestion).toBe("Why does it retry?");
+    expect((await ask(tourEvents({ scope: "new" }))).tour.checkQuestion).toBe(
+      "Explain Upload retries back to me in your own words.",
+    );
   });
 
   it("never keeps a question when the answer has no steps", async () => {
@@ -129,7 +131,7 @@ describe("askEvents question policy", () => {
     const second = await ask(tourEvents(), { frequency: "normal", policy });
 
     expect(first.tour.checkQuestion).toBeUndefined();
-    expect(second.tour.checkQuestion).toBe("Why does it retry?");
+    expect(second.tour.checkQuestion).toBe("Explain Upload retries back to me in your own words.");
   });
 
   it("does not count a side tour as an eligible tour", async () => {

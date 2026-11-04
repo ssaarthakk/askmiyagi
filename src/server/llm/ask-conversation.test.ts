@@ -9,6 +9,7 @@ import {
 } from "../../../test/ask-helpers.ts";
 import { turnMessages } from "../../../test/conversation-helpers.ts";
 import { collect } from "../../../test/fake-claude.ts";
+import type { CallRecord } from "../../shared/call-log.ts";
 import type { ProviderEvent } from "../../shared/events.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
 import { createConversation } from "./conversation.ts";
@@ -34,7 +35,7 @@ describe("askEvents conversation", () => {
     await collect(stream(scripted(finished, seen), undefined, conversation));
     expect(seen[1]?.conversation).toContain("How are clips saved?");
     expect(seen[1]?.conversation).toContain("Saving a clip");
-    expect(seen[1]?.conversation).toContain("What does save return?");
+    expect(seen[1]?.conversation).toContain("Explain upload retries back to me in your own words.");
   });
 
   describe("agent messages", () => {
@@ -106,6 +107,30 @@ describe("askEvents conversation", () => {
       const summaryRequests = seen.filter((request) => !request.tools);
       expect(summaryRequests).toHaveLength(1);
       expect(summaryRequests[0]?.model).toBe("small");
+    });
+
+    it("logs the summary call with its own call type", async () => {
+      const conversation = createConversation({ contextTokens: 100 });
+      const records: CallRecord[] = [];
+      const callLog = {
+        provider: "fake",
+        write: async (record: CallRecord) => {
+          records.push(record);
+        },
+      };
+      const provider = summarising([]);
+      for (let ask = 0; ask < 4; ask++) {
+        await collect(stream(provider, undefined, conversation, { callLog }));
+      }
+      await vi.waitFor(() =>
+        expect(records.map((record) => record.callType)).toEqual([
+          "ask",
+          "ask",
+          "ask",
+          "ask",
+          "summary",
+        ]),
+      );
     });
 
     it("sends the summary with the next ask", async () => {

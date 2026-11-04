@@ -16,6 +16,8 @@ let {
   onpick,
   online,
   onsuggest,
+  reviewsDue,
+  onreview,
   children,
 }: {
   highlight: Highlight | undefined;
@@ -27,6 +29,8 @@ let {
   onpick: (selection: Selection) => void;
   online: (file: string, line: number) => void;
   onsuggest: (text: string) => void;
+  reviewsDue: number;
+  onreview: () => void;
   children: Snippet;
 } = $props();
 </script>
@@ -58,7 +62,7 @@ let {
       {/if}
     {/key}
   {:else if welcome}
-    <Welcome {projectName} {onsuggest} />
+    <Welcome {projectName} {onsuggest} {reviewsDue} {onreview} />
   {/if}
   {@render children()}
 </div>

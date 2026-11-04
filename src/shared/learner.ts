@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { anchorSchema, resolvedAnchorSchema } from "./anchor.ts";
 
 export const languageConcepts = [
   "async/await",
@@ -17,6 +18,14 @@ export const languageConcepts = [
 
 const conceptKinds = ["repo", "language"] as const;
 export const conceptStates = ["seen", "explained", "checked", "reviewed"] as const;
+
+export function sameConcept(first: string, second: string) {
+  return first.toLowerCase() === second.toLowerCase();
+}
+
+export function explainBackPrompt(concept: string) {
+  return `Explain ${concept} back to me in your own words.`;
+}
 
 export const tourConceptSchema = z
   .object({
@@ -49,6 +58,34 @@ export const learnerSchema = z.object({ concepts: z.array(learnerConceptSchema) 
 
 export const tourNameSchema = z.object({ tour: z.string().min(1).max(2000) });
 
+export const conceptNameSchema = z.object({ concept: z.string().trim().min(1).max(100) });
+
+export const explainBackBodySchema = z.object({
+  ...conceptNameSchema.shape,
+  answer: z.string().trim().min(1).max(2000),
+  review: z.boolean().optional(),
+});
+
+export const gradeSchema = z.object({
+  score: z.number().int().min(1).max(5),
+  gaps: z.array(z.string().trim().min(1).max(300)).transform((gaps) => gaps.slice(0, 2)),
+  anchors: z.array(anchorSchema).transform((anchors) => anchors.slice(0, 2)),
+  modelAnswer: z.string().trim().min(1).max(600),
+});
+
+export const explainBackReplySchema = z.object({
+  outcome: z.enum(["passed", "retry", "gave-up"]),
+  score: z.number().int().min(1).max(5),
+  gaps: z.array(z.string()),
+  ranges: z.array(resolvedAnchorSchema),
+  modelAnswer: z.string().nullable(),
+});
+
+export const dueReviewsSchema = z.object({ due: z.array(z.string()) });
+
 export type TourConcept = z.infer<typeof tourConceptSchema>;
 export type ConceptState = (typeof conceptStates)[number];
 export type Learner = z.infer<typeof learnerSchema>;
+export type LearnerConcept = z.infer<typeof learnerConceptSchema>;
+export type Grade = z.infer<typeof gradeSchema>;
+export type ExplainBackReply = z.infer<typeof explainBackReplySchema>;

@@ -1,10 +1,10 @@
 import type { AgentMessage } from "../../shared/agent-message.ts";
 import type { ResolvedAnchor, Selection } from "../../shared/anchor.ts";
 import type { CallRecord } from "../../shared/call-log.ts";
-import type { DiffRequest } from "../../shared/diff-base.ts";
+import type { DiffBase, DiffRequest } from "../../shared/diff-base.ts";
 import type { AskEvent } from "../../shared/events.ts";
 import type { Intent } from "../../shared/intent.ts";
-import type { TourConcept } from "../../shared/learner.ts";
+import { explainBackPrompt, type TourConcept } from "../../shared/learner.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
 import { defaultProfile, type Profile } from "../../shared/profile.ts";
 import type { SessionRecord } from "../../shared/session.ts";
@@ -35,6 +35,7 @@ import {
   stackTraceWarnings,
 } from "./stack-trace.ts";
 import { createSummariser } from "./summariser.ts";
+import type { CallLog } from "./tools-off-call.ts";
 
 type AskOptions = {
   root: string;
@@ -51,9 +52,10 @@ type AskOptions = {
   markSeen?: ((concepts: TourConcept[]) => Promise<void>) | undefined;
   questionPolicy?: QuestionPolicy | undefined;
   checkedConcepts?: (() => Promise<string[]>) | undefined;
+  startRubric?: ((concept: string, tour: Tour, base?: DiffBase) => void) | undefined;
   signal: AbortSignal;
   bruteForceTokens?: number | undefined;
-  callLog?: { provider: string; write(record: CallRecord): Promise<void> } | undefined;
+  callLog?: CallLog | undefined;
   saveSession?: ((session: SessionRecord) => Promise<void>) | undefined;
 };
 
@@ -308,7 +310,12 @@ async function* answer(
     steps: side ? steps.map(withoutPrimm) : steps,
     ...(checkQuestion === undefined || !question?.ok
       ? {}
-      : { checkQuestion, checkConcept: question.value }),
+      : {
+          checkQuestion: steps.some((step) => step.primm)
+            ? checkQuestion
+            : explainBackPrompt(question.value),
+          checkConcept: question.value,
+        }),
     ...(reply === undefined ? {} : { reply }),
     ...(scope === undefined ? {} : { scope }),
     ...(intent === undefined ? {} : { intent }),
@@ -316,10 +323,14 @@ async function* answer(
   };
   if (steps.length > 0 || reply) {
     options.conversation.add(options.question, tour, turnMessages, options.diff?.base);
-    void options.conversation.summarise(contextLength, createSummariser(options.provider, root));
+    void options.conversation.summarise(
+      contextLength,
+      createSummariser(options.provider, root, options.callLog),
+    );
   }
   progress.outcome = "done";
   if (concepts?.length) void options.markSeen?.(concepts);
+  if (tour.checkConcept) options.startRubric?.(tour.checkConcept, tour, options.diff?.base);
   const ranges = side ? anchorRanges(steps, allRanges) : allRanges;
   yield { type: "tour", tour, ranges };
   yield { type: "done" };

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { wrapUntrusted } from "../../shared/untrusted.ts";
 import type { LLMProvider } from "./provider.ts";
-import { askSmall } from "./small-call.ts";
+import { askToolsOff, type CallLog } from "./tools-off-call.ts";
 
 const predictionTimeoutMs = 30_000;
 const feedbackSchema = z
@@ -19,9 +19,11 @@ Reply with exactly one short plain sentence that is spoken aloud: say what the p
 
 type PredictionInput = { predict: string; narration: string[]; prediction: string };
 
-export function createPredictor(provider: LLMProvider, root: string) {
+export function createPredictor(provider: LLMProvider, root: string, callLog?: CallLog) {
   return ({ predict, narration, prediction }: PredictionInput) =>
-    askSmall(provider, {
+    askToolsOff(provider, {
+      callType: "prediction",
+      callLog,
       system: systemPrompt,
       question: [
         `The learner was asked:\n${wrapUntrusted("predict_prompt", predict)}`,

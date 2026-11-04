@@ -253,7 +253,7 @@ Recording the demo needs a person.
 
 **Gate:** `npm run check` passes, with tests on a fixture git repo built during test setup, covering every diff base, old/new anchors, the risk flags, and stack traces with and without source maps.
 
-## Phase 12: Teach mode
+## Phase 12: Teach mode (shipped)
 
 - [x] **`.tutor/` store.** It is created on first launch with a `.tutor/.gitignore` that shares only `tours/`. At first launch it asks for the profile (experience level, preferences) and the repo goal, one question at a time; the user can edit or skip them. Files are zod-validated, and a corrupt file is reported and replaced, never fatal.
   - The learner's files sit in `.tutor/private/` and use the call log's guarded write (`privateFileOrProblem`): `profile.json` is `{ level: "beginner" | "intermediate" | "advanced", mode: "teach" | "answer", frequency: "light" | "normal" | "frequent", goal: string | null }`, and `learner.json` is described under Learner record. "Reported" means one `logError` line. "Replaced" means the file is renamed to `<name>.corrupt` and then treated as missing.
@@ -284,17 +284,17 @@ Recording the demo needs a person.
   - Investigate: after the narration, the tutor says the investigate prompt (for example "Click the line where the clip is saved"). A click inside the target's resolved range is right. Any other click gets "Not quite, it's here" and the target is highlighted. Investigate uses no LLM.
   - Modify: the tour's end question is the modify prompt ("How would you change this to…"). The learner answers in words, and the answer is graded like an explain-back.
   - Every part has a Skip button. Only a skipped end question counts as a skip for the question policy.
-- [ ] **Explain-back loop.**
+- [x] **Explain-back loop.**
   - It is offered, never forced. A rubric is written in the background.
   - The learner's explanation is graded, and only 1–2 gaps are named, with the code highlighted.
   - It passes at about 4/5. After 3 attempts the tutor gives a model answer and schedules a spaced review. The learner record is updated.
   - In an eligible teach-mode tour without PRIMM, the end question is "Explain <concept> back to me in your own words.", with a Skip button. When the tour finishes, a small-model call writes the concept's rubric in the background and saves it in the learner record.
   - While an explain-back waits, a chip above the composer shows it, and the next message is graded instead of asked. Skip clears the chip.
-  - `POST /api/explain-back { concept, answer }` (token checked, redacted) grades the answer with the strong model, tools off, against the rubric and the tour's anchored code. If the rubric is still being written, it waits for it. The grader returns `{ score (1–5), gaps (at most 2), anchors, modelAnswer }`.
+  - `POST /api/explain-back { concept, answer, review? }` (token checked, redacted) grades the answer with the strong model, tools off, against the tour's end question (not for a review), the rubric and the tour's anchored code. If the rubric is still being written, it waits for it. The grader returns `{ score (1–5), gaps (at most 2), anchors, modelAnswer }`.
   - A score of 4 or more passes. The concept becomes checked, and reviews are scheduled after 1, 3 and 7 days. After 3 failed attempts the tutor gives the model answer and schedules a review after 1 day.
   - Due reviews: a review is due when its `nextReview` time has passed. `GET /api/reviews` returns `{ due: string[] }`, the due concepts. The welcome pane shows "N reviews due" with a Start button. After a finished teach-mode tour that asked no question, one tutor bubble offers the first due review, with Start and Skip. Reviews are never offered during a tour or in answer mode.
   - A review is an explain-back on that concept with its stored rubric. A pass sets the concept to reviewed and schedules the next interval. A fail starts the schedule again at 1 day. A skip moves the review 1 day later. After the 7-day review passes, there are no more reviews.
-- [ ] **Model routing.** A strong model (the provider's default) handles exploration, tours, intent and grading. A small model handles rubrics, prediction checks and summaries. Commands, acknowledgements and learner-record updates use no LLM. Usage is logged per call type.
+- [x] **Model routing.** A strong model (the provider's default) handles exploration, tours, intent and grading. A small model handles rubrics, prediction checks and summaries. Commands, acknowledgements and learner-record updates use no LLM. Usage is logged per call type.
   - The small model is `claude-haiku-5-5` on the Claude API and on ClaudeHeadless (passed as `--model`). Gemini uses its one model for both.
   - Transcript cleanup stays local (Phase 9). There is no small-model classification call; the strong model infers the intent.
   - The call log's `callType` becomes `ask | summary | rubric | prediction | grade`. The Phase 8 summary call is logged from now on.

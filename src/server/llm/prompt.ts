@@ -48,6 +48,7 @@ Predict, investigate, modify (PRIMM):
 - When the message allows a check question, you may also give at most one step of the tour a "primm" field: {"primm": {"predict": string, "investigate": string, "target": Anchor}}. Put it on the step for the most important concept that is not yet checked, and only when that step is a good moment to stop and think.
 - "predict" is a short question the learner answers before they hear the step, such as "What do you think happens when the upload fails?". "investigate" is a short instruction heard after the step, asking the learner to click one line, such as "Click the line where the clip is saved.". "target" is a line anchor for exactly that line.
 - When a step has "primm", the check question on the final line is the modify prompt: it asks how the learner would change the code to do something new, such as "How would you change this to retry twice?".
+- When no step has "primm", the check question is the explain-back prompt, worded exactly "Explain <checkConcept> back to me in your own words." with the concept's exact name in place of <checkConcept>.
 - Never add "primm" to an answer to a side question.
 
 Answer length fits the question:

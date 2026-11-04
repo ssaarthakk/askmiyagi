@@ -7,10 +7,11 @@ import { ask, interruptAsk } from "./ask.ts";
 import CodePane from "./CodePane.svelte";
 import Conversation, { type Note, type Turn } from "./Conversation.svelte";
 import { type Command, matchCommand } from "./commands.ts";
+import { createExplainBack } from "./explain-back.svelte.ts";
 import { chooseDetector } from "./hands-free.ts";
 import { type Highlight, moveHighlight } from "./highlight.ts";
 import Player from "./Player.svelte";
-import { postPlayed, postSkipped } from "./played.ts";
+import { postPlayed } from "./played.ts";
 import { anchorTarget, firstPosition, neighbour, type PlayerStep, type Position } from "./player.ts";
 import { createPrimm } from "./primm.svelte.ts";
 import { createSetup } from "./setup.svelte.ts";
@@ -53,6 +54,7 @@ const earlierTours: EarlierTour[] = [];
 let tourQuestion = "";
 let talkPausedPlayback = false;
 let awaitingAnswer = $state(false);
+let pendingCheck: string | undefined;
 let running: AbortController | undefined;
 let intentChoice = $state<Intent>();
 const previous = $derived(position && neighbour(steps, position, -1));
@@ -97,6 +99,19 @@ const primm = createPrimm({
   tell: (text) => note("tutor", text),
 });
 
+const explainBack = createExplainBack({
+  token,
+  tour: () => tourQuestion,
+  tutorSays: (text) => {
+    note("tutor", text);
+    if (voice.on) voice.announcer?.say(text);
+  },
+  learnerSays: (text) => note("learner", text),
+  problem: (text) => note("error", text),
+  openTurn: () => startTurn("", []),
+  showFile: (file, range) => (highlight = { file, current: range, previous: null }),
+});
+
 const voice = createVoice({
   choice: voiceChoice,
   token,
@@ -121,6 +136,11 @@ function markPlayed() {
   postPlayed(tourQuestion, token).catch((error: unknown) =>
     console.warn("Could not report the played tour", error),
   );
+  if (pendingCheck) explainBack.expect(pendingCheck);
+  pendingCheck = undefined;
+  if (setup.teaching && !awaitingAnswer && steps.length > 0 && earlierTours.length === 0) {
+    void explainBack.offerReview();
+  }
 }
 
 function markShownTourPlayed() {
@@ -217,6 +237,13 @@ function canRun(command: Command | undefined) {
   return position !== undefined || (command === "resume" && earlierTours.length > 0);
 }
 
+async function gradeAnswer(text: string) {
+  question = "";
+  if (!(await explainBack.answer(text))) return;
+  awaitingAnswer = false;
+  resumeEarlierTour();
+}
+
 async function sendTyped() {
   const text = question.trim();
   if (text && primm.predicting) {
@@ -224,6 +251,7 @@ async function sendTyped() {
     primm.predict(text);
     return;
   }
+  if (text && explainBack.concept !== undefined) return gradeAnswer(text);
   if (!text || !setup.askingGoal) return sendQuestion();
   if (await setup.answer(text, text)) question = "";
 }
@@ -274,6 +302,8 @@ async function sendQuestion(diff?: DiffRequest) {
   tourQuestion = text;
   awaitingAnswer = false;
   primm.reset();
+  pendingCheck = undefined;
+  explainBack.clear();
   startTurn(text, []);
   steps = [];
   tutorLine = undefined;
@@ -316,6 +346,7 @@ async function sendQuestion(diff?: DiffRequest) {
         if (askEvent.tour.scope === "side") primm.skip();
         tutorLine = askEvent.tour.reply ?? askEvent.tour.checkQuestion;
         awaitingAnswer = !askEvent.tour.reply && askEvent.tour.checkQuestion !== undefined;
+        pendingCheck = awaitingAnswer ? askEvent.tour.checkConcept : undefined;
         const current = turns.at(-1);
         if (current) {
           current.check = tutorLine;
@@ -339,9 +370,7 @@ async function sendQuestion(diff?: DiffRequest) {
 
 function skipCheck() {
   awaitingAnswer = false;
-  postSkipped(tourQuestion, token).catch((error: unknown) =>
-    console.warn("Could not report the skipped question", error),
-  );
+  explainBack.skip();
   resumeEarlierTour();
 }
 
@@ -387,6 +416,8 @@ const micNotice = $derived(
     onpick={(picked) => (selection = picked)}
     online={primm.clicked}
     onsuggest={askText}
+    reviewsDue={setup.teaching === true ? explainBack.due.length : 0}
+    onreview={() => explainBack.startReview(explainBack.due[0] ?? "")}
   >
     {#if voice.on && steps.length > 0}
       <VoicePill
@@ -431,8 +462,11 @@ const micNotice = $derived(
     ontogglehandsfree={talk.toggleHandsFree}
     primm={primm.view}
     onprimmskip={primm.skip}
-    checkOpen={awaitingAnswer}
-    oncheckskip={skipCheck}
+    explainConcept={explainBack.concept}
+    onexplainskip={skipCheck}
+    reviewOffer={explainBack.offer}
+    onreviewstart={explainBack.startOffer}
+    onreviewskip={explainBack.skipOffer}
   />
 </main>
 

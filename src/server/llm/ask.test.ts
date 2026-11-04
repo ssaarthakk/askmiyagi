@@ -93,7 +93,7 @@ describe("askEvents", () => {
         tour: {
           question: "How are clips saved?",
           steps: [saveStep, uploadStep],
-          checkQuestion: "What does save return?",
+          checkQuestion: "Explain upload retries back to me in your own words.",
           checkConcept: "upload retries",
           concepts: [retryConcept],
         },

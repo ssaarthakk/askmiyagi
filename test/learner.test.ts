@@ -21,6 +21,10 @@ async function learnerStates(folder: string) {
   return concepts.map(({ name, state }) => ({ name, state }));
 }
 
+function get(url: string, token: string | undefined, path: string) {
+  return fetch(new URL(path, url), { headers: token ? { "x-miyagi-token": token } : {} });
+}
+
 describe("learner record", () => {
   it("marks a tour's concepts seen when it ends and explained when the browser reports it played", async () => {
     const { url, token, folder } = await startServer("test/fixtures/basic", args);
@@ -71,5 +75,42 @@ describe("learner record", () => {
     });
     expect(nothing.status).toBe(400);
     expect(await nothing.json()).toEqual({ error: "That step has nothing to predict" });
+  });
+
+  it("needs the session token for /api/explain-back, /api/reviews and /api/review-skipped", async () => {
+    const { url } = await startServer("test/fixtures/basic", args);
+
+    expect(
+      (await post(url, undefined, "/api/explain-back", { concept: "Clip saving", answer: "x" }))
+        .status,
+    ).toBe(401);
+    expect((await get(url, undefined, "/api/reviews")).status).toBe(401);
+    expect(
+      (await post(url, undefined, "/api/review-skipped", { concept: "Clip saving" })).status,
+    ).toBe(401);
+  });
+
+  it("serves /api/explain-back, refusing a concept that is not in the record and a bad body", async () => {
+    const { url, token } = await startServer("test/fixtures/basic", args);
+
+    const unknown = await post(url, token, "/api/explain-back", {
+      concept: "Nothing",
+      answer: "x",
+    });
+    expect(unknown.status).toBe(400);
+    expect(await unknown.json()).toEqual({ error: "That concept is not in your learner record" });
+    expect((await post(url, token, "/api/explain-back", { concept: "Nothing" })).status).toBe(400);
+  });
+
+  it("serves /api/reviews and /api/review-skipped", async () => {
+    const { url, token } = await startServer("test/fixtures/basic", args);
+
+    const due = await get(url, token, "/api/reviews");
+    expect(due.status).toBe(200);
+    expect(await due.json()).toEqual({ due: [] });
+    expect((await post(url, token, "/api/review-skipped", { concept: "Clip saving" })).status).toBe(
+      204,
+    );
+    expect((await post(url, token, "/api/review-skipped", {})).status).toBe(400);
   });
 });

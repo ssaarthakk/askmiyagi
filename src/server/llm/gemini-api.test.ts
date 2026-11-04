@@ -60,6 +60,14 @@ function ask(script: Script, model?: string, part: Partial<typeof request> = {})
 const apiError = (status: number, message: string) => new ApiError({ status, message });
 
 describe("geminiApi", () => {
+  it("sends its one configured model for both a small and a strong request", async () => {
+    for (const model of ["small", "strong"] as const) {
+      const { events, requests } = ask([answer(stepLine("One"))], "gemini-test-model", { model });
+      await events;
+      expect(requests[0]).toMatchObject({ model: "gemini-test-model" });
+    }
+  });
+
   it("streams steps and a check question, then done with usage and null cost", async () => {
     const { events, requests } = ask([
       answer(stepLine("One"), stepLine("Two"), JSON.stringify({ checkQuestion: "Why?" })),

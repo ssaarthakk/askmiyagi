@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Model routing: rubrics, prediction checks and summaries run on `claude-haiku-5-5` on the Claude API and Claude Code, and each of them is logged in the call log with its own call type (`summary`, `rubric`, `prediction`, `grade`).
+- Explain-back: the end question of a teach-mode tour without PRIMM is always "Explain <concept> back to me in your own words.". Once it has been reached, an "Explain back" chip shows, and the next message is graded by the strong model against a rubric written in the background, names one or two gaps with the code highlighted, passes at 4 of 5, and after 3 failed attempts gives a model answer. Passed concepts are reviewed after 1, 3 and 7 days (`GET /api/reviews`, a count on the welcome pane and an offer after a finished tour, never while one plays).
 - A local `askmiyagi` command that serves the browser app on loopback with host, origin, and session token checks.
 - Safe local folder loading, shared project file filtering, secret redaction, and guarded project paths.
 - Code intelligence for TypeScript and JavaScript projects: a cached parser, a compact repo map within a token budget, and the `read_file`, `grep` and `find_symbol` tools, all reading only visible, redacted files.

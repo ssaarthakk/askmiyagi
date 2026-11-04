@@ -7,7 +7,7 @@ import { readRedactedFile, sourceLines } from "../files/path-guard.ts";
 import { redact } from "../files/redact.ts";
 import { readBaseFile } from "../source/diff-base.ts";
 
-async function highlightedCode(root: string, anchor: Anchor, base: DiffBase | undefined) {
+export async function highlightedCode(root: string, anchor: Anchor, base: DiffBase | undefined) {
   const range = await resolveAnchor(root, anchor, base);
   if (!range.ok) return undefined;
   const file =

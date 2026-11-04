@@ -112,6 +112,26 @@ describe("claudeApi", () => {
     expect(sent.system).toBe(request.system);
   });
 
+  it("sends the small model with low effort for a small request, whatever strong model is chosen", async () => {
+    const { events, requests } = ask([answer(stepLine("One"))], "claude-sonnet-5-5", {
+      model: "small",
+    });
+    const result = await events;
+    expect(requests[0]).toMatchObject({
+      model: "claude-haiku-5-5",
+      output_config: { effort: "low" },
+    });
+    expect(result.at(-1)).toMatchObject({
+      usage: { costUsd: (1000 * 0.1 + 500 * 0.5 + 2000 * 0.01 + 4000 * 0.125) / 1_000_000 },
+    });
+  });
+
+  it("sends the chosen model for a strong request", async () => {
+    const { events, requests } = ask([answer(stepLine("One"))], "claude-sonnet-5-5");
+    await events;
+    expect(requests[0]).toMatchObject({ model: "claude-sonnet-5-5" });
+  });
+
   describe("earlier turns", () => {
     const earlier: AgentMessage[] = [
       { role: "user", text: "Earlier question" },

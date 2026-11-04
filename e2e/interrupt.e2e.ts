@@ -192,3 +192,23 @@ test("resume brings back the stacked tour after a reply that left no tour on scr
   await expect.poll(() => spoken(page)).toEqual([streamed, "There are none.", streamed]);
   expect(await asked()).toHaveLength(2);
 });
+
+test("no review is offered while the earlier tour plays again after a side answer", async ({
+  page,
+}) => {
+  const { asked } = await open(page, "What is a clip?");
+  await page.route("**/api/reviews", (route) => route.fulfill({ json: { due: ["clip saving"] } }));
+  await ask(page);
+  await sendAskEvent(page, stepEvent(streamed));
+  await expect.poll(() => spoken(page)).toEqual([streamed]);
+
+  await holdMicrophone(page);
+  await expect.poll(asked).toEqual(["How are clips saved?", "What is a clip?"]);
+  await finishAnswer(page, "side");
+  await expect.poll(() => spoken(page)).toEqual([streamed, sideAnswer]);
+  await finishSpeech(page);
+
+  await expect.poll(() => spoken(page)).toEqual([streamed, sideAnswer, streamed]);
+  await page.waitForTimeout(500);
+  await expect(page.getByText("A review is due:")).toBeHidden();
+});

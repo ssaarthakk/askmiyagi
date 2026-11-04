@@ -143,6 +143,37 @@ describe("addFirstSound", () => {
     expect(await lines(root)).toEqual([record, { ...record, outcome: "error", firstSoundMs: 850 }]);
   });
 
+  it("keeps every call appended while the first sound is being added", async () => {
+    const { root } = await makeFolders();
+    await appendCallLog(root, record);
+    const rubric: CallRecord = { ...record, callType: "rubric", filesOpened: [] };
+
+    await Promise.all([
+      addFirstSound(root, 850),
+      ...Array.from({ length: 20 }, () => appendCallLog(root, rubric)),
+    ]);
+
+    const written = await lines(root);
+    expect(written).toHaveLength(21);
+    expect(written.filter((call) => call.firstSoundMs === 850)).toHaveLength(1);
+  });
+
+  it("skips the small-model calls logged after the ask", async () => {
+    const { root } = await makeFolders();
+    const rubric: CallRecord = { ...record, callType: "rubric", filesOpened: [] };
+    await appendCallLog(root, record);
+    await appendCallLog(root, rubric);
+    await appendCallLog(root, { ...rubric, callType: "summary" });
+
+    await addFirstSound(root, 850);
+
+    expect(await lines(root)).toEqual([
+      { ...record, firstSoundMs: 850 },
+      rubric,
+      { ...rubric, callType: "summary" },
+    ]);
+  });
+
   it("logs one line and keeps the log when its last line is not a call", async () => {
     const { root } = await makeFolders();
     await appendCallLog(root, record);

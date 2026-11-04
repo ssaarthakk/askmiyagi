@@ -1,5 +1,15 @@
 <script lang="ts">
-let { projectName, onsuggest }: { projectName: string; onsuggest: (text: string) => void } = $props();
+let {
+  projectName,
+  onsuggest,
+  reviewsDue,
+  onreview,
+}: {
+  projectName: string;
+  onsuggest: (text: string) => void;
+  reviewsDue: number;
+  onreview: () => void;
+} = $props();
 
 const suggestions = [
   "Where does this app start?",
@@ -11,6 +21,12 @@ const suggestions = [
 <section class="welcome" aria-label="Welcome">
   <h1>{projectName}</h1>
   <p>Miyagi explains this code out loud and highlights what it talks about.</p>
+  {#if reviewsDue > 0}
+    <p class="reviews">
+      {reviewsDue} {reviewsDue === 1 ? "review" : "reviews"} due
+      <button type="button" onclick={onreview}>Start review</button>
+    </p>
+  {/if}
   <div class="suggestions">
     {#each suggestions as suggestion}
       <button type="button" onclick={() => onsuggest(suggestion)}>{suggestion}</button>
@@ -30,6 +46,12 @@ const suggestions = [
 
   .welcome p {
     color: var(--muted);
+  }
+
+  .welcome .reviews {
+    display: flex;
+    align-items: center;
+    gap: var(--space);
   }
 
   .suggestions {

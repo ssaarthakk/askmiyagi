@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { saveStep, usage } from "../../../test/ask-helpers.ts";
 import {
   cleanAskRoute,
+  loggedCallTypes,
   requests,
   saveFrequentProfile,
   startAsk,
@@ -12,6 +13,7 @@ import type { LLMProvider } from "../llm/provider.ts";
 afterEach(cleanAskRoute);
 
 describe("createAskHandler question policy", () => {
+  const kept = "Explain Upload retries back to me in your own words.";
   const questionProvider: LLMProvider = {
     async *ask(request) {
       requests.push(request);
@@ -33,16 +35,16 @@ describe("createAskHandler question policy", () => {
     const { tutorRoot, post } = await startAsk(true, questionProvider);
     await saveFrequentProfile(tutorRoot);
 
-    expect(await asked(post, "First?")).toContain("Why does it retry?");
+    expect(await asked(post, "First?")).toContain(kept);
     expect((await post({ tour: "First?" }, "/api/skipped")).status).toBe(204);
-    expect(await asked(post, "Second?")).toContain("Why does it retry?");
+    expect(await asked(post, "Second?")).toContain(kept);
     expect((await post({ tour: "Second?" }, "/api/skipped")).status).toBe(204);
 
     for (const question of ["Third?", "Fourth?", "Fifth?"]) {
-      expect(await asked(post, question)).not.toContain("Why does it retry?");
+      expect(await asked(post, question)).not.toContain(kept);
       expect(requests.at(-1)?.question).toContain("Do not add a checkQuestion line");
     }
-    expect(await asked(post, "Sixth?")).toContain("Why does it retry?");
+    expect(await asked(post, "Sixth?")).toContain(kept);
   });
 
   it("ignores a skip for a tour that asked no question, and refuses a malformed body", async () => {
@@ -97,6 +99,7 @@ describe("createAskHandler predict", () => {
     await saveFrequentProfile(started.tutorRoot);
 
     return {
+      tutorRoot: started.tutorRoot,
       ask: () => started.post({ question: tour }),
       predict: (body: object) => started.post(body, "/api/predict"),
     };
@@ -113,6 +116,16 @@ describe("createAskHandler predict", () => {
     const small = requests.find((request) => request.model === "small");
     expect(small?.question).toContain("Clips are saved here.");
     expect(small?.question).toContain("A boolean");
+  });
+
+  it("logs the prediction check as a prediction call", async () => {
+    const { ask, predict, tutorRoot } = await startPredict(providerWith(feedback));
+    await (await ask()).text();
+
+    await predict({ tour, step: 0, prediction: "A boolean" });
+
+    const callTypes = await loggedCallTypes(tutorRoot);
+    expect(callTypes).toEqual(["ask", "prediction"]);
   });
 
   it("finds the step of a tour that is still streaming", async () => {

@@ -1,5 +1,6 @@
 import type { AgentMessage } from "../../shared/agent-message.ts";
 import type { DiffBase } from "../../shared/diff-base.ts";
+import { sameConcept } from "../../shared/learner.ts";
 import type { SessionRecord } from "../../shared/session.ts";
 import type { Tour } from "../../shared/tour.ts";
 import { wrapUntrusted } from "../../shared/untrusted.ts";
@@ -158,6 +159,12 @@ export function createConversation({
     },
     turnAsked(question: string) {
       const turn = turns.findLast((asked) => asked.question === redact(question));
+      return turn && { tour: turn.tour, base: turn.base };
+    },
+    turnAboutConcept(name: string) {
+      const turn = turns.findLast((asked) =>
+        asked.tour.concepts?.some((concept) => sameConcept(concept.name, name)),
+      );
       return turn && { tour: turn.tour, base: turn.base };
     },
     render,

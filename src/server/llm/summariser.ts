@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Result } from "../../shared/result.ts";
 import { wrapUntrusted } from "../../shared/untrusted.ts";
 import type { LLMProvider } from "./provider.ts";
-import { askSmall } from "./small-call.ts";
+import { askToolsOff, type CallLog } from "./tools-off-call.ts";
 
 const summaryTimeoutMs = 60_000;
 const summarySchema = z.string().trim().min(1).max(2000);
@@ -15,9 +15,15 @@ Write one short plain paragraph of at most 120 words, with no lists, no markdown
 
 export type Summariser = (turns: string) => Promise<Result<string>>;
 
-export function createSummariser(provider: LLMProvider, root: string): Summariser {
+export function createSummariser(
+  provider: LLMProvider,
+  root: string,
+  callLog?: CallLog,
+): Summariser {
   return (turns) =>
-    askSmall(provider, {
+    askToolsOff(provider, {
+      callType: "summary",
+      callLog,
       system: systemPrompt,
       question: `Summarise these turns:\n${wrapUntrusted("conversation_turns", turns)}`,
       root,

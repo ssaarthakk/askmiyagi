@@ -1,9 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 import { selectionSchema } from "../../shared/anchor.ts";
+import type { CallRecord } from "../../shared/call-log.ts";
 import { diffRequestSchema } from "../../shared/diff-base.ts";
 import { intentSchema } from "../../shared/intent.ts";
-import { tourNameSchema } from "../../shared/learner.ts";
+import { conceptNameSchema, explainBackBodySchema, tourNameSchema } from "../../shared/learner.ts";
 import { parseContract } from "../../shared/parse.ts";
 import { ackPhrases } from "../../shared/phrases.ts";
 import { currentSchema, type Step, stepAnchors } from "../../shared/tour.ts";
@@ -14,6 +15,7 @@ import { createPredictor } from "../llm/predictor.ts";
 import type { LLMProvider } from "../llm/provider.ts";
 import { logError } from "../log.ts";
 import { writeSessionRecord } from "../session-record.ts";
+import { createExplainBack, unknownConcept } from "../teach/explain-back.ts";
 import { createLearnerRecord } from "../teach/learner.ts";
 import { readProfile } from "../teach/profile.ts";
 import { createQuestionPolicy } from "../teach/question-policy.ts";
@@ -39,6 +41,11 @@ export function sendError(response: ServerResponse, status: number, message: str
   logError(`${status} ${message}${reason && ` (${reason})`}`);
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   response.end(JSON.stringify({ error: message }));
+}
+
+function sendJson(response: ServerResponse, body: unknown) {
+  response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+  response.end(JSON.stringify(body));
 }
 
 export async function readBody(request: IncomingMessage, maxBytes: number) {
@@ -90,7 +97,18 @@ export function createAskHandler(options: {
   const conversation = createConversation({ contextTokens: options.contextTokens });
   const learner = createLearnerRecord(options.tutorRoot);
   const questionPolicy = createQuestionPolicy();
-  const predictor = createPredictor(options.provider, options.root);
+  const callLog = {
+    provider: options.providerName,
+    write: (record: CallRecord) => appendCallLog(options.tutorRoot, record),
+  };
+  const predictor = createPredictor(options.provider, options.root, callLog);
+  const explainBack = createExplainBack({
+    root: options.root,
+    provider: options.provider,
+    learner,
+    conversation,
+    callLog,
+  });
   let streaming: { tour: string; steps: Step[] } = { tour: "", steps: [] };
 
   async function handle(request: IncomingMessage, response: ServerResponse) {
@@ -122,14 +140,12 @@ export function createAskHandler(options: {
         markSeen: learner.markSeen,
         questionPolicy,
         checkedConcepts: learner.checkedConcepts,
+        startRubric: explainBack.startRubric,
         loadProfile: () => readProfile(options.tutorRoot),
         ack,
         signal: controller.signal,
         bruteForceTokens: options.bruteForceTokens,
-        callLog: {
-          provider: options.providerName,
-          write: (record) => appendCallLog(options.tutorRoot, record),
-        },
+        callLog,
         saveSession: (session) => writeSessionRecord(options.tutorRoot, session),
       })) {
         if (event.type === "step") {
@@ -159,7 +175,32 @@ export function createAskHandler(options: {
     if (!body) return;
     response.writeHead(204);
     response.end();
-    if (conversation.turnAsked(body.tour)?.tour.checkQuestion) questionPolicy.skipped();
+    const tour = conversation.turnAsked(body.tour)?.tour;
+    if (!tour?.checkQuestion) return;
+    questionPolicy.skipped();
+  }
+
+  async function explainBackAnswer(request: IncomingMessage, response: ServerResponse) {
+    const body = await readJsonBody(request, response, explainBackBodySchema);
+    if (!body) return;
+    const result = await explainBack.grade(body.concept, body.answer, body.review);
+    if (!result.ok) {
+      sendError(response, result.error === unknownConcept ? 400 : 502, result.error);
+      return;
+    }
+    sendJson(response, result.value);
+  }
+
+  async function reviews(response: ServerResponse) {
+    sendJson(response, { due: await learner.dueReviews() });
+  }
+
+  async function reviewSkipped(request: IncomingMessage, response: ServerResponse) {
+    const body = await readJsonBody(request, response, conceptNameSchema);
+    if (!body) return;
+    response.writeHead(204);
+    response.end();
+    await learner.skipReview(body.concept);
   }
 
   async function predict(request: IncomingMessage, response: ServerResponse) {
@@ -183,8 +224,7 @@ export function createAskHandler(options: {
       sendError(response, 502, result.error);
       return;
     }
-    response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-    response.end(JSON.stringify({ feedback: result.value }));
+    sendJson(response, { feedback: result.value });
   }
 
   async function interrupt() {
@@ -192,5 +232,14 @@ export function createAskHandler(options: {
     await running?.finished;
   }
 
-  return { handle, played, skipped, predict, interrupt };
+  return {
+    handle,
+    played,
+    skipped,
+    predict,
+    explainBack: explainBackAnswer,
+    reviews,
+    reviewSkipped,
+    interrupt,
+  };
 }

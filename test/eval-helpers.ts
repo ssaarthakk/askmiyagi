@@ -70,6 +70,7 @@ export function run(
       costUsd: 0.02,
     },
     durationMs: 1200,
+    questionInAnswerMode: false,
     ...overrides,
   };
 }

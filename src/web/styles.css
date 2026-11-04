@@ -72,7 +72,8 @@ button:disabled {
   border-color: var(--accent);
 }
 
-button[aria-pressed="true"] {
+button[aria-pressed="true"],
+button[role="switch"][aria-checked="true"] {
   border-color: var(--accent);
   color: var(--accent);
 }

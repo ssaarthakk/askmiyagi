@@ -187,3 +187,29 @@ test("a question asked after setup shows below the setup, and the setup question
   expect(above).toContain("How much experience do you have with code?");
   expect(above).toContain("Saved. Press Profile any time to change it.");
 });
+
+test("the Teach mode switch is off until the profile exists, then saves the mode", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const panel = page.getByRole("complementary", { name: "Conversation panel" });
+  const modeSwitch = panel.getByRole("switch", { name: "Teach mode" });
+  await expect(modeSwitch).toBeDisabled();
+  for (let skipped = 0; skipped < 4; skipped += 1) {
+    await panel.getByRole("button", { name: "Skip" }).click();
+  }
+  await expect(panel.getByText("Saved. Press Profile any time to change it.")).toBeVisible();
+  await expect(modeSwitch).toBeEnabled();
+  await expect(modeSwitch).toBeChecked();
+
+  await modeSwitch.click();
+
+  await expect(modeSwitch).not.toBeChecked();
+  await expect
+    .poll(async () => JSON.parse(await readFile(profileFile, "utf8")).mode)
+    .toBe("answer");
+  await page.reload();
+  await expect(panel.getByRole("switch", { name: "Teach mode" })).not.toBeChecked();
+  await panel.getByRole("switch", { name: "Teach mode" }).click();
+  await expect.poll(() => readFile(profileFile, "utf8")).toContain('"mode": "teach"');
+});

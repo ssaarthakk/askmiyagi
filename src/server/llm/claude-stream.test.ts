@@ -243,3 +243,59 @@ describe("parseClaudeStream", () => {
     180_000,
   );
 });
+
+describe("concepts on the final line", () => {
+  const retries = { name: "upload retries", important: true, kind: "repo" };
+
+  it("turns a concepts list into a concepts event, next to scope and intent", () => {
+    const line = JSON.stringify({ scope: "side", intent: "debugging", concepts: [retries] });
+
+    expect([...modelLineEvents(line)]).toEqual([
+      { type: "scope", scope: "side" },
+      { type: "intent", intent: "debugging" },
+      { type: "concepts", concepts: [retries] },
+    ]);
+    expect([...modelLineEvents(JSON.stringify({ concepts: [retries] }))]).toEqual([
+      { type: "concepts", concepts: [retries] },
+    ]);
+  });
+
+  it("accepts a language concept from the fixed list, ignoring case", () => {
+    const concept = { name: "Async/Await", important: true, kind: "language" };
+
+    expect([...modelLineEvents(JSON.stringify({ concepts: [concept] }))]).toEqual([
+      { type: "concepts", concepts: [concept] },
+    ]);
+  });
+
+  it("drops concepts that are malformed or name a language concept outside the list, and keeps the rest of the line", () => {
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const outside = { name: "monads", important: true, kind: "language" };
+
+    expect([
+      ...modelLineEvents(JSON.stringify({ intent: "debugging", concepts: [outside] })),
+    ]).toEqual([{ type: "intent", intent: "debugging" }]);
+    expect([...modelLineEvents('{"concepts":"retries"}')]).toEqual([]);
+    expect(stderr).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the valid concepts when one in the list is bad", () => {
+    vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const outside = { name: "callbacks", important: false, kind: "language" };
+
+    expect([...modelLineEvents(JSON.stringify({ concepts: [retries, outside] }))]).toEqual([
+      { type: "concepts", concepts: [retries] },
+    ]);
+  });
+
+  it("keeps at most 5 concepts", () => {
+    const many = Array.from({ length: 7 }, (_, index) => ({
+      ...retries,
+      name: `concept ${index}`,
+    }));
+
+    expect([...modelLineEvents(JSON.stringify({ concepts: many }))]).toEqual([
+      { type: "concepts", concepts: many.slice(0, 5) },
+    ]);
+  });
+});

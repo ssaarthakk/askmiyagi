@@ -1,6 +1,7 @@
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
+import { modes } from "../../shared/profile.ts";
 import { chooseProvider } from "../llm/choose-provider.ts";
 import { formatCalibration, humanGradesSchema } from "./calibrate.ts";
 import { readJsonFile } from "./read-json.ts";
@@ -28,6 +29,7 @@ const runArgsSchema = z.object({
     .transform(Number)
     .default(3),
   judge: z.boolean().optional(),
+  mode: z.enum(modes, { error: "--mode must be teach or answer" }).default("teach"),
 });
 
 export function parseEvalArgs(args: string[]) {
@@ -39,6 +41,7 @@ export function parseEvalArgs(args: string[]) {
       runs: { type: "string" },
       compare: { type: "boolean" },
       judge: { type: "boolean" },
+      mode: { type: "string" },
       calibrate: { type: "boolean" },
     },
     allowPositionals: true,
@@ -104,6 +107,7 @@ export async function runEval(
     providerName: parsed.provider,
     runs: parsed.runs,
     judge: parsed.judge,
+    mode: parsed.mode,
     signal,
   });
   if (!result.ok) throw new Error(result.error);

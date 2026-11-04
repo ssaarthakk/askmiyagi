@@ -2,12 +2,14 @@ import { z } from "zod";
 import { anchorSchema } from "../../shared/anchor.ts";
 import type { ProviderEvent } from "../../shared/events.ts";
 import { intentSchema } from "../../shared/intent.ts";
+import { type TourConcept, tourConceptSchema } from "../../shared/learner.ts";
 import { parseContract } from "../../shared/parse.ts";
 import { scopeSchema, stepSchema } from "../../shared/tour.ts";
 import { logError } from "../log.ts";
 import { lostThread } from "./provider.ts";
 
 const toolPrefix = "mcp__miyagi__";
+const maxConcepts = 5;
 const authenticationFailed = "authentication_failed";
 const notLoggedIn = "Claude Code is not logged in. Run `claude` and use /login, then ask again.";
 const tokenCount = z.number().int().nonnegative().default(0);
@@ -51,10 +53,26 @@ const checkQuestionSchema = z.object({ checkQuestion: z.string().min(1) });
 const finalLineSchema = z.object({
   scope: scopeSchema.optional(),
   intent: z.unknown().optional(),
+  concepts: z.unknown().optional(),
 });
 
 function failure(message: string): ProviderEvent {
   return { type: "error", message, retryable: false };
+}
+
+function validConcepts(value: unknown) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    logError("Concepts dropped: not a list");
+    return [];
+  }
+  const kept: TourConcept[] = [];
+  for (const item of value) {
+    const concept = parseContract(tourConceptSchema, item);
+    if (concept.ok) kept.push(concept.value);
+    else logError(`Concept dropped: ${concept.error}`);
+  }
+  return kept.slice(0, maxConcepts);
 }
 
 function modelFailure(detail: string, invalidStep?: boolean): ProviderEvent {
@@ -100,16 +118,18 @@ function parseModelLine(line: string): ProviderEvent[] {
     typeof json === "object" &&
     json !== null &&
     !("narration" in json) &&
-    ("scope" in json || "intent" in json)
+    ("scope" in json || "intent" in json || "concepts" in json)
   ) {
     const parsed = parseContract(finalLineSchema, json);
     if (!parsed.ok) return [modelFailure(parsed.error)];
     const { scope } = parsed.value;
     const intent = parseContract(intentSchema.optional(), parsed.value.intent);
     if (!intent.ok) logError(`Intent dropped: ${intent.error}`);
+    const concepts = validConcepts(parsed.value.concepts);
     return [
       ...(scope === undefined ? [] : [{ type: "scope" as const, scope }]),
       ...(intent.ok && intent.value ? [{ type: "intent" as const, intent: intent.value }] : []),
+      ...(concepts.length > 0 ? [{ type: "concepts" as const, concepts }] : []),
     ];
   }
   const parsed = parseContract(

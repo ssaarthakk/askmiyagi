@@ -1,31 +1,23 @@
-import { basename } from "node:path";
-import { z } from "zod";
 import type { AgentMessage } from "../../shared/agent-message.ts";
 import type { ResolvedAnchor, Selection } from "../../shared/anchor.ts";
 import type { CallRecord } from "../../shared/call-log.ts";
 import type { DiffRequest } from "../../shared/diff-base.ts";
 import type { AskEvent } from "../../shared/events.ts";
 import type { Intent } from "../../shared/intent.ts";
+import type { TourConcept } from "../../shared/learner.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
 import type { Profile } from "../../shared/profile.ts";
 import type { SessionRecord } from "../../shared/session.ts";
-import {
-  findSymbolInputSchema,
-  gitInputSchema,
-  grepInputSchema,
-  readFileInputSchema,
-} from "../../shared/tool-inputs.ts";
 import type { Current, Step, Tour } from "../../shared/tour.ts";
-import { wrapUntrusted } from "../../shared/untrusted.ts";
 import { addUsage, noUsage, type Usage } from "../../shared/usage.ts";
 import { resolveAnchor } from "../code/anchor-resolver.ts";
-import { redact } from "../files/redact.ts";
 import { logError } from "../log.ts";
 import { profileContext } from "../teach/profile.ts";
+import { openedFileSchema, progressText, retryQuestion } from "./ask-progress.ts";
 import type { Conversation } from "./conversation.ts";
 import { buildDiffContext, diffRules } from "./diff-context.ts";
 import { describePosition } from "./position.ts";
-import { buildRequest } from "./prompt.ts";
+import { answerModeRules, buildRequest } from "./prompt.ts";
 import { type LLMProvider, lostThread } from "./provider.ts";
 import { checkSelection } from "./selection.ts";
 import {
@@ -37,38 +29,6 @@ import {
 } from "./stack-trace.ts";
 import { createSummariser } from "./summariser.ts";
 
-const openedFileSchema = z.object({ path: readFileInputSchema.shape.path });
-
-function progressText(name: string, input: unknown) {
-  if (name === "read_file") {
-    const parsed = readFileInputSchema.safeParse(input);
-    return parsed.success ? `Looking at ${basename(parsed.data.path)}` : undefined;
-  }
-  if (name === "grep") {
-    const parsed = grepInputSchema.safeParse(input);
-    return parsed.success ? `Searching for ${parsed.data.patterns.join(" or ")}` : undefined;
-  }
-  if (name === "find_symbol") {
-    const parsed = findSymbolInputSchema.safeParse(input);
-    return parsed.success ? `Finding ${parsed.data.name}` : undefined;
-  }
-  if (name === "git") {
-    return gitInputSchema.safeParse(input).success ? "Looking at the changes" : undefined;
-  }
-  return undefined;
-}
-
-function retryQuestion(question: string, steps: Step[], errors: string) {
-  const sent = steps.map((step) => JSON.stringify(step)).join("\n");
-  return redact(`${question}
-
-Your answer so far was accepted and shown to the learner up to step ${steps.length}:
-${wrapUntrusted("steps_sent", sent)}
-Step ${steps.length + 1} was invalid:
-${wrapUntrusted("validation_errors", errors)}
-Re-emit from step ${steps.length + 1} onward as NDJSON, fixing those errors. Do not repeat the earlier steps.`);
-}
-
 type AskOptions = {
   root: string;
   provider: LLMProvider;
@@ -79,7 +39,9 @@ type AskOptions = {
   current?: Current | undefined;
   diff?: DiffRequest | undefined;
   loadProfile?: (() => Promise<Profile | null>) | undefined;
+  mode?: Profile["mode"] | undefined;
   intent?: Intent | undefined;
+  markSeen?: ((concepts: TourConcept[]) => Promise<void>) | undefined;
   signal: AbortSignal;
   bruteForceTokens?: number | undefined;
   callLog?: { provider: string; write(record: CallRecord): Promise<void> } | undefined;
@@ -119,9 +81,7 @@ export async function* askEvents(options: AskOptions): AsyncGenerator<AskEvent> 
       filesOpened: [...progress.filesOpened],
       outcome: progress.outcome,
     });
-    if (progress.outcome === "done") {
-      await options.saveSession?.(options.conversation.session());
-    }
+    if (progress.outcome === "done") await options.saveSession?.(options.conversation.session());
   }
 }
 
@@ -137,8 +97,10 @@ async function* answer(
   const steps: Step[] = [];
   const allRanges: (ResolvedAnchor | null)[][] = [];
   let checkQuestion: string | undefined;
+  let answerMode = false;
   let scope: Tour["scope"];
   let intent = options.intent;
+  let concepts: TourConcept[] | undefined;
   let turnMessages: AgentMessage[] | undefined;
   let contextLength = 0;
   const progressSent = new Set<string>();
@@ -175,6 +137,7 @@ async function* answer(
       yield { type: "progress", text: `Warning: ${warning}` };
     }
     const profile = await options.loadProfile?.();
+    answerMode = (options.mode ?? profile?.mode) === "answer";
     const built = await buildRequest(
       root,
       trace ? formatStackTrace(trace) : options.question,
@@ -190,7 +153,12 @@ async function* answer(
       (await describePosition(root, earlier.tour, options.current, earlier.base));
     const request: LLMRequest = {
       ...built.request,
-      system: [built.request.system, diffContext && diffRules, trace && stackTraceRules]
+      system: [
+        built.request.system,
+        answerMode && answerModeRules,
+        diffContext && diffRules,
+        trace && stackTraceRules,
+      ]
         .filter(Boolean)
         .join("\n\n"),
       question: [
@@ -243,6 +211,8 @@ async function* answer(
           scope = event.scope;
         } else if (event.type === "intent") {
           intent ??= event.intent;
+        } else if (event.type === "concepts") {
+          concepts = event.concepts;
         } else if (event.type === "text") {
           progress.firstContentMs ??= performance.now() - started;
           replyLines.push(event.text);
@@ -300,16 +270,18 @@ async function* answer(
   const tour = {
     question: options.question,
     steps,
-    ...(checkQuestion === undefined ? {} : { checkQuestion }),
+    ...(checkQuestion === undefined || answerMode ? {} : { checkQuestion }),
     ...(reply === undefined ? {} : { reply }),
     ...(scope === undefined ? {} : { scope }),
     ...(intent === undefined ? {} : { intent }),
+    ...(concepts === undefined ? {} : { concepts }),
   };
   if (steps.length > 0 || reply) {
     options.conversation.add(options.question, tour, turnMessages, options.diff?.base);
     void options.conversation.summarise(contextLength, createSummariser(options.provider, root));
   }
   progress.outcome = "done";
+  if (concepts?.length) void options.markSeen?.(concepts);
   yield { type: "tour", tour, ranges: allRanges };
   yield { type: "done" };
 }

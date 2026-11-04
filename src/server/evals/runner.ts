@@ -5,6 +5,7 @@ import { type CaseRun, type EvalResult, evalResultSchema } from "../../shared/ev
 import type { EvalCase, EvalSuite } from "../../shared/eval-suite.ts";
 import type { AskEvent } from "../../shared/events.ts";
 import { ackPhrases } from "../../shared/phrases.ts";
+import type { Profile } from "../../shared/profile.ts";
 import type { Result } from "../../shared/result.ts";
 import { usageSchema } from "../../shared/usage.ts";
 import { askEvents } from "../llm/ask.ts";
@@ -25,6 +26,7 @@ type RunSuiteOptions = {
   providerName: string;
   runs: number;
   judge?: boolean | undefined;
+  mode?: Profile["mode"] | undefined;
   signal?: AbortSignal | undefined;
 };
 
@@ -37,10 +39,14 @@ async function runCase(
   signal: AbortSignal,
 ): Promise<CaseRun> {
   let toolCalls = 0;
+  let questionInAnswerMode = false;
   const provider: LLMProvider = {
     async *ask(request, askSignal) {
       for await (const event of options.provider.ask(request, askSignal)) {
         if (event.type === "tool_call") toolCalls += 1;
+        if (event.type === "checkQuestion" && options.mode === "answer") {
+          questionInAnswerMode = true;
+        }
         yield event;
       }
     },
@@ -54,6 +60,7 @@ async function runCase(
     conversation: createConversation(),
     question: `Intent: ${evalCase.intent}\n${evalCase.question}`,
     ack: ackPhrases[0] ?? "",
+    mode: options.mode,
     signal,
     callLog: {
       provider: options.providerName,
@@ -75,6 +82,7 @@ async function runCase(
     toolCalls,
     usage,
     durationMs,
+    questionInAnswerMode,
   });
   const failure = await classifyFailure(root, evalCase, { checks, filesOpened, mode });
   const scored = { checks, ...(failure && { failure }), usage, durationMs };

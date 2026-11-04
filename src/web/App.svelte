@@ -10,6 +10,7 @@ import { type Command, matchCommand } from "./commands.ts";
 import { chooseDetector } from "./hands-free.ts";
 import { type Highlight, moveHighlight } from "./highlight.ts";
 import Player from "./Player.svelte";
+import { postPlayed } from "./played.ts";
 import { anchorTarget, firstPosition, neighbour, type PlayerStep, type Position } from "./player.ts";
 import { createSetup } from "./setup.svelte.ts";
 import { createTalk } from "./talk.svelte.ts";
@@ -93,13 +94,27 @@ const voice = createVoice({
   closing: () => tutorLine,
   onLead: showCode,
   onStart: select,
-  onEnd: resumeEarlierTour,
+  onEnd: () => {
+    if (!asking) markPlayed();
+    resumeEarlierTour();
+  },
   onTextMode: (interrupted) => {
     earlierTours.length = 0;
+    markShownTourPlayed();
     const at = position ? undefined : (interrupted ?? firstPosition(steps));
     if (at) select(at);
   },
 });
+
+function markPlayed() {
+  postPlayed(tourQuestion, token).catch((error: unknown) =>
+    console.warn("Could not report the played tour", error),
+  );
+}
+
+function markShownTourPlayed() {
+  if (!asking && steps.length > 0) markPlayed();
+}
 
 function announce(text: string) {
   if (voice.on && steps.length === 0) voice.announcer?.say(text);
@@ -126,7 +141,9 @@ function resume() {
 }
 
 function toggleVoice() {
-  if (!voice.toggle()) earlierTours.length = 0;
+  if (voice.toggle()) return;
+  earlierTours.length = 0;
+  markShownTourPlayed();
 }
 
 let turns = $state<Turn[]>([]);
@@ -247,6 +264,7 @@ async function sendQuestion(diff?: DiffRequest) {
   highlight = undefined;
   staleNotice = "";
   let progressSpoken = 0;
+  let toured = false;
   try {
     await ask(text, token, attached, onScreen, diff, intentChoice, (askEvent) => {
       if (controller.signal.aborted) return;
@@ -267,6 +285,7 @@ async function sendQuestion(diff?: DiffRequest) {
         if (resumeAt) go(resumeAt);
         else if (!tourStarted) selectFirst();
       } else if (askEvent.type === "tour") {
+        toured = true;
         steps = askEvent.tour.steps.map((step, index) => ({
           step,
           ranges: askEvent.ranges[index] ?? [],
@@ -295,6 +314,7 @@ async function sendQuestion(diff?: DiffRequest) {
   running = undefined;
   asking = false;
   voice.answered();
+  if (toured && (!voice.on || (voice.caughtUp && !voice.playing))) markPlayed();
   resumeEarlierTour();
 }
 
@@ -367,6 +387,8 @@ const micNotice = $derived(
     onanswer={setup.answer}
     onskip={setup.skip}
     onprofile={setup.start}
+    teaching={setup.teaching}
+    onmode={setup.setMode}
     {intentChoice}
     onintent={(chosen) => (intentChoice = chosen)}
     {micNotice}

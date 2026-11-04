@@ -13,6 +13,7 @@ export type Turn = {
 import type { Snippet } from "svelte";
 import type { DiffRequest } from "../shared/diff-base.ts";
 import type { Intent } from "../shared/intent.ts";
+import type { Profile } from "../shared/profile.ts";
 import DiffForm from "./DiffForm.svelte";
 import IntentTag from "./IntentTag.svelte";
 import SetupItems from "./SetupItems.svelte";
@@ -32,6 +33,8 @@ let {
   onanswer,
   onskip,
   onprofile,
+  teaching,
+  onmode,
   intentChoice,
   onintent,
   micNotice,
@@ -58,6 +61,8 @@ let {
   onanswer: (value: string, label: string) => void;
   onskip: () => void;
   onprofile: () => void;
+  teaching: boolean | undefined;
+  onmode: (mode: Profile["mode"]) => void;
   intentChoice: Intent | undefined;
   onintent: (chosen: Intent | undefined) => void;
   micNotice: string;
@@ -103,7 +108,18 @@ function keydown(event: KeyboardEvent) {
     {#if elevenLabs}
       <p class="muted">Voice by ElevenLabs</p>
     {/if}
-    <button type="button" onclick={onprofile}>Profile</button>
+    <div class="actions">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={teaching === true}
+        disabled={teaching === undefined}
+        onclick={() => onmode(teaching ? "answer" : "teach")}
+      >
+        Teach mode
+      </button>
+      <button type="button" onclick={onprofile}>Profile</button>
+    </div>
   </header>
   <p role="status" class="muted notice">{voiceNotice}</p>
   <p role="status" class="muted notice">{profileNotice}</p>

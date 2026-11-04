@@ -13,6 +13,7 @@ export type EvalRun = {
   toolCalls: number;
   usage: Usage;
   durationMs: number;
+  questionInAnswerMode: boolean;
 };
 
 type Range = Pick<ResolvedAnchor, "file" | "start" | "end">;
@@ -114,6 +115,7 @@ export async function runCodeChecks(
     questionsOnlyAtEnd:
       validJson &&
       !(tourEvent.tour.steps.length === 0 && checkQuestion !== undefined) &&
+      !run.questionInAnswerMode &&
       !narration.some((text) => text.trimEnd().endsWith("?")) &&
       !replySentences.some((sentence) => sentence.trimEnd().endsWith("?")),
     noBlockedReads: !blocked.some(Boolean),

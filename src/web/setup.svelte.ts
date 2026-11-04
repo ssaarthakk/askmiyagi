@@ -89,6 +89,16 @@ export function createSetup(options: {
     return true;
   }
 
+  async function setMode(mode: Profile["mode"]) {
+    if (!profile) return;
+    try {
+      profile = await saveProfile({ ...profile, mode }, options.token);
+      notice = "";
+    } catch (error) {
+      notice = `Could not save the mode: ${errorText(error)}`;
+    }
+  }
+
   fetchProfile(options.token)
     .then((saved) => {
       profile = saved ?? undefined;
@@ -114,10 +124,14 @@ export function createSetup(options: {
         problem,
       };
     },
+    get teaching() {
+      return profile && !(started && !done) ? profile.mode === "teach" : undefined;
+    },
     get askingGoal() {
       return started && !done && profileQuestions[index]?.key === "goal";
     },
     start,
+    setMode,
     answer,
     skip: () => answer(null, "Skipped"),
   };

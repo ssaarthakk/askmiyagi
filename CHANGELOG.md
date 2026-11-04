@@ -60,6 +60,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Paste a Node or browser stack trace into the question box to get a tour from the symptom back to where the bad value was made, then a few ways to fix it. Each frame points at its file and line in the project, source maps are followed, and Node and `node_modules` frames are hidden. You get a warning when a function isn't at the line the trace names.
 - On first launch the tutor asks four short questions, one at a time: your experience level, teach or answer mode, how often to check your understanding, and what you want to do with the repo. Each one can be skipped, and the Profile button asks them again. Every answer is pitched for your level and goal. The profile stays private in `.tutor/private/profile.json`.
 - Each question's intent (interview prep, onboarding, contributing or debugging) is inferred and shown beside your question, and it shapes what the tour emphasises. Pick another intent from its menu to keep it for later questions, or pick Auto to let the tutor infer it again.
+- A learner record in `.tutor/private/learner.json`: each concept a tour teaches moves from seen (the tour ended) to explained (its last segment played, reported by the browser through `POST /api/played`), updated by code in the background with no LLM call.
+- A Teach mode switch in the panel header, saved in the profile. In answer mode the tutor gives just the tour and never asks a check question; `npm run eval -- --mode answer` requires zero questions.
 
 ### Changed
 

@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { languageConcepts } from "../../shared/learner.ts";
 import { llmRequestSchema } from "../../shared/llm-request.ts";
 import { buildRepoMap } from "../code/repo-map.ts";
 import { readRedactedFile } from "../files/path-guard.ts";
@@ -230,5 +231,16 @@ describe("mode choice", () => {
     const over = await createRepo({ "big.ts": line.repeat(3100) });
     expect((await buildRequest(under, "q")).mode).toBe("brute-force");
     expect((await buildRequest(over, "q")).mode).toBe("agentic");
+  });
+});
+
+describe("concepts", () => {
+  it("asks for the tour's concepts on the final line and lists the language concepts to choose from", async () => {
+    const root = await createRepo({ "a.ts": "export const a = 1;\n" });
+    const { request } = await buildRequest(root, "What is a?");
+
+    expect(request.system).toContain('"concepts"');
+    expect(request.system).toMatch(/important/);
+    for (const name of languageConcepts) expect(request.system).toContain(name);
   });
 });

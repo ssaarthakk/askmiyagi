@@ -7,8 +7,9 @@ import { privateFileOrProblem, readPrivateJson } from "../tutor-folder.ts";
 
 const profileFile = "profile.json";
 
-export function readProfile(root: string) {
-  return readPrivateJson(root, profileFile, profileSchema);
+export async function readProfile(root: string) {
+  const read = await readPrivateJson(root, profileFile, profileSchema);
+  return read.ok ? read.value : null;
 }
 
 export async function writeProfile(root: string, profile: Profile): Promise<Result<Profile>> {

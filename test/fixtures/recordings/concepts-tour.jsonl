@@ -1,0 +1,3 @@
+{"type":"step","step":{"title":"Saving a clip","anchors":[{"file":"src/clip-service.ts","symbol":"ClipService.save"}],"narration":[{"text":"Clips are saved here.","anchor":0}]}}
+{"type":"concepts","concepts":[{"name":"Clip saving","important":true,"kind":"repo"},{"name":"Async/Await","important":false,"kind":"language"}]}
+{"type":"done","usage":{"inputTokens":10,"outputTokens":5,"cacheReadTokens":0,"cacheWriteTokens":0,"costUsd":null}}

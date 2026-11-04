@@ -264,11 +264,11 @@ Recording the demo needs a person.
   - The strong model infers the intent in the call that answers, so there is no extra call and no added latency. It reports the intent as `intent` on the final line, next to `scope`.
   - The learner's question bubble shows the intent as a chip. If the learner picks another intent from the chip's menu, every later ask body carries that `intent` until the learner picks Auto.
   - For onboarding's architecture emphasis, the model infers the layers from the repo map, because graph hints are unscheduled. Contributing's tests emphasis uses Phase 11's test-to-source link.
-- [ ] **Teach and answer modes.** Answer mode gives just the tour and never asks a question. Teach mode turns on the teaching flow.
+- [x] **Teach and answer modes.** Answer mode gives just the tour and never asks a question. Teach mode turns on the teaching flow.
   - Teach is the default. The panel header has a Teach/Answer toggle, and its value is saved as the profile's `mode`.
   - In answer mode there is no check question, PRIMM or explain-back. A `checkQuestion` that the model still returns is dropped.
   - `npm run eval` gains `--mode teach|answer` (default `teach`). In answer mode, the Phase 7 question check requires zero questions in the tour.
-- [ ] **Learner record.** Each concept moves through seen → explained → checked → reviewed, stored in `.tutor/private/`, and updated in the background off the critical path.
+- [x] **Learner record.** Each concept moves through seen → explained → checked → reviewed, stored in `.tutor/private/`, and updated in the background off the critical path.
   - `learner.json` is `{ concepts: [{ name, kind: "repo" | "language", important, state, rubric: string | null, attempts, reviewsDone, nextReview: string | null }] }`. Names are matched ignoring case.
   - The tour's final line gains `concepts: { name, important, kind }[]`. A language concept's name comes from a fixed list in `src/shared`: async/await, promises, closures, generics, destructuring, spread, optional chaining, classes, modules, error handling, higher-order functions and type narrowing.
   - A tour's concepts become seen when it ends with `done`. They become explained when its last segment has played: the browser then sends `POST /api/played { tour }`. With voice off, the browser sends it as soon as the tour is shown. A concept becomes checked on a passed explain-back, and reviewed on a passed review.

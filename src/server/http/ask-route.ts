@@ -3,6 +3,7 @@ import { z } from "zod";
 import { selectionSchema } from "../../shared/anchor.ts";
 import { diffRequestSchema } from "../../shared/diff-base.ts";
 import { intentSchema } from "../../shared/intent.ts";
+import { playedSchema } from "../../shared/learner.ts";
 import { parseContract } from "../../shared/parse.ts";
 import { ackPhrases } from "../../shared/phrases.ts";
 import { currentSchema } from "../../shared/tour.ts";
@@ -12,6 +13,7 @@ import { createConversation } from "../llm/conversation.ts";
 import type { LLMProvider } from "../llm/provider.ts";
 import { logError } from "../log.ts";
 import { writeSessionRecord } from "../session-record.ts";
+import { createLearnerRecord } from "../teach/learner.ts";
 import { readProfile } from "../teach/profile.ts";
 import type { createTourWatch } from "../tour-watch.ts";
 
@@ -78,6 +80,7 @@ export function createAskHandler(options: {
   let running: { controller: AbortController; finished: Promise<void> } | undefined;
   let asked = 0;
   const conversation = createConversation({ contextTokens: options.contextTokens });
+  const learner = createLearnerRecord(options.tutorRoot);
 
   async function handle(request: IncomingMessage, response: ServerResponse) {
     const body = await readJsonBody(request, response, askBodySchema);
@@ -104,6 +107,7 @@ export function createAskHandler(options: {
         current: body.current,
         diff: body.diff,
         intent: body.intent,
+        markSeen: learner.markSeen,
         loadProfile: () => readProfile(options.tutorRoot),
         ack,
         signal: controller.signal,
@@ -124,10 +128,19 @@ export function createAskHandler(options: {
     }
   }
 
+  async function played(request: IncomingMessage, response: ServerResponse) {
+    const body = await readJsonBody(request, response, playedSchema);
+    if (!body) return;
+    response.writeHead(204);
+    response.end();
+    const concepts = conversation.turnAsked(body.tour)?.tour.concepts;
+    if (concepts) await learner.markExplained(concepts);
+  }
+
   async function interrupt() {
     running?.controller.abort();
     await running?.finished;
   }
 
-  return { handle, interrupt };
+  return { handle, played, interrupt };
 }

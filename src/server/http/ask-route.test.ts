@@ -2,8 +2,9 @@ import { cp, mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { saveStep } from "../../../test/ask-helpers.ts";
+import { learnerSchema } from "../../shared/learner.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
 import type { LLMProvider } from "../llm/provider.ts";
 import { writeProfile } from "../teach/profile.ts";
@@ -34,21 +35,24 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
 });
 
-async function startAsk(separateTutorRoot = false) {
+async function startAsk(separateTutorRoot = false, chosen = provider) {
   const parent = await mkdtemp(join(tmpdir(), "miyagi-ask-route-"));
   cleanups.push(() => rm(parent, { recursive: true, force: true }));
   const root = join(parent, "project");
   await cp("test/fixtures/basic", root, { recursive: true });
   const tutorRoot = separateTutorRoot ? join(parent, "store") : root;
   if (separateTutorRoot) await mkdir(tutorRoot);
-  const ask = createAskHandler({ root, provider, providerName: "fake", tutorRoot });
-  const server = createServer((request, response) => void ask.handle(request, response));
+  const ask = createAskHandler({ root, provider: chosen, providerName: "fake", tutorRoot });
+  const server = createServer(
+    (request, response) =>
+      void (request.url === "/api/played" ? ask.played : ask.handle)(request, response),
+  );
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   cleanups.push(() => new Promise((done) => server.close(done)));
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
-  const post = (body: object) =>
-    fetch(`http://127.0.0.1:${port}/api/ask`, {
+  const post = (body: object, path = "/api/ask") =>
+    fetch(`http://127.0.0.1:${port}${path}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -170,5 +174,40 @@ describe("createAskHandler diff", () => {
     expect(missingBase.status).toBe(400);
     expect(emptyWhy.status).toBe(400);
     expect(longWhy.status).toBe(400);
+  });
+});
+
+describe("createAskHandler learner record", () => {
+  const conceptProvider: LLMProvider = {
+    async *ask() {
+      yield { type: "step", step: saveStep };
+      yield {
+        type: "concepts",
+        concepts: [{ name: "Upload retries", important: true, kind: "repo" }],
+      };
+      yield { type: "done", usage };
+    },
+  };
+
+  async function recorded(tutorRoot: string) {
+    const file = join(tutorRoot, ".tutor", "private", "learner.json");
+    return learnerSchema.parse(JSON.parse(await readFile(file, "utf8")));
+  }
+
+  it("ignores a played tour it does not know, and refuses a malformed body", async () => {
+    const { tutorRoot, post } = await startAsk(true, conceptProvider);
+    await (await post({ question: "How are clips saved?" })).text();
+    await vi.waitFor(async () =>
+      expect((await recorded(tutorRoot)).concepts).toMatchObject([{ state: "seen" }]),
+    );
+
+    const unknown = await post({ tour: "Something else" }, "/api/played");
+    const missing = await post({}, "/api/played");
+    const tooLong = await post({ tour: "x".repeat(2001) }, "/api/played");
+
+    expect(unknown.status).toBe(204);
+    expect(missing.status).toBe(400);
+    expect(tooLong.status).toBe(400);
+    expect((await recorded(tutorRoot)).concepts).toMatchObject([{ state: "seen" }]);
   });
 });

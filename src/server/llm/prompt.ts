@@ -1,4 +1,5 @@
 import type { Selection } from "../../shared/anchor.ts";
+import { languageConcepts } from "../../shared/learner.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
 import { wrapUntrusted } from "../../shared/untrusted.ts";
 import { buildRepoMap } from "../code/repo-map.ts";
@@ -34,6 +35,11 @@ Question intent:
 - Shape the answer around it. interview: why and tradeoffs, what was chosen over what. onboarding: architecture and conventions; infer the layers from the repo map and say where each part sits. contributing: where to change things and tests, meaning the tests that cover them; a test file covers the source files it imports. debugging: data flow and failure points, where a bad value is born and where it can break.
 - For every answer made of steps, end with one final line {"intent": "interview" | "onboarding" | "contributing" | "debugging"}. When you also add the scope line, put both on one line: {"scope": "side", "intent": "debugging"}. If the message says the learner chose an intent, use it and add no intent line.
 
+Concepts:
+- For every answer made of steps, the same final line also carries "concepts": the ideas the tour taught, as {"name": string, "important": boolean, "kind": "repo" | "language"}[]. For example {"scope": "side", "intent": "debugging", "concepts": [{"name": "upload retries", "important": true, "kind": "repo"}]}. When there is no scope or intent to report, the line is just {"concepts": [...]}.
+- A "repo" concept is an idea specific to this repo, named in a few plain words. A "language" concept is one general language idea, and its name must be exactly one of: ${languageConcepts.join(", ")}.
+- Mark a concept important only when the learner needs it to understand the code they are looking at. List at most 5 concepts, and none when the tour taught nothing new.
+
 Check questions are rare:
 - Only after a walkthrough that taught an important idea the learner will need, and only when checking it really helps them learn, add one final line {"checkQuestion": "..."} with one short question.
 - Never ask one after a simple or factual answer, after a plain reply, or right after the learner answered a check question. Most answers end without a question.
@@ -54,6 +60,10 @@ Narration is written for the ear, because it is spoken aloud:
 - Short, plain sentences in a friendly teaching voice.
 - Never write code symbols such as () or { or } or => or ; or backticks. Say names in words, for example "the save method of the clip service".
 - Explain what the code does and why, in the order the code runs. Do not read code out line by line.`;
+
+export const answerModeRules = `Answer mode:
+- The learner wants answers only. Give just the tour or the reply.
+- Never add a final checkQuestion line, and never ask the learner a question.`;
 
 async function bruteForceContext(root: string, maxCharacters: number) {
   const parts: string[] = [];

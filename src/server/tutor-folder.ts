@@ -69,18 +69,18 @@ export async function readPrivateJson<T>(
   root: string,
   name: string,
   schema: z.ZodType<T>,
-): Promise<T | null> {
+): Promise<Result<T | null>> {
   try {
     const file = await privateFileOrProblem(root, name);
     if (!file.ok) {
       logError(`${name} not read: ${file.error}`);
-      return null;
+      return file;
     }
     let text: string;
     try {
       text = await readFile(file.value, "utf8");
     } catch (error) {
-      if (hasCode(error, "ENOENT")) return null;
+      if (hasCode(error, "ENOENT")) return { ok: true, value: null };
       throw error;
     }
     let json: unknown;
@@ -90,14 +90,15 @@ export async function readPrivateJson<T>(
       json = undefined;
     }
     const parsed = parseContract(schema, json);
-    if (parsed.ok) return parsed.value;
+    if (parsed.ok) return parsed;
     await rename(file.value, `${file.value}.corrupt`);
     logError(
       `${name} is not valid and was moved to ${name}.corrupt: ${parsed.error.replaceAll("\n", "; ")}`,
     );
-    return null;
+    return { ok: true, value: null };
   } catch (error) {
-    logError(`${name} not read: ${error instanceof Error ? error.message : String(error)}`);
-    return null;
+    const message = error instanceof Error ? error.message : String(error);
+    logError(`${name} not read: ${message}`);
+    return { ok: false, error: message };
   }
 }

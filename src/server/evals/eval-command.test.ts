@@ -17,7 +17,20 @@ describe("parseEvalArgs", () => {
       suite: "fixtures",
       provider: "fake",
       runs: 3,
+      mode: "teach",
     });
+  });
+
+  it("reads --mode teach|answer", () => {
+    const base = ["--suite", "fixtures", "--provider", "fake"];
+    expect(parseEvalArgs([...base, "--mode", "answer"])).toMatchObject({ mode: "answer" });
+    expect(parseEvalArgs([...base, "--mode", "teach"])).toMatchObject({ mode: "teach" });
+  });
+
+  it("refuses an unknown --mode", () => {
+    expect(() =>
+      parseEvalArgs(["--suite", "fixtures", "--provider", "fake", "--mode", "quiz"]),
+    ).toThrow("--mode");
   });
 
   it("reads --runs", () => {

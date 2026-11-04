@@ -71,6 +71,10 @@ export async function serveRequest(
     await ask.handle(request, response);
     return;
   }
+  if (pathname === "/api/played" && request.method === "POST") {
+    await ask.played(request, response);
+    return;
+  }
   if (pathname === "/api/interrupt" && request.method === "POST") {
     await ask.interrupt();
     response.writeHead(204);

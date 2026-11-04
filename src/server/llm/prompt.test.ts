@@ -63,6 +63,22 @@ describe("system prompt", () => {
   });
 });
 
+describe("question intent", () => {
+  it("tells the model to infer the intent, report it on the final line and shift the emphasis", async () => {
+    const root = await createRepo({ "a.ts": "export const a = 1;\n" });
+    const { request } = await buildRequest(root, "What is a?");
+    expect(request.system).toContain('"intent"');
+    for (const intent of ["interview", "onboarding", "contributing", "debugging"]) {
+      expect(request.system).toContain(intent);
+    }
+    expect(request.system).toMatch(/why and tradeoffs/i);
+    expect(request.system).toMatch(/architecture and conventions/i);
+    expect(request.system).toMatch(/where to change things and tests/i);
+    expect(request.system).toMatch(/data flow and failure points/i);
+    expect(request.system).toMatch(/layers from the repo map/i);
+  });
+});
+
 describe("answer length", () => {
   it("gives a simple or factual question one step with one to three narration parts", async () => {
     const root = await createRepo({ "a.ts": "export const a = 1;\n" });

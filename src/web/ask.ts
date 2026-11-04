@@ -1,6 +1,7 @@
 import type { Selection } from "../shared/anchor.ts";
 import type { DiffRequest } from "../shared/diff-base.ts";
 import { type AskEvent, askEventSchema } from "../shared/events.ts";
+import type { Intent } from "../shared/intent.ts";
 import type { Current } from "../shared/tour.ts";
 import { responseError } from "./response-error.ts";
 import { readEvents } from "./sse.ts";
@@ -11,13 +12,14 @@ export async function ask(
   selection: Selection | undefined,
   current: Current | undefined,
   diff: DiffRequest | undefined,
+  intent: Intent | undefined,
   onEvent: (event: AskEvent) => void,
   signal: AbortSignal,
 ) {
   const response = await fetch("/api/ask", {
     method: "POST",
     headers: { "content-type": "application/json", "x-miyagi-token": token },
-    body: JSON.stringify({ question, selection, current, diff }),
+    body: JSON.stringify({ question, selection, current, diff, intent }),
     signal,
   });
   if (!response.ok || !response.body) throw await responseError(response, "Ask");

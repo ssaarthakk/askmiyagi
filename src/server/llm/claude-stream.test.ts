@@ -1,10 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { collect, request } from "../../../test/fake-claude.ts";
 import { runClaude } from "./claude-process.ts";
 import { modelLineEvents, parseClaudeStream } from "./claude-stream.ts";
 import { lostThread } from "./provider.ts";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 const recordings = resolve(import.meta.dirname, "../../../test/fixtures/recordings");
 
@@ -187,6 +191,39 @@ describe("parseClaudeStream", () => {
     expect([...modelLineEvents('{"scope":"new"}')]).toEqual([{ type: "scope", scope: "new" }]);
     expect([...modelLineEvents('{"scope":"later"}')]).toEqual([
       expect.objectContaining({ type: "error", message: lostThread, retryable: false }),
+    ]);
+  });
+
+  it("turns an intent line into an intent event and drops any other intent", () => {
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    expect([...modelLineEvents('{"intent":"debugging"}')]).toEqual([
+      { type: "intent", intent: "debugging" },
+    ]);
+    expect([...modelLineEvents('{"intent":"curiosity"}')]).toEqual([]);
+    expect([...modelLineEvents('{"scope":"side","intent":"interview prep"}')]).toEqual([
+      { type: "scope", scope: "side" },
+    ]);
+    expect(stderr).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads the scope and the intent from one final line", () => {
+    expect([...modelLineEvents('{"scope":"side","intent":"contributing"}')]).toEqual([
+      { type: "scope", scope: "side" },
+      { type: "intent", intent: "contributing" },
+    ]);
+  });
+
+  it("keeps a step that also carries an intent or a scope", () => {
+    const step = {
+      title: "Saving a clip",
+      anchors: [{ file: "src/clip-service.ts", symbol: "ClipService" }],
+      narration: [{ text: "It saves the clip.", anchor: 0 }],
+    };
+    expect([...modelLineEvents(JSON.stringify({ ...step, intent: "debugging" }))]).toEqual([
+      { type: "step", step },
+    ]);
+    expect([...modelLineEvents(JSON.stringify({ ...step, scope: "side" }))]).toEqual([
+      { type: "step", step },
     ]);
   });
 

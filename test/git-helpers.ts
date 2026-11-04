@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { tempDir } from "./temp-dir.ts";
 
 export function git(root: string, ...args: string[]) {
@@ -34,4 +35,13 @@ export async function createRepo() {
   await writeFile(join(root, "package-lock.json"), '{"lock":1}\n');
   commitAll(root, "add upload");
   return root;
+}
+
+export async function githubRemoteConfig(bareRepo: string) {
+  const config = join(await tempDir(), "gitconfig");
+  await writeFile(
+    config,
+    `[url "${pathToFileURL(bareRepo).href}"]\n\tinsteadOf = https://github.com/octo/remote.git\n`,
+  );
+  return config;
 }

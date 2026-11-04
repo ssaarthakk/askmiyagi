@@ -5,7 +5,9 @@ import type { ResolvedAnchor, Selection } from "../../shared/anchor.ts";
 import type { CallRecord } from "../../shared/call-log.ts";
 import type { DiffRequest } from "../../shared/diff-base.ts";
 import type { AskEvent } from "../../shared/events.ts";
+import type { Intent } from "../../shared/intent.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
+import type { Profile } from "../../shared/profile.ts";
 import type { SessionRecord } from "../../shared/session.ts";
 import {
   findSymbolInputSchema,
@@ -19,6 +21,7 @@ import { addUsage, noUsage, type Usage } from "../../shared/usage.ts";
 import { resolveAnchor } from "../code/anchor-resolver.ts";
 import { redact } from "../files/redact.ts";
 import { logError } from "../log.ts";
+import { profileContext } from "../teach/profile.ts";
 import type { Conversation } from "./conversation.ts";
 import { buildDiffContext, diffRules } from "./diff-context.ts";
 import { describePosition } from "./position.ts";
@@ -75,6 +78,8 @@ type AskOptions = {
   selection?: Selection | undefined;
   current?: Current | undefined;
   diff?: DiffRequest | undefined;
+  loadProfile?: (() => Promise<Profile | null>) | undefined;
+  intent?: Intent | undefined;
   signal: AbortSignal;
   bruteForceTokens?: number | undefined;
   callLog?: { provider: string; write(record: CallRecord): Promise<void> } | undefined;
@@ -133,6 +138,7 @@ async function* answer(
   const allRanges: (ResolvedAnchor | null)[][] = [];
   let checkQuestion: string | undefined;
   let scope: Tour["scope"];
+  let intent = options.intent;
   let turnMessages: AgentMessage[] | undefined;
   let contextLength = 0;
   const progressSent = new Set<string>();
@@ -168,6 +174,7 @@ async function* answer(
     for (const warning of trace ? stackTraceWarnings(trace) : []) {
       yield { type: "progress", text: `Warning: ${warning}` };
     }
+    const profile = await options.loadProfile?.();
     const built = await buildRequest(
       root,
       trace ? formatStackTrace(trace) : options.question,
@@ -186,7 +193,15 @@ async function* answer(
       system: [built.request.system, diffContext && diffRules, trace && stackTraceRules]
         .filter(Boolean)
         .join("\n\n"),
-      question: [built.request.question, diffContext?.value, position].filter(Boolean).join("\n\n"),
+      question: [
+        built.request.question,
+        profile && profileContext(profile),
+        options.intent && `The learner chose the intent "${options.intent}" for this question.`,
+        diffContext?.value,
+        position,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
       conversation: options.conversation.render(),
       history: options.conversation.messages(contextLength),
     };
@@ -226,6 +241,8 @@ async function* answer(
           checkQuestion = event.text;
         } else if (event.type === "scope") {
           scope = event.scope;
+        } else if (event.type === "intent") {
+          intent ??= event.intent;
         } else if (event.type === "text") {
           progress.firstContentMs ??= performance.now() - started;
           replyLines.push(event.text);
@@ -286,6 +303,7 @@ async function* answer(
     ...(checkQuestion === undefined ? {} : { checkQuestion }),
     ...(reply === undefined ? {} : { reply }),
     ...(scope === undefined ? {} : { scope }),
+    ...(intent === undefined ? {} : { intent }),
   };
   if (steps.length > 0 || reply) {
     options.conversation.add(options.question, tour, turnMessages, options.diff?.base);

@@ -1,5 +1,5 @@
-import { mkdtemp, realpath, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Result } from "../../shared/result.ts";
 import { withoutVoiceKey } from "../llm/claude-process.ts";
@@ -64,7 +64,22 @@ export async function cloneRepository(
   return { ok: true, value: { root, dispose } };
 }
 
-export async function openGitClone(url: string, signal: AbortSignal): Promise<Result<CodeSource>> {
+export async function openGitClone(
+  url: string,
+  signal: AbortSignal,
+  home = homedir(),
+): Promise<Result<CodeSource>> {
   const parsed = parseGitHubUrl(url);
-  return parsed.ok ? cloneRepository(parsed.value, signal) : parsed;
+  if (!parsed.ok) return parsed;
+  const cloned = await cloneRepository(parsed.value, signal);
+  if (!cloned.ok) return cloned;
+  const ownerAndRepo = new URL(parsed.value).pathname.slice(1, -".git".length);
+  const tutorRoot = join(home, ".askmiyagi", ownerAndRepo.replace("/", "-"));
+  try {
+    await mkdir(tutorRoot, { recursive: true });
+  } catch (error) {
+    await cloned.value.dispose();
+    return { ok: false, error: `Could not create ${tutorRoot}: ${errorMessage(error)}` };
+  }
+  return { ok: true, value: { ...cloned.value, tutorRoot } };
 }

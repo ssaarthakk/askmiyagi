@@ -14,6 +14,7 @@ import { createAskHandler } from "./http/ask-route.ts";
 import { createEventsHandler } from "./http/events-route.ts";
 import { createFileHandler } from "./http/file-route.ts";
 import { createFirstSoundHandler } from "./http/first-sound-route.ts";
+import { createProfileHandler } from "./http/profile-route.ts";
 import { serveRequest } from "./http/serve.ts";
 import { createSpeechHandler } from "./http/speech-route.ts";
 import { createSymbolsHandler } from "./http/symbols-route.ts";
@@ -135,13 +136,14 @@ async function runCli() {
   }
   if (app.value) scopeToApp(source.value.root, app.value);
 
+  const tutorRoot = source.value.tutorRoot ?? source.value.root;
   const events = createEventsHandler();
   const tourWatch = createTourWatch({ root: source.value.root, publish: events.publish });
   const ask = createAskHandler({
     root: source.value.root,
     provider: provider.value,
     providerName: options.provider,
-    writeTutorFiles: !options.isUrl,
+    tutorRoot,
     bruteForceTokens: options.bruteForceTokens,
     contextTokens: options.contextTokens,
     tourWatch,
@@ -149,7 +151,8 @@ async function runCli() {
 
   const handleFile = createFileHandler(source.value.root);
   const handleSymbols = createSymbolsHandler(source.value.root);
-  const handleFirstSound = createFirstSoundHandler(source.value.root, !options.isUrl);
+  const handleFirstSound = createFirstSoundHandler(tutorRoot);
+  const handleProfile = createProfileHandler(tutorRoot);
   const speech = speechOptions(options, process.env);
   const handleSpeech = createSpeechHandler(speech);
   const handleTranscribe = createTranscribeHandler({ apiKey: speech.apiKey });
@@ -197,6 +200,7 @@ async function runCli() {
       events,
       handleSymbols,
       handleFirstSound,
+      handleProfile,
     ).catch((error: unknown) => {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       if (!response.headersSent) response.writeHead(500);

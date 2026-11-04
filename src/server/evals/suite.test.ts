@@ -1,7 +1,9 @@
-import { access, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
+import { createRepo, git, githubRemoteConfig } from "../../../test/git-helpers.ts";
+import { tempDir } from "../../../test/temp-dir.ts";
 import { guardPath, isOutsideRoot } from "../files/path-guard.ts";
 import { loadEvalSuite, openSuiteRepo } from "./suite.ts";
 
@@ -155,6 +157,29 @@ describe("openSuiteRepo", () => {
   it("reports a missing local repo", async () => {
     const opened = await openSuiteRepo("test/fixtures/missing", new AbortController().signal);
     expect(opened.ok).toBe(false);
+  });
+
+  it("clones a GitHub URL without creating a store in the home folder", async () => {
+    const bare = join(await tempDir(), "remote.git");
+    git(await createRepo(), "clone", "-q", "--bare", ".", bare);
+    const globalConfig = await githubRemoteConfig(bare);
+    const home = await tempDir();
+    vi.stubEnv("GIT_CONFIG_GLOBAL", globalConfig);
+    vi.stubEnv("HOME", home);
+    vi.stubEnv("USERPROFILE", home);
+    try {
+      const opened = await openSuiteRepo(
+        "https://github.com/octo/remote",
+        new AbortController().signal,
+      );
+      if (!opened.ok) throw new Error(opened.error);
+      await expect(access(join(opened.value.root, "src/upload.ts"))).resolves.toBeUndefined();
+      expect(opened.value.tutorRoot).toBeUndefined();
+      await opened.value.dispose();
+      expect(await readdir(home)).toEqual([]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("refuses a git URL that is not a public GitHub repo, without cloning", async () => {

@@ -1,12 +1,22 @@
 <script lang="ts" module>
 export type Note = { kind: "ack" | "progress" | "error"; text: string };
-export type Turn = { question: string; notes: Note[]; titles: string[]; check: string | undefined };
+export type Turn = {
+  question: string;
+  notes: Note[];
+  titles: string[];
+  check: string | undefined;
+  intent: Intent | undefined;
+};
 </script>
 
 <script lang="ts">
 import type { Snippet } from "svelte";
 import type { DiffRequest } from "../shared/diff-base.ts";
+import type { Intent } from "../shared/intent.ts";
 import DiffForm from "./DiffForm.svelte";
+import IntentTag from "./IntentTag.svelte";
+import SetupItems from "./SetupItems.svelte";
+import type { SetupView } from "./setup.svelte.ts";
 
 let {
   turns,
@@ -17,6 +27,13 @@ let {
   selectionLabel,
   elevenLabs,
   voiceNotice,
+  profileNotice,
+  setup,
+  onanswer,
+  onskip,
+  onprofile,
+  intentChoice,
+  onintent,
   micNotice,
   recording,
   handsFree,
@@ -36,6 +53,13 @@ let {
   selectionLabel: string | undefined;
   elevenLabs: boolean;
   voiceNotice: string;
+  profileNotice: string;
+  setup: SetupView | undefined;
+  onanswer: (value: string, label: string) => void;
+  onskip: () => void;
+  onprofile: () => void;
+  intentChoice: Intent | undefined;
+  onintent: (chosen: Intent | undefined) => void;
   micNotice: string;
   recording: boolean;
   handsFree: boolean;
@@ -49,6 +73,7 @@ let {
 } = $props();
 
 let list = $state<HTMLUListElement>();
+const lastIntentTurn = $derived(turns.findLastIndex((turn) => turn.intent !== undefined));
 
 $effect(() => {
   if (!list) return;
@@ -78,12 +103,25 @@ function keydown(event: KeyboardEvent) {
     {#if elevenLabs}
       <p class="muted">Voice by ElevenLabs</p>
     {/if}
+    <button type="button" onclick={onprofile}>Profile</button>
   </header>
   <p role="status" class="muted notice">{voiceNotice}</p>
-  <ul bind:this={list} aria-label="Conversation" aria-live="polite">
+  <p role="status" class="muted notice">{profileNotice}</p>
+  <ul class="conversation" bind:this={list} aria-label="Conversation" aria-live="polite">
+    {#if setup && setup.after === 0}
+      <SetupItems {setup} {onanswer} {onskip} />
+    {/if}
     {#each turns as turn, index}
       {#if turn.question}
         <li class="question">{turn.question}</li>
+      {/if}
+      {#if turn.intent}
+        <IntentTag
+          intent={turn.intent}
+          editable={index === lastIntentTurn}
+          choice={intentChoice}
+          {onintent}
+        />
       {/if}
       {#each turn.notes as note}
         <li class="note {note.kind}">{note.text}</li>
@@ -97,6 +135,9 @@ function keydown(event: KeyboardEvent) {
       {/if}
       {#if turn.check}
         <li class="tutor">{turn.check}</li>
+      {/if}
+      {#if setup && setup.after === index + 1}
+        <SetupItems {setup} {onanswer} {onskip} />
       {/if}
     {/each}
   </ul>
@@ -177,45 +218,6 @@ function keydown(event: KeyboardEvent) {
     padding: calc(var(--space) * 2);
   }
 
-  .question,
-  .tutor {
-    max-width: 85%;
-    padding: var(--space) calc(var(--space) * 1.5);
-    border-radius: var(--radius);
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
-  }
-
-  .question {
-    align-self: flex-end;
-    background: var(--accent);
-    color: var(--bg);
-  }
-
-  .tutor {
-    align-self: flex-start;
-  }
-
-  .tutor,
-  .card {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-  }
-
-  .note {
-    color: var(--muted);
-    font-size: 0.8125rem;
-  }
-
-  .note.error {
-    color: var(--error);
-  }
-
-  .card {
-    padding: calc(var(--space) * 1.5);
-  }
-
   form {
     padding: calc(var(--space) * 2);
     border-top: 1px solid var(--border);
@@ -239,6 +241,13 @@ function keydown(event: KeyboardEvent) {
     padding: 0 var(--space);
     border: none;
     background: transparent;
+  }
+
+  .card {
+    padding: calc(var(--space) * 1.5);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
   }
 
   .actions {

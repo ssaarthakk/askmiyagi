@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { evalSuiteSchema } from "../../shared/eval-suite.ts";
 import type { Result } from "../../shared/result.ts";
-import { openGitClone } from "../source/git-clone.ts";
-import { isUrl } from "../source/github-url.ts";
+import { cloneRepository } from "../source/git-clone.ts";
+import { isUrl, parseGitHubUrl } from "../source/github-url.ts";
 import { type CodeSource, openLocalFolder } from "../source/local-folder.ts";
 import { readJsonFile } from "./read-json.ts";
 
@@ -33,6 +33,11 @@ async function openLocalCopy(path: string): Promise<Result<CodeSource>> {
   };
 }
 
+async function openClone(url: string, signal: AbortSignal): Promise<Result<CodeSource>> {
+  const parsed = parseGitHubUrl(url);
+  return parsed.ok ? cloneRepository(parsed.value, signal) : parsed;
+}
+
 export function openSuiteRepo(repo: string, signal: AbortSignal): Promise<Result<CodeSource>> {
-  return isUrl(repo) ? openGitClone(repo, signal) : openLocalCopy(resolve(projectRoot, repo));
+  return isUrl(repo) ? openClone(repo, signal) : openLocalCopy(resolve(projectRoot, repo));
 }

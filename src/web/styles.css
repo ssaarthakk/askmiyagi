@@ -120,3 +120,33 @@ textarea {
   padding: calc(var(--space) * 2);
   color: var(--error);
 }
+
+.conversation .question,
+.conversation .tutor {
+  max-width: 85%;
+  padding: var(--space) calc(var(--space) * 1.5);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.conversation .question {
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.conversation .tutor {
+  align-self: flex-start;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.conversation .note {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.conversation .note.error {
+  color: var(--error);
+}

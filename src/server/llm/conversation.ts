@@ -33,7 +33,14 @@ function answerOf(tour: Tour) {
   if (tour.reply) return tour.reply;
   const lines = tour.steps.map((step) => JSON.stringify(step));
   if (tour.checkQuestion) lines.push(JSON.stringify({ checkQuestion: tour.checkQuestion }));
-  if (tour.scope) lines.push(JSON.stringify({ scope: tour.scope }));
+  if (tour.scope || tour.intent) {
+    lines.push(
+      JSON.stringify({
+        ...(tour.scope && { scope: tour.scope }),
+        ...(tour.intent && { intent: tour.intent }),
+      }),
+    );
+  }
   return lines.join("\n");
 }
 

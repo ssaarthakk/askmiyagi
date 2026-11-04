@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { anchorSchema } from "../../shared/anchor.ts";
 import type { ProviderEvent } from "../../shared/events.ts";
+import { intentSchema } from "../../shared/intent.ts";
 import { parseContract } from "../../shared/parse.ts";
 import { scopeSchema, stepSchema } from "../../shared/tour.ts";
+import { logError } from "../log.ts";
 import { lostThread } from "./provider.ts";
 
 const toolPrefix = "mcp__miyagi__";
@@ -46,7 +48,10 @@ const resultSchema = z.object({
 });
 
 const checkQuestionSchema = z.object({ checkQuestion: z.string().min(1) });
-const scopeLineSchema = z.object({ scope: scopeSchema });
+const finalLineSchema = z.object({
+  scope: scopeSchema.optional(),
+  intent: z.unknown().optional(),
+});
 
 function failure(message: string): ProviderEvent {
   return { type: "error", message, retryable: false };
@@ -76,33 +81,47 @@ function withoutBadAnchors(json: object) {
   return { ...json, anchors: kept.map((index) => anchors[index]), narration };
 }
 
-function parseModelLine(line: string): ProviderEvent {
+function parseModelLine(line: string): ProviderEvent[] {
   let json: unknown;
   try {
     json = JSON.parse(line);
   } catch {
-    return { type: "text", text: line };
+    return [{ type: "text", text: line }];
   }
   if (typeof json === "object" && json !== null && "checkQuestion" in json) {
     const parsed = parseContract(checkQuestionSchema, json);
-    return parsed.ok
-      ? { type: "checkQuestion", text: parsed.value.checkQuestion }
-      : modelFailure(parsed.error);
+    return [
+      parsed.ok
+        ? { type: "checkQuestion", text: parsed.value.checkQuestion }
+        : modelFailure(parsed.error),
+    ];
   }
-  if (typeof json === "object" && json !== null && "scope" in json) {
-    const parsed = parseContract(scopeLineSchema, json);
-    return parsed.ok ? { type: "scope", scope: parsed.value.scope } : modelFailure(parsed.error);
+  if (
+    typeof json === "object" &&
+    json !== null &&
+    !("narration" in json) &&
+    ("scope" in json || "intent" in json)
+  ) {
+    const parsed = parseContract(finalLineSchema, json);
+    if (!parsed.ok) return [modelFailure(parsed.error)];
+    const { scope } = parsed.value;
+    const intent = parseContract(intentSchema.optional(), parsed.value.intent);
+    if (!intent.ok) logError(`Intent dropped: ${intent.error}`);
+    return [
+      ...(scope === undefined ? [] : [{ type: "scope" as const, scope }]),
+      ...(intent.ok && intent.value ? [{ type: "intent" as const, intent: intent.value }] : []),
+    ];
   }
   const parsed = parseContract(
     stepSchema,
     typeof json === "object" && json !== null ? withoutBadAnchors(json) : json,
   );
-  return parsed.ok ? { type: "step", step: parsed.value } : modelFailure(parsed.error, true);
+  return [parsed.ok ? { type: "step", step: parsed.value } : modelFailure(parsed.error, true)];
 }
 
 export function* modelLineEvents(text: string) {
   const line = text.trim();
-  if (line !== "") yield parseModelLine(line);
+  if (line !== "") yield* parseModelLine(line);
 }
 
 export async function* parseClaudeStream(

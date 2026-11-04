@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { agentMessageSchema } from "./agent-message.ts";
 import { resolvedAnchorSchema } from "./anchor.ts";
+import { intentSchema } from "./intent.ts";
 import { scopeSchema, stepSchema, tourSchema } from "./tour.ts";
 import { usageSchema } from "./usage.ts";
 
@@ -11,6 +12,7 @@ export const providerEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("step"), step: stepSchema }),
   z.object({ type: z.literal("checkQuestion"), text: z.string().min(1) }),
   z.object({ type: z.literal("scope"), scope: scopeSchema }),
+  z.object({ type: z.literal("intent"), intent: intentSchema }),
   z.object({ type: z.literal("tool_call"), name: z.string(), input: z.unknown() }),
   z.object({
     type: z.literal("done"),

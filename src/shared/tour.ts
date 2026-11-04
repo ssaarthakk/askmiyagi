@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { anchorSchema } from "./anchor.ts";
+import { intentSchema } from "./intent.ts";
 
 export const stepSchema = z
   .object({
@@ -35,6 +36,7 @@ export const tourSchema = z.object({
   checkQuestion: z.string().min(1).optional(),
   reply: z.string().min(1).optional(),
   scope: scopeSchema.optional(),
+  intent: intentSchema.optional(),
 });
 
 export type Step = z.infer<typeof stepSchema>;

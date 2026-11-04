@@ -1,12 +1,9 @@
 import { type Detection, type Detector, encodeWav } from "./hands-free.ts";
 import { startRecording } from "./recorder.ts";
+import { errorText } from "./response-error.ts";
 
 const microphoneUnavailable = "Microphone unavailable. Type your question instead.";
 const microphoneErrors = ["NotAllowedError", "NotFoundError", "NotReadableError"];
-
-function errorText(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
 
 export type Transcriber = (recording: Blob, notify: (text: string) => void) => Promise<string>;
 

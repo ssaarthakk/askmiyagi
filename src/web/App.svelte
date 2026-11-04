@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { ResolvedAnchor, Selection } from "../shared/anchor.ts";
 import type { DiffRequest } from "../shared/diff-base.ts";
+import type { Intent } from "../shared/intent.ts";
 import { spokenProgress } from "./announcer.ts";
 import { ask, interruptAsk } from "./ask.ts";
 import CodePane from "./CodePane.svelte";
@@ -10,6 +11,7 @@ import { chooseDetector } from "./hands-free.ts";
 import { type Highlight, moveHighlight } from "./highlight.ts";
 import Player from "./Player.svelte";
 import { anchorTarget, firstPosition, neighbour, type PlayerStep, type Position } from "./player.ts";
+import { createSetup } from "./setup.svelte.ts";
 import { createTalk } from "./talk.svelte.ts";
 import { chooseTranscriber } from "./transcribe.ts";
 import VoicePill from "./VoicePill.svelte";
@@ -50,6 +52,7 @@ let tourQuestion = "";
 let talkPausedPlayback = false;
 let awaitingAnswer = false;
 let running: AbortController | undefined;
+let intentChoice = $state<Intent>();
 const previous = $derived(position && neighbour(steps, position, -1));
 const next = $derived(position && neighbour(steps, position, 1));
 
@@ -131,7 +134,7 @@ let turns = $state<Turn[]>([]);
 function startTurn(question: string, notes: Note[]) {
   const finished = turns.at(-1);
   if (finished) finished.titles = steps.map((entry) => entry.step.title);
-  turns.push({ question, notes, titles: [], check: undefined });
+  turns.push({ question, notes, titles: [], check: undefined, intent: undefined });
 }
 
 function restoreEarlierTour() {
@@ -186,10 +189,19 @@ function canRun(command: Command | undefined) {
   return position !== undefined || (command === "resume" && earlierTours.length > 0);
 }
 
+async function sendTyped() {
+  const text = question.trim();
+  if (!text || !setup.askingGoal) return sendQuestion();
+  if (await setup.answer(text, text)) question = "";
+}
+
 async function handleTranscript(text: string) {
   const command = matchCommand(text);
   if (command && canRun(command)) runCommand(command);
-  else await askText(text);
+  else {
+    question = text;
+    await sendTyped();
+  }
 }
 
 function pauseForTalk() {
@@ -236,7 +248,7 @@ async function sendQuestion(diff?: DiffRequest) {
   staleNotice = "";
   let progressSpoken = 0;
   try {
-    await ask(text, token, attached, onScreen, diff, (askEvent) => {
+    await ask(text, token, attached, onScreen, diff, intentChoice, (askEvent) => {
       if (controller.signal.aborted) return;
       if (askEvent.type === "ack") {
         note("ack", askEvent.text);
@@ -267,7 +279,10 @@ async function sendQuestion(diff?: DiffRequest) {
         tutorLine = askEvent.tour.reply ?? askEvent.tour.checkQuestion;
         awaitingAnswer = !askEvent.tour.reply && askEvent.tour.checkQuestion !== undefined;
         const current = turns.at(-1);
-        if (current) current.check = tutorLine;
+        if (current) {
+          current.check = tutorLine;
+          current.intent = askEvent.tour.intent;
+        }
         if (tutorLine && voice.on && (voice.caughtUp || steps.length === 0)) voice.playClosing();
       } else if (askEvent.type === "error") {
         note("error", askEvent.message);
@@ -282,6 +297,14 @@ async function sendQuestion(diff?: DiffRequest) {
   voice.answered();
   resumeEarlierTour();
 }
+
+const setup = createSetup({
+  token,
+  say: (text) => {
+    if (voice.on) voice.announcer?.say(text);
+  },
+  turnCount: () => turns.length,
+});
 
 let microphoneButton = $state<HTMLButtonElement>();
 
@@ -339,11 +362,18 @@ const micNotice = $derived(
     {selectionLabel}
     {elevenLabs}
     voiceNotice={voice.notice}
+    profileNotice={setup.notice}
+    setup={setup.view}
+    onanswer={setup.answer}
+    onskip={setup.skip}
+    onprofile={setup.start}
+    {intentChoice}
+    onintent={(chosen) => (intentChoice = chosen)}
     {micNotice}
     recording={talk.recording}
     handsFree={talk.handsFree !== "off"}
     {asking}
-    onsend={sendQuestion}
+    onsend={sendTyped}
     onexplaindiff={explainDiff}
     onremoveselection={() => (selection = undefined)}
     onmicdown={talk.pointerdown}

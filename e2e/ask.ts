@@ -2,6 +2,11 @@ import { expect, type Page } from "@playwright/test";
 
 export async function ask(page: Page) {
   await page.addInitScript("speechSynthesis.getVoices = () => [];");
+  await page.route("**/api/profile", (route) =>
+    route.fulfill({
+      json: { level: "intermediate", mode: "teach", frequency: "normal", goal: null },
+    }),
+  );
   await page.goto("/");
   if (!(await page.evaluate("'__MIYAGI_SPEAKER__' in window"))) {
     await expect(page.getByText("No local voice found; showing text")).toBeVisible();

@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 import { selectionSchema } from "../../shared/anchor.ts";
 import { diffRequestSchema } from "../../shared/diff-base.ts";
+import { intentSchema } from "../../shared/intent.ts";
 import { parseContract } from "../../shared/parse.ts";
 import { ackPhrases } from "../../shared/phrases.ts";
 import { currentSchema } from "../../shared/tour.ts";
@@ -11,6 +12,7 @@ import { createConversation } from "../llm/conversation.ts";
 import type { LLMProvider } from "../llm/provider.ts";
 import { logError } from "../log.ts";
 import { writeSessionRecord } from "../session-record.ts";
+import { readProfile } from "../teach/profile.ts";
 import type { createTourWatch } from "../tour-watch.ts";
 
 const maxBodyBytes = 100_000;
@@ -20,6 +22,7 @@ const askBodySchema = z.object({
   selection: selectionSchema.optional(),
   current: currentSchema.optional(),
   diff: diffRequestSchema.optional(),
+  intent: intentSchema.optional(),
 });
 
 export function sendError(response: ServerResponse, status: number, message: string, reason = "") {
@@ -67,7 +70,7 @@ export function createAskHandler(options: {
   root: string;
   provider: LLMProvider;
   providerName: string;
-  writeTutorFiles: boolean;
+  tutorRoot: string;
   bruteForceTokens?: number | undefined;
   contextTokens?: number | undefined;
   tourWatch?: ReturnType<typeof createTourWatch> | undefined;
@@ -100,18 +103,16 @@ export function createAskHandler(options: {
         selection: body.selection,
         current: body.current,
         diff: body.diff,
+        intent: body.intent,
+        loadProfile: () => readProfile(options.tutorRoot),
         ack,
         signal: controller.signal,
         bruteForceTokens: options.bruteForceTokens,
-        callLog: options.writeTutorFiles
-          ? {
-              provider: options.providerName,
-              write: (record) => appendCallLog(options.root, record),
-            }
-          : undefined,
-        saveSession: options.writeTutorFiles
-          ? (session) => writeSessionRecord(options.root, session)
-          : undefined,
+        callLog: {
+          provider: options.providerName,
+          write: (record) => appendCallLog(options.tutorRoot, record),
+        },
+        saveSession: (session) => writeSessionRecord(options.tutorRoot, session),
       })) {
         if (event.type === "step") options.tourWatch?.addStep(event.step.anchors, event.ranges);
         response.write(`data: ${JSON.stringify(event)}\n\n`);

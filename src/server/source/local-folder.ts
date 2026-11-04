@@ -3,6 +3,7 @@ import type { Result } from "../../shared/result.ts";
 
 export type CodeSource = {
   root: string;
+  tutorRoot?: string;
   dispose(): Promise<void>;
 };
 

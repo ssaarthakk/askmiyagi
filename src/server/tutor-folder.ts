@@ -1,5 +1,7 @@
-import { lstat, mkdir, realpath, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { z } from "zod";
+import { parseContract } from "../shared/parse.ts";
 import type { Result } from "../shared/result.ts";
 import { isOutsideRoot } from "./files/path-guard.ts";
 import { logError } from "./log.ts";
@@ -60,5 +62,42 @@ export async function writePrivateFile(
     else logError(`${failure}: ${file.error}`);
   } catch (error) {
     logError(`${failure}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+export async function readPrivateJson<T>(
+  root: string,
+  name: string,
+  schema: z.ZodType<T>,
+): Promise<T | null> {
+  try {
+    const file = await privateFileOrProblem(root, name);
+    if (!file.ok) {
+      logError(`${name} not read: ${file.error}`);
+      return null;
+    }
+    let text: string;
+    try {
+      text = await readFile(file.value, "utf8");
+    } catch (error) {
+      if (hasCode(error, "ENOENT")) return null;
+      throw error;
+    }
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = undefined;
+    }
+    const parsed = parseContract(schema, json);
+    if (parsed.ok) return parsed.value;
+    await rename(file.value, `${file.value}.corrupt`);
+    logError(
+      `${name} is not valid and was moved to ${name}.corrupt: ${parsed.error.replaceAll("\n", "; ")}`,
+    );
+    return null;
+  } catch (error) {
+    logError(`${name} not read: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
   }
 }

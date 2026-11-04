@@ -223,9 +223,11 @@ describe("openGitClone", () => {
     vi.stubEnv("GIT_CONFIG_GLOBAL", globalConfig);
 
     try {
+      const home = await createFolder();
       const result = await openGitClone(
         "https://github.com/octo/remote/",
         new AbortController().signal,
+        home,
       );
 
       if (!result.ok) throw new Error(result.error);
@@ -237,6 +239,36 @@ describe("openGitClone", () => {
       } finally {
         await result.value.dispose();
       }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("keeps the store in ~/.askmiyagi/<owner>-<repo>, outside the temp clone, and keeps it after dispose", async () => {
+    const globalConfig = join(await createFolder(), "gitconfig");
+    await writeFile(
+      globalConfig,
+      `[url "${pathToFileURL(bareRepo).href}"]
+	insteadOf = https://github.com/octo/remote.git
+`,
+    );
+    vi.stubEnv("GIT_CONFIG_GLOBAL", globalConfig);
+    const home = await createFolder();
+
+    try {
+      const result = await openGitClone(
+        "https://github.com/octo/remote",
+        new AbortController().signal,
+        home,
+      );
+
+      if (!result.ok) throw new Error(result.error);
+      const { root, tutorRoot, dispose } = result.value;
+      expect(tutorRoot).toBe(join(home, ".askmiyagi", "octo-remote"));
+      expect((await stat(tutorRoot ?? "")).isDirectory()).toBe(true);
+      await dispose();
+      await expect(stat(root)).rejects.toMatchObject({ code: "ENOENT" });
+      expect((await stat(tutorRoot ?? "")).isDirectory()).toBe(true);
     } finally {
       vi.unstubAllEnvs();
     }

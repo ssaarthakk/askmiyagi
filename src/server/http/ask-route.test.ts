@@ -1,10 +1,12 @@
-import { cp, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { saveStep } from "../../../test/ask-helpers.ts";
+import type { LLMRequest } from "../../shared/llm-request.ts";
 import type { LLMProvider } from "../llm/provider.ts";
+import { writeProfile } from "../teach/profile.ts";
 import { createAskHandler } from "./ask-route.ts";
 
 const usage = {
@@ -15,8 +17,11 @@ const usage = {
   costUsd: null,
 };
 
+const requests: LLMRequest[] = [];
+
 const provider: LLMProvider = {
-  async *ask() {
+  async *ask(request) {
+    requests.push(request);
     yield { type: "step", step: saveStep };
     yield { type: "done", usage };
   },
@@ -25,15 +30,18 @@ const provider: LLMProvider = {
 const cleanups: (() => Promise<unknown>)[] = [];
 
 afterEach(async () => {
+  requests.length = 0;
   await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
 });
 
-async function startAsk(writeTutorFiles: boolean) {
+async function startAsk(separateTutorRoot = false) {
   const parent = await mkdtemp(join(tmpdir(), "miyagi-ask-route-"));
   cleanups.push(() => rm(parent, { recursive: true, force: true }));
   const root = join(parent, "project");
   await cp("test/fixtures/basic", root, { recursive: true });
-  const ask = createAskHandler({ root, provider, providerName: "fake", writeTutorFiles });
+  const tutorRoot = separateTutorRoot ? join(parent, "store") : root;
+  if (separateTutorRoot) await mkdir(tutorRoot);
+  const ask = createAskHandler({ root, provider, providerName: "fake", tutorRoot });
   const server = createServer((request, response) => void ask.handle(request, response));
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   cleanups.push(() => new Promise((done) => server.close(done)));
@@ -45,18 +53,18 @@ async function startAsk(writeTutorFiles: boolean) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-  return { root, post };
+  return { root, tutorRoot, post };
 }
 
-async function askOnce(writeTutorFiles: boolean) {
-  const { root, post } = await startAsk(writeTutorFiles);
-  await (await post({ question: "How are clips saved?" })).text();
-  return root;
+async function askOnce(separateTutorRoot: boolean) {
+  const started = await startAsk(separateTutorRoot);
+  await (await started.post({ question: "How are clips saved?" })).text();
+  return started;
 }
 
 describe("createAskHandler tutor files", () => {
   it("writes the call log and the session record under .tutor/private for a local folder", async () => {
-    const root = await askOnce(true);
+    const { root } = await askOnce(false);
     expect((await readdir(join(root, ".tutor", "private"))).toSorted()).toEqual([
       "calls.jsonl",
       "session.json",
@@ -69,14 +77,49 @@ describe("createAskHandler tutor files", () => {
     ]);
   });
 
-  it("writes no .tutor files when writeTutorFiles is false, as for a cloned URL source", async () => {
-    expect(await readdir(await askOnce(false))).not.toContain(".tutor");
+  it("writes them in the tutor root, not the project, when the source keeps its store elsewhere", async () => {
+    const { root, tutorRoot } = await askOnce(true);
+
+    expect((await readdir(join(tutorRoot, ".tutor", "private"))).toSorted()).toEqual([
+      "calls.jsonl",
+      "session.json",
+    ]);
+    expect(await readdir(root)).not.toContain(".tutor");
+  });
+});
+
+describe("createAskHandler profile", () => {
+  it("gives every ask's prompt the level and the goal saved in the tutor root", async () => {
+    const { tutorRoot, post } = await startAsk(true);
+    const saved = await writeProfile(tutorRoot, {
+      level: "advanced",
+      mode: "teach",
+      frequency: "normal",
+      goal: "Add a retry to uploads",
+    });
+    if (!saved.ok) throw new Error(saved.error);
+
+    await (await post({ question: "How are clips saved?" })).text();
+
+    const prompt = requests.at(-1)?.question ?? "";
+    expect(prompt).toContain("advanced");
+    expect(prompt).toContain(
+      '<untrusted_content tool="goal">Add a retry to uploads</untrusted_content>',
+    );
+  });
+
+  it("adds nothing when the tutor root has no profile", async () => {
+    const { post } = await startAsk(true);
+
+    await (await post({ question: "How are clips saved?" })).text();
+
+    expect(requests.at(-1)?.question).not.toContain("untrusted_content");
   });
 });
 
 describe("createAskHandler current position", () => {
   it("accepts a current position and refuses a malformed one", async () => {
-    const { post } = await startAsk(false);
+    const { post } = await startAsk();
     const question = "What does that return?";
 
     const accepted = await post({ question, current: { tour: "t", step: 0, segmentIndex: 2 } });
@@ -95,9 +138,23 @@ describe("createAskHandler current position", () => {
   });
 });
 
+describe("createAskHandler intent", () => {
+  it("accepts a chosen intent and refuses an unknown one", async () => {
+    const { post } = await startAsk();
+    const question = "How are clips saved?";
+
+    const accepted = await post({ question, intent: "debugging" });
+    await accepted.text();
+    const unknown = await post({ question, intent: "curiosity" });
+
+    expect(accepted.status).toBe(200);
+    expect(unknown.status).toBe(400);
+  });
+});
+
 describe("createAskHandler diff", () => {
   it("accepts a diff base with or without a why and refuses a bad one", async () => {
-    const { post } = await startAsk(false);
+    const { post } = await startAsk();
     const question = "Explain my diff (uncommitted changes)";
 
     const accepted = await post({ question, diff: { base: "uncommitted", why: "Raise the cap" } });

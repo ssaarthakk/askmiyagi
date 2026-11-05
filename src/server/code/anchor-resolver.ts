@@ -3,6 +3,7 @@ import type { Anchor, ResolvedAnchor } from "../../shared/anchor.ts";
 import type { DiffBase } from "../../shared/diff-base.ts";
 import type { Result } from "../../shared/result.ts";
 import { readRedactedFile } from "../files/path-guard.ts";
+import { logError } from "../log.ts";
 import { readBaseFile } from "../source/diff-base.ts";
 import { parseFile } from "./parse-cache.ts";
 import { uniqueDefinition } from "./symbols.ts";
@@ -141,4 +142,15 @@ export async function resolveAnchor(
   return resolved.ok && anchor.side
     ? { ok: true, value: { ...resolved.value, side: anchor.side } }
     : resolved;
+}
+
+export async function resolveAnchors(root: string, anchors: Anchor[]) {
+  const resolved = await Promise.all(
+    anchors.map(async (anchor) => {
+      const range = await resolveAnchor(root, anchor);
+      if (!range.ok) logError(`No highlight for ${anchor.file}: ${range.error}`);
+      return range.ok ? [range.value] : [];
+    }),
+  );
+  return resolved.flat();
 }

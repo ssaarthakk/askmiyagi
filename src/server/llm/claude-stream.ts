@@ -155,13 +155,16 @@ function parseModelLine(line: string): ProviderEvent[] {
   return [parsed.ok ? { type: "step", step: parsed.value } : modelFailure(parsed.error, true)];
 }
 
-export function* modelLineEvents(text: string) {
+export function* modelLineEvents(text: string, plain = false) {
   const line = text.trim();
-  if (line !== "") yield* parseModelLine(line);
+  if (line === "") return;
+  if (plain) yield { type: "text" as const, text: line };
+  else yield* parseModelLine(line);
 }
 
 export async function* parseClaudeStream(
   lines: AsyncIterable<string>,
+  plain = false,
 ): AsyncGenerator<ProviderEvent> {
   let pending = "";
   let loggedOut = false;
@@ -183,9 +186,9 @@ export async function* parseClaudeStream(
       if (!delta.success) continue;
       const parts = (pending + delta.data.event.delta.text).split("\n");
       pending = parts.pop() ?? "";
-      for (const part of parts) yield* modelLineEvents(part);
+      for (const part of parts) yield* modelLineEvents(part, plain);
     } else if (type.data.type === "assistant") {
-      yield* modelLineEvents(pending);
+      yield* modelLineEvents(pending, plain);
       pending = "";
       const parsed = parseContract(assistantSchema, json);
       if (!parsed.ok) {
@@ -205,7 +208,7 @@ export async function* parseClaudeStream(
         }
       }
     } else if (type.data.type === "result") {
-      yield* modelLineEvents(pending);
+      yield* modelLineEvents(pending, plain);
       pending = "";
       const parsed = parseContract(resultSchema, json);
       if (!parsed.ok) {

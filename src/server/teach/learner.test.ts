@@ -192,4 +192,84 @@ describe("createLearnerRecord", () => {
 
     expect(output()).toContain("learner.json not read");
   });
+
+  it("lists the weak concepts, and reads a record saved before concepts could be weak", async () => {
+    const root = await tempDir();
+    const record = createLearnerRecord(root);
+    await record.markSeen([retries, promises]);
+    const file = join(root, ".tutor", "private", "learner.json");
+    const saved = JSON.parse(await readFile(file, "utf8"));
+    saved.concepts[1].weak = true;
+    await writeFile(file, JSON.stringify(saved));
+
+    expect(await createLearnerRecord(root).weakConcepts()).toEqual(["Promises"]);
+  });
+  it("marks a concept weak, adding it when the record does not know it", async () => {
+    const root = await tempDir();
+    const record = createLearnerRecord(root);
+    await record.markSeen([retries]);
+
+    await record.markWeak(["upload RETRIES", "Clip ids"]);
+
+    expect(await record.weakConcepts()).toEqual(["Upload retries", "Clip ids"]);
+    expect((await stored(root)).concepts[1]).toEqual({
+      name: "Clip ids",
+      kind: "repo",
+      important: true,
+      weak: true,
+      state: "seen",
+      rubric: null,
+      attempts: 0,
+      reviewsDone: 0,
+      nextReview: null,
+    });
+  });
+
+  it("keeps what it knew about a concept it marks weak", async () => {
+    const root = await tempDir();
+    const record = createLearnerRecord(root);
+    await record.markExplained([retries]);
+    await record.setRubric("Upload retries", "Retries three times.");
+
+    await record.markWeak(["Upload retries"]);
+
+    expect(await record.concept("Upload retries")).toMatchObject({
+      state: "explained",
+      rubric: "Retries three times.",
+      weak: true,
+    });
+  });
+
+  it("clears the weak mark when an explain-back passes, in a lesson or in a review", async () => {
+    const root = await tempDir();
+    const record = createLearnerRecord(root);
+    await record.markWeak(["Upload retries", "Clip ids"]);
+
+    await record.grade("Upload retries", true, false);
+    await record.grade("Clip ids", true, true);
+
+    expect(await record.weakConcepts()).toEqual([]);
+  });
+
+  it("keeps the weak mark when an explain-back fails", async () => {
+    const root = await tempDir();
+    const record = createLearnerRecord(root);
+    await record.markWeak(["Upload retries"]);
+
+    await record.grade("Upload retries", false, false);
+
+    expect(await record.weakConcepts()).toEqual(["Upload retries"]);
+  });
+
+  it("does not list a weak concept as checked, so the question policy may ask about it again", async () => {
+    const root = await tempDir();
+    const record = createLearnerRecord(root);
+    await record.markSeen([retries, promises]);
+    await record.grade("Upload retries", true, false);
+    await record.grade("Promises", true, false);
+
+    await record.markWeak(["Upload retries"]);
+
+    expect(await record.checkedConcepts()).toEqual(["Promises"]);
+  });
 });

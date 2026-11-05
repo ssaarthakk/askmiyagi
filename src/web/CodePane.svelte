@@ -21,6 +21,7 @@ let {
   onreview,
   pathItems,
   onpathask,
+  hidden,
   children,
 }: {
   highlight: Highlight | undefined;
@@ -36,11 +37,15 @@ let {
   onreview: () => void;
   pathItems: PathReplyItems | undefined;
   onpathask: (item: PathItem) => void;
+  hidden: boolean;
   children: Snippet;
 } = $props();
 </script>
 
 <div class="code-pane">
+  {#if hidden}
+    <p class="hidden-note">Voice-only interview: the code comes back when it ends.</p>
+  {:else}
   {#if staleNotice}
     <p role="status" class="notice">{staleNotice}</p>
   {/if}
@@ -70,6 +75,7 @@ let {
     <Welcome {projectName} {onsuggest} {reviewsDue} {onreview} {pathItems} {onpathask} />
   {/if}
   {@render children()}
+  {/if}
 </div>
 
 <style>
@@ -79,6 +85,12 @@ let {
     flex-direction: column;
     min-width: 0;
     min-height: 0;
+  }
+
+  .hidden-note {
+    margin: auto;
+    padding: calc(var(--space) * 2);
+    color: var(--muted);
   }
 
   .notice {

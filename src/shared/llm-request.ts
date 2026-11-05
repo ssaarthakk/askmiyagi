@@ -11,6 +11,7 @@ export const llmRequestSchema = z.object({
   root: z.string(),
   tools: z.boolean(),
   model: z.enum(["strong", "small"]),
+  plain: z.boolean().optional(),
   spent: usageSchema.optional(),
   startedAt: z.number().optional(),
 });

@@ -9,12 +9,6 @@ Technical gaps a smaller model would have to guess at, found by a read-through o
 - **Explain-my-diff tour:** too big for one session; split into (a) context sources and flow order, (b) risk flags and test handling. Triggered by an "Explain my diff" action with a base picker. Risk flags become a final step titled "Things to verify", detected in code (removed guards or throws, changed try/catch, deleted tests). Trivial means whitespace, comments, import order or rename-only. "Changed tests as proof of intent" needs a test-to-source link: a test file covers the source files it imports through relative imports (the repo map already computes these). When `find_callers` exists, "Things to verify" also lists callers of changed exported functions outside the diff, at most 5.
 - **Stack trace walkthrough:** too big for one session; split into (a) parse and collapse, (b) anchor verification and source maps, (c) the tour. Pasted text with 2 or more `at ` frames is detected in the question box. Source maps are read through the path guard only, never sent to the model; warn when the frame's function isn't at that line.
 
-## Phase 13: Interview prep
-
-- **Question generation:** entry points `askmiyagi interview` and a UI mode.
-- **Debugging drills:** the model returns a path-to-content edit list held in an in-memory overlay that the file reader and tools consult, cleared at session end.
-- **Debrief:** add `weak: boolean` to the learner record, set from low scores.
-
 ## Phase 14: Saved tours
 
 - **Save:** author from `os.userInfo()` (no `git config`). Slug is the slugified question, with a numeric suffix on collision. Hash is SHA-256 of the block with line endings normalised to LF. `baseCommit` is `null` outside git. Add a "Save tour" button.

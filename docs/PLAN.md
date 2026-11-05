@@ -316,17 +316,43 @@ Moved out of Phase 12 on 4 November 2026, because it needs the learner record an
 
 **Gate:** `npm run check` passes, with tests for the ordering (leaf first, unimported last, cycles), ticking, replacing a path and a corrupt path file.
 
-## Phase 13: Interview prep
+## Phase 13: Interview prep (shipped)
 
 Moved ahead of Saved tours on 4 November 2026, because interview prep is needed sooner and does not use saved tours.
 
-- [ ] **Question generation.** Questions come from dependencies, the repo map, git history, failure points and the learner's weak spots. Follow-ups react to the answers.
-- [ ] **Session rules.** No hints during the session. Vague answers get probed and weak ones pushed back on. Sessions are timeboxed. Difficulty is friendly, realistic or tough. Voice-only mode is optional.
-- [ ] **Debugging drills.** A virtual "what if" diff is applied in memory only; the repo is never edited.
-- [ ] **"Why" questions** are graded on reasoning, never on an invented answer.
-- [ ] **Debrief.** A scorecard, gaps shown with code, model answers, and weak topics fed into teach mode.
+- [x] **Question generation.** Questions come from dependencies, the repo map, git history, failure points and the learner's weak spots. Follow-ups react to the answers.
+  - Entry points: `askmiyagi interview [path|url]` starts the same server and opens the page straight into the interview setup; a "Mock interview" button in the conversation panel header does the same in a running session. Setup picks the difficulty (default realistic), then Start. The voice-only switch joins the setup with Voice-only (Session rules).
+  - One strong-model call with read-only tools plans the session. It gets the repo map, `package.json` dependencies, `git log --oneline -n 30` (through the existing git tool) and the learner's weak concepts, all redacted and wrapped as untrusted, and finds failure points (throws, catches, error paths) with the tools. It returns 6 questions `{ kind: "explain" | "why" | "drill", concept, question, anchor }`. Anchors are verified like tour anchors, and a question whose anchor does not resolve is dropped. Fewer than 4 left fails the plan with a readable error.
+  - The mix follows the difficulty (see Session rules). Weak concepts come first when there are any.
+  - After each answer, one strong-model call (tools off) gets the question, its anchored code, the answer and the probes so far, and returns `{ action: "probe" | "pushback" | "next", say }`. Code enforces the probe limit: a probe and a pushback each count as one follow-up, and past the limit the action becomes `next` with "Let's move on.".
+  - Real providers pass the reply of a JSON call on as text (`plain` on the request), so the plan and turn replies, and the existing grade and path replies, are not read as tour steps.
+- [x] **Session rules.** No hints during the session. Vague answers get probed and weak ones pushed back on. Sessions are timeboxed. Difficulty is friendly, realistic or tough. Voice-only mode is optional.
+  - A session is 6 questions and 20 minutes, whichever ends first. When the time is up, the current answer is still graded and then the debrief starts. A timer shows the time left.
+  - No hints: during the session the interviewer never names the code, the answer or a gap. Its `say` is checked by code against the question's anchored code and the model answer, and a `say` that quotes either is replaced by "Can you say more?". A `say` quotes a text when both share a run of 4 or more words (compared in lower case, ignoring punctuation).
+  - The model answer comes from the planning call (decided 2026-11-05): each planned question has a `modelAnswer`. The server keeps it and never sends it to the page. The debrief grader still writes its own model answer.
+  - The start reply carries `endsAt` (epoch milliseconds). An answer sent after `endsAt` ends the session with no follow-up call: the reply is `next: null` and `finished: true`.
+  - Friendly: 1 probe per answer, gentle pushback, 5 explain and 1 why, no drill.
+  - Realistic (default): 2 probes per answer, pushes back on vague or wrong claims, 4 explain, 1 why and 1 drill.
+  - Tough: 3 probes per answer, challenges every claim and asks for tradeoffs and failure cases, 2 explain, 2 why and 2 drills.
+  - Voice-only: the code pane is hidden, questions are spoken, and answers come by push-to-talk or hands-free. The code comes back for the debrief.
+  - The session is browser state plus one in-memory server session. Leaving it (Stop, or closing the page) ends it with no debrief.
+- [x] **Debugging drills.** A virtual "what if" diff is applied in memory only; the repo is never edited.
+  - The planning call returns a drill question with `drill: { file, edits: [{ find, replace }] }`, one to three edits on one visible file, which must be the file of the question's anchor. Code checks that each `find` occurs exactly once in the real file, that edits do not overlap and that they change something, and drops the question otherwise (so does a drill question with no `drill`).
+  - The edited copy lives in an in-memory overlay while its question is the current one (decided 2026-11-05, so the other questions on that file see the real code). The file reader and the in-process tools read through it, and the interviewer is given the question's code cut from the drilled copy. It is cleared when the next question starts and when the session ends, whichever way it ends.
+  - The learner sees the drill in the diff viewer (`GET /api/file` with `base=drill` is the real file): the real file on the old side, the drilled copy on the new side. The question asks what the change breaks and how they would find it.
+- [x] **"Why" questions** are graded on reasoning, never on an invented answer.
+  - The grader is told that the repo may not state the reason. It scores whether the answer's reasoning fits the code's constraints and weighs real tradeoffs, not whether it matches a reason the model guessed.
+  - When the code, comments or commits don't state why, the model answer says so and gives the tradeoffs a strong answer would weigh.
+  - The grader lives in the Debrief call (decided 2026-11-05). A `why` question is sent to it without the planned model answer, so it cannot grade against a reason the planner guessed.
+- [x] **Debrief.** A scorecard, gaps shown with code, model answers, and weak topics fed into teach mode.
+  - After the session, one strong-model call (tools off) grades each question on 4 dimensions, each 1–5: accuracy (matches the real code), reasoning (why and tradeoffs), depth (failure and edge cases) and clarity (concise and structured). It also returns at most 2 gaps per question with anchors, and a model answer.
+  - The scorecard shows each question with its 4 scores, its gaps with the code highlighted, and the model answer. The overall score is the mean of all scores, to one decimal.
+  - A concept is weak when its question's mean score is 2 or below. The learner record has an optional `weak` flag (absent means not weak; added with Question generation, which reads it through `weakConcepts()`): a weak concept is added or marked weak, a passed explain-back clears it, and the question policy treats a weak concept as eligible even when it is checked. Weak concepts are listed first in the next session's plan.
+  - The grade covers the answered questions only; an answer sent after the time was up still counts. A grader that skips a question fails the debrief with a readable error and the page can try again. A concept the debrief marks weak is added to the record as an important repo concept when it is not there yet.
+  - The debrief is not saved; it lives in the page until the next session.
+  - The call log's `callType` gains `interview-grade` (`interview-plan` and `interview-turn` came with Question generation).
 
-**Gate:** `npm run check` passes, with fake-provider tests for generation, the session rules and the debrief, plus a test proving every fixture file's hash is unchanged after a drill.
+**Gate:** `npm run check` and `npm run e2e` pass, with fake-provider tests for generation (the mix per difficulty, dropped anchors and drills), the session rules (the probe limit, the no-hints check, the timebox) and the debrief (scores, weak marking and clearing), a test proving every fixture file's hash is unchanged after a drill, and an e2e test of a whole friendly session with the stub speaker.
 
 ## Phase 14: Saved tours
 
@@ -360,6 +386,4 @@ The first `claude-headless` run of the fixtures suite (2026-10-31) had no retrie
 
 Each one blocks only the phase named. Answer it before that phase starts.
 
-- **Interview format** (Phase 13). Questions per session, default timebox, what friendly, realistic and tough mean, and the probe limit.
-- **Interview scorecard** (Phase 13). Its dimensions and scale.
 - **Broken tour** (Phase 14). Fail only on an unresolvable anchor and warn on a changed hash, or fail on both?

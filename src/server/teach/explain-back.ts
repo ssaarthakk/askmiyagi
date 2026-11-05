@@ -2,7 +2,7 @@ import type { DiffBase } from "../../shared/diff-base.ts";
 import { type ExplainBackReply, sameConcept } from "../../shared/learner.ts";
 import type { Result } from "../../shared/result.ts";
 import type { Tour } from "../../shared/tour.ts";
-import { resolveAnchor } from "../code/anchor-resolver.ts";
+import { resolveAnchors } from "../code/anchor-resolver.ts";
 import type { Conversation } from "../llm/conversation.ts";
 import { createGrader } from "../llm/grader.ts";
 import type { LLMProvider } from "../llm/provider.ts";
@@ -82,20 +82,13 @@ export function createExplainBack(options: {
       const { score, gaps, anchors, modelAnswer } = graded.value;
       const outcome = await learner.grade(known.name, score >= passScore, review);
       if (!outcome) return { ok: false, error: "The learner record could not be updated" };
-      const resolved = await Promise.all(
-        anchors.map(async (anchor) => {
-          const range = await resolveAnchor(root, anchor);
-          if (!range.ok) logError(`No highlight for ${anchor.file}: ${range.error}`);
-          return range.ok ? [range.value] : [];
-        }),
-      );
       return {
         ok: true,
         value: {
           outcome,
           score,
           gaps,
-          ranges: resolved.flat(),
+          ranges: await resolveAnchors(root, anchors),
           modelAnswer: outcome === "gave-up" ? modelAnswer : null,
         },
       };

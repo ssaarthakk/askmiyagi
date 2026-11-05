@@ -47,6 +47,7 @@ const learnerConceptSchema = z.object({
   name: z.string().min(1),
   kind: z.enum(conceptKinds),
   important: z.boolean(),
+  weak: z.boolean().optional(),
   state: z.enum(conceptStates),
   rubric: z.string().nullable(),
   attempts: z.number().int().nonnegative(),

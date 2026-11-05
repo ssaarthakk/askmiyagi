@@ -1,12 +1,12 @@
 import type { Side } from "../shared/anchor.ts";
-import type { DiffBase } from "../shared/diff-base.ts";
+import type { DiffBase, ViewBase } from "../shared/diff-base.ts";
 
 export type LineRange = { start: number; end: number; side?: Side | undefined };
 export type Highlight = {
   file: string;
   current: LineRange | null;
   previous: LineRange | null;
-  base?: DiffBase | undefined;
+  base?: ViewBase | undefined;
 };
 
 function sameRange(a: LineRange, b: LineRange) {

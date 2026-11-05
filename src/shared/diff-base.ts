@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-export const diffBaseSchema = z.enum(["uncommitted", "branch", "snapshot"]);
+const diffBaseSchema = z.enum(["uncommitted", "branch", "snapshot"]);
+
+export const viewBaseSchema = z.enum([...diffBaseSchema.options, "drill"]);
 
 export const diffRequestSchema = z.object({
   base: diffBaseSchema,
@@ -8,4 +10,5 @@ export const diffRequestSchema = z.object({
 });
 
 export type DiffBase = z.infer<typeof diffBaseSchema>;
+export type ViewBase = z.infer<typeof viewBaseSchema>;
 export type DiffRequest = z.infer<typeof diffRequestSchema>;

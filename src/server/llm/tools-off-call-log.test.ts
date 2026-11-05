@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { root, scripted, usage } from "../../../test/ask-helpers.ts";
 import type { CallRecord } from "../../shared/call-log.ts";
 import type { ProviderEvent } from "../../shared/events.ts";
+import type { LLMRequest } from "../../shared/llm-request.ts";
 import { createGrader } from "./grader.ts";
 import { createPredictor } from "./predictor.ts";
 import type { LLMProvider } from "./provider.ts";
@@ -129,5 +130,16 @@ describe("a tools-off call without a call log", () => {
       ok: true,
       value: "They asked about clips.",
     });
+  });
+});
+
+describe("a tools-off call", () => {
+  it("asks for a plain reply, so the provider does not read it as a tour step", async () => {
+    const seen: LLMRequest[] = [];
+    const provider = scripted([{ type: "text", text: "They asked about clips." }], seen);
+
+    await createSummariser(provider, root)("turns");
+
+    expect(seen[0]).toMatchObject({ tools: false, plain: true });
   });
 });

@@ -48,10 +48,24 @@ function reached(learner: Learner, concepts: TourConcept[], state: ConceptState)
   return { concepts: next };
 }
 
+function withoutWeak({ weak: _weak, ...known }: LearnerConcept): LearnerConcept {
+  return known;
+}
+
+function markedWeak(learner: Learner, names: string[]): Learner {
+  const concepts = names.map((name) => ({ name, kind: "repo" as const, important: true }));
+  const { concepts: next } = reached(learner, concepts, "seen");
+  return {
+    concepts: next.map((known) =>
+      names.some((name) => sameConcept(name, known.name)) ? { ...known, weak: true } : known,
+    ),
+  };
+}
+
 function graded(known: LearnerConcept, passed: boolean, review: boolean, now: Date) {
   if (passed && !review) {
     const concept = {
-      ...known,
+      ...withoutWeak(known),
       state: later(known.state, "checked"),
       attempts: 0,
       reviewsDone: 0,
@@ -64,7 +78,13 @@ function graded(known: LearnerConcept, passed: boolean, review: boolean, now: Da
     const reviewsDone = failedBefore ? 0 : known.reviewsDone + 1;
     const days = failedBefore ? reviewDays[0] : reviewDays[reviewsDone];
     const nextReview = days === undefined ? null : inDays(now, days);
-    const concept = { ...known, state: "reviewed" as const, attempts: 0, reviewsDone, nextReview };
+    const concept = {
+      ...withoutWeak(known),
+      state: "reviewed" as const,
+      attempts: 0,
+      reviewsDone,
+      nextReview,
+    };
     return { concept, result: "passed" as const };
   }
   const attempts = known.attempts + 1;
@@ -110,9 +130,9 @@ export function createLearnerRecord(root: string) {
     });
   }
 
-  async function conceptNames(keep: (state: ConceptState) => boolean) {
+  async function conceptNames(keep: (concept: LearnerConcept) => boolean) {
     const names = await change((learner) => ({
-      result: learner.concepts.filter(({ state }) => keep(state)).map(({ name }) => name),
+      result: learner.concepts.filter(keep).map(({ name }) => name),
     }));
     return names ?? [];
   }
@@ -124,8 +144,14 @@ export function createLearnerRecord(root: string) {
   return {
     markSeen: (concepts: TourConcept[]) => reach(concepts, "seen"),
     markExplained: (concepts: TourConcept[]) => reach(concepts, "explained"),
-    checkedConcepts: () => conceptNames((state) => state === "checked" || state === "reviewed"),
-    explainedConcepts: () => conceptNames((state) => state !== "seen"),
+    markWeak: (names: string[]) =>
+      change((learner) => ({ learner: markedWeak(learner, names), result: undefined })),
+    checkedConcepts: () =>
+      conceptNames(
+        ({ state, weak }) => weak !== true && (state === "checked" || state === "reviewed"),
+      ),
+    explainedConcepts: () => conceptNames(({ state }) => state !== "seen"),
+    weakConcepts: () => conceptNames(({ weak }) => weak === true),
     concept: (name: string) =>
       change((learner) => ({
         result: learner.concepts.find((known) => sameConcept(known.name, name)),

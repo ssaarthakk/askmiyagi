@@ -11,6 +11,9 @@ import { type Command, matchCommand } from "./commands.ts";
 import { createExplainBack } from "./explain-back.svelte.ts";
 import { chooseDetector } from "./hands-free.ts";
 import { type Highlight, moveHighlight } from "./highlight.ts";
+import InterviewPanel from "./InterviewPanel.svelte";
+import { createInterview } from "./interview.svelte.ts";
+import { interviewHighlight } from "./interview.ts";
 import Player from "./Player.svelte";
 import { createPath } from "./path.svelte.ts";
 import { postPlayed } from "./played.ts";
@@ -257,6 +260,12 @@ async function gradeAnswer(text: string) {
 
 async function sendTyped() {
   const text = question.trim();
+  if (text && interview.running) {
+    if (interview.busy) return;
+    question = "";
+    await interview.answer(text);
+    return;
+  }
   if (text && path.askingGoal) {
     question = "";
     await path.answerGoal(text);
@@ -273,7 +282,7 @@ async function sendTyped() {
 }
 
 async function handleTranscript(text: string) {
-  const command = matchCommand(text);
+  const command = interview.running ? undefined : matchCommand(text);
   if (command && canRun(command) && !primm.predicting) runCommand(command);
   else {
     question = text;
@@ -408,6 +417,15 @@ const path = createPath({
   openTurn: () => startTurn("", []),
 });
 
+const interview = createInterview({
+  token,
+  openedByAddress: new URLSearchParams(location.search).has("interview"),
+  say: (text) => {
+    if (voice.on) voice.announcer?.say(text);
+  },
+  show: (question) => (highlight = interviewHighlight(question)),
+});
+
 let microphoneButton = $state<HTMLButtonElement>();
 
 const talk = createTalk({
@@ -425,6 +443,7 @@ const micNotice = $derived(
 </script>
 
 <svelte:window
+  onpagehide={interview.close}
   onkeydown={talk.keydown}
   onkeyup={talk.keyup}
   onblur={talk.stop}
@@ -446,6 +465,7 @@ const micNotice = $derived(
     onreview={() => explainBack.startReview(explainBack.due[0] ?? "")}
     pathItems={path.items}
     onpathask={askPathItem}
+    hidden={interview.hidesCode}
   >
     {#if voice.on && steps.length > 0}
       <VoicePill
@@ -499,8 +519,25 @@ const micNotice = $derived(
     planning={path.planning}
     onplan={path.plan}
     onpathask={askPathItem}
+    interviewCard={interview.view ? interviewCard : undefined}
+    answering={interview.running}
+    oninterview={interview.open}
   />
 </main>
+
+{#snippet interviewCard()}
+  {#if interview.view}
+    <InterviewPanel
+      interview={interview.view}
+      onchoose={interview.choose}
+      onvoiceonly={interview.chooseVoiceOnly}
+      onstart={interview.start}
+      onshowcode={(range) => (highlight = { file: range.file, current: range, previous: null })}
+      ongrade={interview.grade}
+      onclose={interview.close}
+    />
+  {/if}
+{/snippet}
 
 {#snippet tour()}
   <Player

@@ -159,6 +159,21 @@ describe("parseClaudeStream", () => {
     expect(events[0]).toEqual({ type: "text", text: "not json" });
   });
 
+  it("passes every line on as text in a plain reply, even one that looks like a step", async () => {
+    const reply = JSON.stringify({ score: 4, gaps: [] });
+    const events = await collect(
+      parseClaudeStream(
+        linesOf([
+          delta(`${reply}
+`),
+          result,
+        ]),
+        true,
+      ),
+    );
+    expect(events[0]).toEqual({ type: "text", text: reply });
+  });
+
   it("turns a failed run into a non-retryable error", async () => {
     const failed = JSON.stringify({
       type: "result",

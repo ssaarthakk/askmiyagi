@@ -21,6 +21,21 @@ describe("CLI entry", () => {
     expect(response.url).toBe(line);
   });
 
+  it("opens the page straight into the interview setup with the interview subcommand", async () => {
+    const childProcess = startCli(sourceCli, ["interview", "--no-open", "--port", "0"]);
+    const line = await waitForLine(childProcess);
+    expect(line).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/\?interview=1$/);
+    const response = await fetch(line);
+    expect(response.status).toBe(200);
+  });
+
+  it("takes the project folder after the interview subcommand", async () => {
+    const missing = join(tmpdir(), `miyagi-missing-${randomUUID()}`);
+    const childProcess = startCli(sourceCli, ["interview", "--no-open", missing]);
+    await expect(waitForExit(childProcess.child)).resolves.toMatchObject({ code: 1 });
+    expect(childProcess.stderr.trim()).toBe(`Folder not found: ${missing}`);
+  });
+
   it.skipIf(process.platform === "win32")("closes cleanly on Ctrl+C", async () => {
     const childProcess = startCli(sourceCli, ["--no-open", "--port", "0"]);
     await waitForLine(childProcess);

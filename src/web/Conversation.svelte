@@ -61,6 +61,9 @@ let {
   planning,
   onplan,
   onpathask,
+  interviewCard,
+  answering,
+  oninterview,
 }: {
   turns: Turn[];
   tourVisible: boolean;
@@ -100,6 +103,9 @@ let {
   planning: boolean;
   onplan: () => void;
   onpathask: (item: PathItem) => void;
+  interviewCard: Snippet | undefined;
+  answering: boolean;
+  oninterview: () => void;
 } = $props();
 
 const predicting = $derived(primm?.phase === "predict");
@@ -154,10 +160,14 @@ function keydown(event: KeyboardEvent) {
       <button type="button" disabled={teaching === undefined || planning || asking} onclick={onplan}>
         {planning ? "Planning…" : "Plan a learning path"}
       </button>
+      <button type="button" disabled={asking} onclick={oninterview}>Mock interview</button>
     </div>
   </header>
   <p role="status" class="muted notice">{voiceNotice}</p>
   <p role="status" class="muted notice">{profileNotice}</p>
+  {#if interviewCard}
+    <div class="path-card">{@render interviewCard()}</div>
+  {/if}
   {#if pathItems}
     <div class="path-card"><PathCard items={pathItems} onask={onpathask} /></div>
   {/if}
@@ -224,8 +234,10 @@ function keydown(event: KeyboardEvent) {
     {/if}
     <p role="status" class="muted">{micNotice}</p>
     <textarea
-      aria-label="Question"
-      placeholder={predicting
+      aria-label={answering ? "Your answer" : "Question"}
+      placeholder={answering
+        ? "Answer in your own words"
+        : predicting
         ? "Type your prediction"
         : explainConcept
           ? "Explain it in your own words"

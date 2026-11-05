@@ -33,6 +33,7 @@ type ToolsOffCall<T> = {
   schema: z.ZodType<T>;
   nothingBack: string;
   model?: LLMRequest["model"];
+  tools?: boolean;
 };
 
 export async function askToolsOff<T>(
@@ -46,7 +47,8 @@ export async function askToolsOff<T>(
     history: [],
     question: redact(call.question),
     root: call.root,
-    tools: false,
+    tools: call.tools ?? false,
+    plain: true,
     model: call.model ?? "small",
   };
   const startedAt = new Date();
@@ -63,6 +65,7 @@ export async function askToolsOff<T>(
         usage = addUsage(usage, event.usage);
         outcome = "done";
       }
+      if (event.type === "tool_call") lines.length = 0;
       if (event.type === "text") lines.push(event.text);
     }
   } finally {

@@ -44,7 +44,7 @@ export function sendError(response: ServerResponse, status: number, message: str
   response.end(JSON.stringify({ error: message }));
 }
 
-function sendJson(response: ServerResponse, body: unknown) {
+export function sendJson(response: ServerResponse, body: unknown) {
   response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(body));
 }

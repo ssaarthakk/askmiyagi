@@ -208,6 +208,12 @@ describe("claudeApi", () => {
     expect(other.at(-1)).toMatchObject({ usage: { costUsd: null } });
   });
 
+  it("passes a JSON reply on as text when the request is plain", async () => {
+    const reply = JSON.stringify({ items: [] });
+    const { events } = ask([answer(reply)], undefined, { plain: true });
+    expect((await events).map((event) => event.type)).toEqual(["text", "done"]);
+  });
+
   it("offers no tools when the request has none", async () => {
     const { events, requests } = ask([answer(stepLine("One"))], undefined, { tools: false });
     await events;

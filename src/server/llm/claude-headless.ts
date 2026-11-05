@@ -10,6 +10,7 @@ export function claudeHeadless(model?: string): LLMProvider {
           runClaude(request, signal, {
             model: request.model === "small" ? smallClaudeModel : model,
           }),
+          request.plain,
         );
       } catch (error) {
         if (!(error instanceof ClaudeProcessError)) throw error;

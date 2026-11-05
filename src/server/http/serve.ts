@@ -5,6 +5,7 @@ import { type createAskHandler, sendError } from "./ask-route.ts";
 import type { createEventsHandler } from "./events-route.ts";
 import type { createFileHandler } from "./file-route.ts";
 import type { createFirstSoundHandler } from "./first-sound-route.ts";
+import type { createInterviewHandler } from "./interview-route.ts";
 import type { createPathHandler } from "./path-route.ts";
 import type { createProfileHandler } from "./profile-route.ts";
 import type { createSpeechHandler } from "./speech-route.ts";
@@ -43,6 +44,7 @@ export async function serveRequest(
   handleFirstSound: ReturnType<typeof createFirstSoundHandler>,
   handleProfile: ReturnType<typeof createProfileHandler>,
   handlePath: ReturnType<typeof createPathHandler>,
+  handleInterview: ReturnType<typeof createInterviewHandler>,
 ) {
   const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`];
   if (!allowedHosts.includes(request.headers.host?.toLowerCase() ?? "")) {
@@ -121,6 +123,14 @@ export async function serveRequest(
   }
   if (pathname === "/api/path" && (request.method === "GET" || request.method === "POST")) {
     await handlePath(request, response);
+    return;
+  }
+  if (
+    (pathname === "/api/interview" && (request.method === "POST" || request.method === "DELETE")) ||
+    (pathname === "/api/interview/answer" && request.method === "POST") ||
+    (pathname === "/api/interview/debrief" && request.method === "POST")
+  ) {
+    await handleInterview(request, response);
     return;
   }
   if (pathname === "/api/events" && request.method === "GET") {

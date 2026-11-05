@@ -4,7 +4,7 @@ import { MergeView } from "@codemirror/merge";
 import { lineNumbers } from "@codemirror/view";
 import { EditorView } from "codemirror";
 import type { Selection } from "../shared/anchor.ts";
-import type { DiffBase } from "../shared/diff-base.ts";
+import type { ViewBase } from "../shared/diff-base.ts";
 import { highlightExtensions, onSide, readOnly, showRanges } from "./editor.ts";
 import { fetchFile } from "./file.ts";
 import type { LineRange } from "./highlight.ts";
@@ -19,7 +19,7 @@ let {
   onpick,
 }: {
   path: string;
-  base: DiffBase;
+  base: ViewBase;
   token: string;
   current: LineRange | null;
   previous: LineRange | null;

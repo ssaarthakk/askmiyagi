@@ -14,6 +14,7 @@ import { createAskHandler } from "./http/ask-route.ts";
 import { createEventsHandler } from "./http/events-route.ts";
 import { createFileHandler } from "./http/file-route.ts";
 import { createFirstSoundHandler } from "./http/first-sound-route.ts";
+import { createInterviewHandler } from "./http/interview-route.ts";
 import { createPathHandler } from "./http/path-route.ts";
 import { createProfileHandler } from "./http/profile-route.ts";
 import { serveRequest } from "./http/serve.ts";
@@ -88,9 +89,10 @@ async function runCli() {
     return;
   }
 
+  const interview = subcommand === "interview";
   let options: ReturnType<typeof parseCliArgs>;
   try {
-    options = parseCliArgs(process.argv.slice(2));
+    options = parseCliArgs(interview ? subcommandArgs : process.argv.slice(2));
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
@@ -161,6 +163,13 @@ async function runCli() {
     providerName: options.provider,
     learner: ask.learner,
   });
+  const handleInterview = createInterviewHandler({
+    root: source.value.root,
+    tutorRoot,
+    provider: provider.value,
+    providerName: options.provider,
+    learner: ask.learner,
+  });
   const speech = speechOptions(options, process.env);
   const handleSpeech = createSpeechHandler(speech);
   const handleTranscribe = createTranscribeHandler({ apiKey: speech.apiKey });
@@ -210,6 +219,7 @@ async function runCli() {
       handleFirstSound,
       handleProfile,
       handlePath,
+      handleInterview,
     ).catch((error: unknown) => {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       if (!response.headersSent) response.writeHead(500);
@@ -248,7 +258,7 @@ async function runCli() {
       );
     });
   });
-  const url = `http://127.0.0.1:${address.port}/`;
+  const url = `http://127.0.0.1:${address.port}/${interview ? "?interview=1" : ""}`;
   let closing = false;
   const shutdown = () => {
     if (closing) return;

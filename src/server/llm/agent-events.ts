@@ -38,7 +38,7 @@ export function agentProvider({
         if (signal.aborted) return;
         const { usage, messages } = next.value;
         for (const line of next.value.text.split("\n")) {
-          for (const event of modelLineEvents(line)) {
+          for (const event of modelLineEvents(line, request.plain)) {
             yield event.type === "error" ? { ...event, usage } : event;
           }
         }

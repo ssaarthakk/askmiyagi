@@ -16,7 +16,7 @@ export default defineConfig({
   use: { baseURL: "http://127.0.0.1:4173" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `${copyFixture} && npm run build && node dist/server/cli.js --no-open --port 4173 --provider fake --recording test/fixtures/recordings/basic-tour.jsonl "${project}"`,
+    command: `${copyFixture} && npm run build && node dist/server/cli.js --no-open --port 4173 --voice browser --provider fake --recording test/fixtures/recordings/basic-tour.jsonl "${project}"`,
     url: "http://127.0.0.1:4173",
     reuseExistingServer: false,
   },

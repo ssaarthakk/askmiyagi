@@ -1,6 +1,6 @@
 {
   "name": "askmiyagi",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A voice tutor for codebases: ask out loud, and it explains while highlighting the code it talks about.",
   "keywords": [
     "voice",
@@ -27,8 +27,8 @@
     "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
-    "prepublishOnly": "npm run check",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && vite build && tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run check && npm run build",
     "format": "biome check --write .",
     "test": "vitest run --passWithNoTests",
     "check": "biome check . && tsc -p tsconfig.node.json && svelte-check --tsconfig tsconfig.web.json --fail-on-warnings && knip && vitest run --passWithNoTests",

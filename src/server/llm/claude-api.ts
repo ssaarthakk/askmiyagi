@@ -5,7 +5,7 @@ import type { LLMRequest } from "../../shared/llm-request.ts";
 import type { Usage } from "../../shared/usage.ts";
 import { agentProvider, cutOffError, ModelStopError } from "./agent-events.ts";
 import type { AgentModel, AgentTool } from "./agent-loop.ts";
-import { type LLMProvider, smallClaudeModel } from "./provider.ts";
+import { type LLMProvider, smallClaudeModel, strongClaudeModel } from "./provider.ts";
 
 type MessagesClient = {
   messages: {
@@ -16,7 +16,6 @@ type MessagesClient = {
   };
 };
 
-const defaultModel = "claude-opus-5-5";
 const maxTokens = 16000;
 const cacheMarker = { type: "ephemeral" } as const;
 const contentByToolCalls = new WeakMap<ToolCall[], Anthropic.ContentBlock[]>();
@@ -156,7 +155,7 @@ function errorEvent(error: unknown): ProviderEvent {
 
 export function claudeApi({
   apiKey,
-  model = defaultModel,
+  model = strongClaudeModel,
   client = new Anthropic({ apiKey }),
 }: {
   apiKey: string;

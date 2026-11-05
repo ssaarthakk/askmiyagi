@@ -92,7 +92,7 @@ export function parseCliArgs(args: string[]) {
     provider,
     recording,
     app: validated.data.app,
-    voice: validated.data.voice ?? "browser",
+    voice: validated.data.voice ?? "kokoro",
     voiceId: validated.data.voiceId ?? defaultVoiceId,
     bruteForceTokens: validated.data.bruteForceTokens,
     contextTokens: validated.data.contextTokens,

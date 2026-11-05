@@ -153,10 +153,10 @@ describe("voice flags", () => {
     Object.entries(process.env).filter(([name]) => name !== "ELEVENLABS_API_KEY"),
   );
 
-  it("serves the browser voice by default", async () => {
+  it("serves the local kokoro voice by default", async () => {
     const childProcess = startCli(sourceCli, ["--no-open", "--port", "0"], root, withoutKey);
     const page = await (await fetch(await waitForLine(childProcess))).text();
-    expect(page).toContain('<meta name="miyagi-voice" content="browser">');
+    expect(page).toContain('<meta name="miyagi-voice" content="kokoro">');
   });
 
   it("serves the project name, encoded so odd folder names are safe in the page", async () => {
@@ -214,9 +214,9 @@ describe("model option", () => {
 });
 
 describe("voice options", () => {
-  it("defaults to the browser voice with a premade ElevenLabs voice id", () => {
+  it("defaults to the local kokoro voice with a premade ElevenLabs voice id", () => {
     const options = parseCliArgs([]);
-    expect(options.voice).toBe("browser");
+    expect(options.voice).toBe("kokoro");
     expect(options.voiceId).toMatch(/^\w{10,}$/);
   });
 
@@ -227,8 +227,8 @@ describe("voice options", () => {
     });
   });
 
-  it("takes the local kokoro voice", () => {
-    expect(parseCliArgs(["--voice", "kokoro"]).voice).toBe("kokoro");
+  it("takes the browser voice", () => {
+    expect(parseCliArgs(["--voice", "browser"]).voice).toBe("browser");
   });
 
   it("hands the chosen voice id and the key to the speech route with the elevenlabs voice", () => {

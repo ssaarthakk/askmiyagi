@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-05
+
 ### Added
 
 - Mock interview: `askmiyagi interview [path|url]`, or the Mock interview button in the conversation panel, runs a spoken mock interview about the repo. Pick Friendly, Realistic or Tough and optionally Voice-only (the code pane is hidden until the end). The strong model plans 6 questions from the repo map, dependencies, git history, error paths and your weak topics; each is anchored to verified code, and each answer gets a probe, a pushback or the next question, with no hints. A session lasts 20 minutes, with a timer. "Why" questions are graded on your reasoning and tradeoffs, not on a guessed reason. Drill questions show a small "what if" change in the diff viewer; it lives in memory only and the repo is never edited. At the end a scorecard grades each question on accuracy, reasoning, depth and clarity (1 to 5), shows its gaps with the code and a model answer, and gives an overall score. Questions with a mean of 2 or below mark their topic weak; teach mode may ask about weak topics again, and the next interview starts with them. Each call is logged as `interview-plan`, `interview-turn` or `interview-grade`.
@@ -71,6 +73,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The default voice is now the local Kokoro voice (`--voice browser` brings back the system voice), and Claude Code now answers with `claude-opus-5-5` unless `--model` says otherwise.
 - A GitHub URL source now keeps its profile, call log and session record in `~/.askmiyagi/<owner>-<repo>/`, so they survive after the temp clone is deleted.
 - Miyagi is now licensed under the GNU Affero General Public License v3.0 (`AGPL-3.0-only`) instead of MIT.
 

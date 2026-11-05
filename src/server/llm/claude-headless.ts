@@ -1,8 +1,8 @@
 import { ClaudeProcessError, runClaude } from "./claude-process.ts";
 import { parseClaudeStream } from "./claude-stream.ts";
-import { type LLMProvider, smallClaudeModel } from "./provider.ts";
+import { type LLMProvider, smallClaudeModel, strongClaudeModel } from "./provider.ts";
 
-export function claudeHeadless(model?: string): LLMProvider {
+export function claudeHeadless(model = strongClaudeModel): LLMProvider {
   return {
     async *ask(request, signal) {
       try {

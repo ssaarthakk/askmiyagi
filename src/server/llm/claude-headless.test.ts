@@ -44,9 +44,9 @@ describe("claudeHeadless", () => {
       expect(await modelArgument({ model: "small" }, "sonnet")).toBe("claude-haiku-5-5");
     });
 
-    it("passes the chosen model for a strong request, and none when none is chosen", async () => {
+    it("passes the chosen model for a strong request, and Opus when none is chosen", async () => {
       expect(await modelArgument({ model: "strong" }, "sonnet")).toBe("sonnet");
-      expect(await modelArgument({ model: "strong" })).toBeUndefined();
+      expect(await modelArgument({ model: "strong" })).toBe("claude-opus-5-5");
     });
   });
 });

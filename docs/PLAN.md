@@ -354,6 +354,35 @@ Moved ahead of Saved tours on 4 November 2026, because interview prep is needed 
 
 **Gate:** `npm run check` and `npm run e2e` pass, with fake-provider tests for generation (the mix per difficulty, dropped anchors and drills), the session rules (the probe limit, the no-hints check, the timebox) and the debrief (scores, weak marking and clearing), a test proving every fixture file's hash is unchanged after a drill, and an e2e test of a whole friendly session with the stub speaker.
 
+## Phase 13.5: OpenAI and OpenAI-compatible models
+
+Miyagi works with OpenAI and with any server that speaks OpenAI's Chat Completions API, hosted (DeepSeek, Kimi, Qwen, OpenRouter, Groq) or local (Ollama, LM Studio, llama.cpp, vLLM). Claude Code headless stays the default. Agent apps without an API (Codex CLI, Cursor, Gemini CLI) are not covered; `CodexHeadless` stays out of scope. See [ADR 0008](adr/0008-openai-compatible-provider.md).
+
+- [ ] **Provider flags.**
+  - `--provider openai` takes `--base-url <url>` (default `https://api.openai.com/v1`) and `--model <name>`. `--model` is required for this provider, because model names differ on every server: without it, Miyagi exits with "--provider openai needs --model <name>".
+  - The base URL must use `https://`, or `http://` only to a loopback host (`localhost`, `127.0.0.1`, `[::1]`), so code never crosses a network unencrypted. It must not contain a user name, a password, a query or a fragment. A trailing `/` is removed.
+  - The key comes from `OPENAI_API_KEY`, whichever server it belongs to (for example a DeepSeek key). It is required unless the base URL is loopback; with a loopback URL and no key, no `Authorization` header is sent.
+  - For this provider only, `--model` also accepts `/` and `:` (OpenRouter's `vendor/model`, Ollama's `model:tag`). The stricter check stays for Claude Code, whose arguments can go through `cmd.exe`.
+  - The same model answers strong and small requests, as with Gemini.
+  - `--base-url` with any other provider is a usage error.
+  - The startup line names the provider, the model and the base URL host. The key is never printed or logged.
+- [ ] **OpenAI-compatible provider.** `openai-api.ts` (`openaiApi({ apiKey, baseUrl, model, fetch })`) plugs into `agentProvider` like the Claude API and Gemini providers. Each agent step is one `POST <base-url>/chat/completions` call with built-in `fetch`, not streamed, and the reply is validated with zod. No SDK.
+  - Messages: the system prompt is a `system` message, and `request.context` comes before the first user message's text. An assistant turn carries its `tool_calls` (`{ id, type: "function", function: { name, arguments } }`, with `arguments` as a JSON string). Each tool output is its own `tool` message with its `tool_call_id`; an error output's text starts with "Error: ".
+  - Tools are sent as `{ type: "function", function: { name, description, parameters } }` from the shared definitions. The final step after a stop sends `tool_choice: "none"`.
+  - Tool-call `arguments` that are not valid JSON go to the tool as the raw string, so the tool's own validation sends a readable error back to the model instead of failing the answer.
+  - `finish_reason` `length` gives the existing cut-off error, and `content_filter` gives "The model declined to answer that."
+  - A reasoning block at the start of the content (`<think>…</think>`, written by some local models) is removed before the text is parsed. A `reasoning_content` field is ignored and never sent back.
+  - No output-token cap is sent, because servers do not accept `max_tokens` and `max_completion_tokens` alike. The agent loop's token budget and 90-second limit still apply; a slow local model that hits the limit gives the usual partial answer.
+  - Usage comes from `usage.prompt_tokens`, `usage.completion_tokens` and, when present, `usage.prompt_tokens_details.cached_tokens`; missing usage counts as 0. `costUsd` is `null`, because prices differ per server, so only the token budget limits an answer.
+  - Errors: 401 and 403 give "The server rejected OPENAI_API_KEY. Check the key and ask again."; 404 gives "Model <name> was not found at <host>."; 429 is a retryable rate-limit error; 5xx is retryable; a refused or failed connection gives "Could not reach <base-url>. Is the server running?" (retryable). No error text contains the key.
+  - The call log records `provider: "openai"` and the model.
+- [ ] **Evals and docs for any provider.**
+  - `npm run eval -- --suite <name> --provider openai --base-url <url> --model <name>` runs a suite against that model, so a model is measured before it is recommended. The eval `--provider` also accepts `claude-api` and `gemini`.
+  - The README gains a "Choosing a model" section: example commands for OpenAI, DeepSeek, OpenRouter and Ollama, the key each needs, and the note that tours need a model with good tool calling (small local models may miss highlights or break the tour format).
+  - `docs/ARCHITECTURE.md` lists the provider under External services and the folder layout.
+
+**Gate:** `npm run check` and `npm run e2e` pass. Tests run against a fake Chat Completions server on `127.0.0.1`: a tour with tool calls, a tools-off call, each finish reason and error status, bad tool arguments, a think block, and no key with a loopback URL. Tests cover the flag and base-URL rules, and prove the key never appears in an error, a log line or the call log. A person runs one tour on OpenAI and one on a local Ollama model, and records the `fixtures` suite scores for both under this phase.
+
 ## Phase 14: Saved tours
 
 - [ ] **Save.** A tour is saved with author, date, intent, level, base commit and a hash per anchored block to `.tutor/tours/<slug>.json`. Text only; audio is made at play time.

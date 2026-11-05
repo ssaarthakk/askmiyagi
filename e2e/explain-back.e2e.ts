@@ -81,6 +81,30 @@ test("the next message is graded as an explain-back instead of asked, and the tu
   expect(questions).toEqual(["How are clips saved?"]);
 });
 
+test("with an explain-back waiting, the answer to the learning path's goal question plans the path instead of being graded", async ({
+  page,
+}) => {
+  const graded = bodiesPostedTo(page, "/api/explain-back");
+  const planned = bodiesPostedTo(page, "/api/path");
+  const items = [{ concept: "Saving", question: "How is a clip saved?", file, done: false }];
+  await page.route("**/api/path", (route) =>
+    route.fulfill({ json: route.request().method() === "POST" ? { items } : null }),
+  );
+  await startTour(page);
+  await finishTourAndWaitForReport(page, ["Save returns the clip.", endQuestion]);
+  await expect(page.getByText(`Explain back: ${concept}`)).toBeVisible();
+  const panel = page.getByRole("complementary", { name: "Conversation panel" });
+
+  await panel.getByRole("button", { name: "Plan a learning path" }).click();
+  await expect(panel.getByText("What do you want to do with this repo?")).toBeVisible();
+  const box = page.getByLabel("Question");
+  await box.fill("Add retries to uploads");
+  await box.press("Enter");
+
+  await expect.poll(() => planned.filter(Boolean)).toEqual([{}]);
+  expect(graded).toEqual([]);
+});
+
 test("the welcome pane offers the due reviews, and Start asks for the explanation", async ({
   page,
 }) => {

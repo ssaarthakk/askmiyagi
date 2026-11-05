@@ -8,6 +8,13 @@ import { grammarsByExtension, hasParser, parseFile } from "./parse-cache.ts";
 import { compact, signatureDefinitions } from "./symbols.ts";
 
 type FileEntry = { path: string; signatures: string[] };
+export type ImportGraph = Map<string, Set<string>>;
+type Repo = {
+  paths: string[];
+  readmePath: string | undefined;
+  sources: Map<string, string>;
+  imports: ImportGraph;
+};
 type Directory = { name: string; directories: Directory[]; files: FileEntry[]; collapsed: boolean };
 
 const packageSchema = z.object({
@@ -88,12 +95,10 @@ export async function resolveRelativeImports(
   return resolvedPaths;
 }
 
-async function importCounts(sources: Map<string, string>, paths: string[]) {
-  const counts = new Map(paths.map((path) => [path, 0]));
-  for (const [from, source] of sources) {
-    for (const path of await resolveRelativeImports(from, source, counts)) {
-      counts.set(path, (counts.get(path) ?? 0) + 1);
-    }
+function importCounts(imports: ImportGraph) {
+  const counts = new Map<string, number>();
+  for (const targets of imports.values()) {
+    for (const path of targets) counts.set(path, (counts.get(path) ?? 0) + 1);
   }
   return counts;
 }
@@ -189,17 +194,37 @@ function render(
   return sections.join("\n");
 }
 
-export async function buildRepoMap(root: string, tokenBudget = 5000): Promise<string> {
+function needsSource(path: string, readmePath: string | undefined) {
+  return hasParser(path) || path === "package.json" || path === readmePath;
+}
+
+export async function readRepo(root: string): Promise<Repo> {
   const paths = await listVisibleFiles(root);
-  const sources = new Map<string, string>();
-  const entries: FileEntry[] = [];
   const readmePath = paths.find((path) => /^readme(?:\.md|\.markdown|\.txt)?$/i.test(path));
+  const sources = new Map<string, string>();
   for (const path of paths) {
-    const needsSource = hasParser(path) || path === "package.json" || path === readmePath;
-    const file = needsSource ? await readRedactedFile(root, path) : null;
-    if (file && !file.ok) continue;
-    if (file) sources.set(path, file.value.source);
-    entries.push({ path, signatures: file ? await signaturesFor(path, file.value.source) : [] });
+    if (!needsSource(path, readmePath)) continue;
+    const file = await readRedactedFile(root, path);
+    if (file.ok) sources.set(path, file.value.source);
+  }
+  const visible = new Set(paths);
+  const imports: ImportGraph = new Map();
+  for (const [path, source] of sources) {
+    if (hasParser(path)) imports.set(path, await resolveRelativeImports(path, source, visible));
+  }
+  return { paths, readmePath, sources, imports };
+}
+
+export async function renderRepoMap(repo: Repo, tokenBudget = 5000): Promise<string> {
+  const { paths, readmePath, sources } = repo;
+  const entries: FileEntry[] = [];
+  for (const path of paths) {
+    const source = sources.get(path);
+    if (needsSource(path, readmePath) && source === undefined) continue;
+    entries.push({
+      path,
+      signatures: source === undefined ? [] : await signaturesFor(path, source),
+    });
   }
 
   const packageSource = sources.get("package.json");
@@ -216,7 +241,7 @@ export async function buildRepoMap(root: string, tokenBudget = 5000): Promise<st
     )
     .find(Boolean);
   const configs = paths.filter((path) => isConfigFile(path.split("/").at(-1) ?? ""));
-  const counts = await importCounts(sources, paths);
+  const counts = importCounts(repo.imports);
   const tree = createTree(entries);
   const characterBudget = tokenBudget * 4;
   let excess = render(tree, packageInfo, readme, configs).length - characterBudget;
@@ -240,4 +265,8 @@ export async function buildRepoMap(root: string, tokenBudget = 5000): Promise<st
   const redacted = redact(output);
   if (redacted.length <= characterBudget) return redacted;
   return `${redacted.slice(0, characterBudget - 1).trimEnd()}…`;
+}
+
+export async function buildRepoMap(root: string, tokenBudget = 5000): Promise<string> {
+  return renderRepoMap(await readRepo(root), tokenBudget);
 }

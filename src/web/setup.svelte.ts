@@ -99,6 +99,11 @@ export function createSetup(options: {
     }
   }
 
+  async function saveGoal(goal: string) {
+    if (!profile) throw new Error("Your profile has not loaded yet");
+    profile = await saveProfile({ ...profile, goal }, options.token);
+  }
+
   fetchProfile(options.token)
     .then((saved) => {
       profile = saved ?? undefined;
@@ -127,11 +132,15 @@ export function createSetup(options: {
     get teaching() {
       return profile && !(started && !done) ? profile.mode === "teach" : undefined;
     },
+    get goal() {
+      return profile?.goal;
+    },
     get askingGoal() {
       return started && !done && profileQuestions[index]?.key === "goal";
     },
     start,
     setMode,
+    saveGoal,
     answer,
     skip: () => answer(null, "Skipped"),
   };

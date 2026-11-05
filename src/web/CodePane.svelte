@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import type { Selection } from "../shared/anchor.ts";
+import type { PathItem, PathReplyItems } from "../shared/path.ts";
 import DiffViewer from "./DiffViewer.svelte";
 import type { Highlight } from "./highlight.ts";
 import Viewer from "./Viewer.svelte";
@@ -18,6 +19,8 @@ let {
   onsuggest,
   reviewsDue,
   onreview,
+  pathItems,
+  onpathask,
   children,
 }: {
   highlight: Highlight | undefined;
@@ -31,6 +34,8 @@ let {
   onsuggest: (text: string) => void;
   reviewsDue: number;
   onreview: () => void;
+  pathItems: PathReplyItems | undefined;
+  onpathask: (item: PathItem) => void;
   children: Snippet;
 } = $props();
 </script>
@@ -62,7 +67,7 @@ let {
       {/if}
     {/key}
   {:else if welcome}
-    <Welcome {projectName} {onsuggest} {reviewsDue} {onreview} />
+    <Welcome {projectName} {onsuggest} {reviewsDue} {onreview} {pathItems} {onpathask} />
   {/if}
   {@render children()}
 </div>

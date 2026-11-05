@@ -5,6 +5,7 @@ import { type createAskHandler, sendError } from "./ask-route.ts";
 import type { createEventsHandler } from "./events-route.ts";
 import type { createFileHandler } from "./file-route.ts";
 import type { createFirstSoundHandler } from "./first-sound-route.ts";
+import type { createPathHandler } from "./path-route.ts";
 import type { createProfileHandler } from "./profile-route.ts";
 import type { createSpeechHandler } from "./speech-route.ts";
 import type { createSymbolsHandler } from "./symbols-route.ts";
@@ -41,6 +42,7 @@ export async function serveRequest(
   handleSymbols: ReturnType<typeof createSymbolsHandler>,
   handleFirstSound: ReturnType<typeof createFirstSoundHandler>,
   handleProfile: ReturnType<typeof createProfileHandler>,
+  handlePath: ReturnType<typeof createPathHandler>,
 ) {
   const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`];
   if (!allowedHosts.includes(request.headers.host?.toLowerCase() ?? "")) {
@@ -115,6 +117,10 @@ export async function serveRequest(
   }
   if (pathname === "/api/profile" && (request.method === "GET" || request.method === "PUT")) {
     await handleProfile(request, response);
+    return;
+  }
+  if (pathname === "/api/path" && (request.method === "GET" || request.method === "POST")) {
+    await handlePath(request, response);
     return;
   }
   if (pathname === "/api/events" && request.method === "GET") {

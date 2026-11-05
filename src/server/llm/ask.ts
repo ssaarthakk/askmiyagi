@@ -4,7 +4,7 @@ import type { CallRecord } from "../../shared/call-log.ts";
 import type { DiffBase, DiffRequest } from "../../shared/diff-base.ts";
 import type { AskEvent } from "../../shared/events.ts";
 import type { Intent } from "../../shared/intent.ts";
-import { explainBackPrompt, type TourConcept } from "../../shared/learner.ts";
+import { explainBackPrompt, sameConcept, type TourConcept } from "../../shared/learner.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
 import { defaultProfile, type Profile } from "../../shared/profile.ts";
 import type { SessionRecord } from "../../shared/session.ts";
@@ -15,8 +15,10 @@ import {
   stepAnchors,
   type Tour,
 } from "../../shared/tour.ts";
+import { wrapUntrusted } from "../../shared/untrusted.ts";
 import { addUsage, noUsage, type Usage } from "../../shared/usage.ts";
 import { resolveAnchor } from "../code/anchor-resolver.ts";
+import { redact } from "../files/redact.ts";
 import { logError } from "../log.ts";
 import { profileContext } from "../teach/profile.ts";
 import { type QuestionPolicy, vetQuestion } from "../teach/question-policy.ts";
@@ -49,6 +51,7 @@ type AskOptions = {
   loadProfile?: (() => Promise<Profile | null>) | undefined;
   mode?: Profile["mode"] | undefined;
   intent?: Intent | undefined;
+  pathConcept?: string | undefined;
   markSeen?: ((concepts: TourConcept[]) => Promise<void>) | undefined;
   questionPolicy?: QuestionPolicy | undefined;
   checkedConcepts?: (() => Promise<string[]>) | undefined;
@@ -185,6 +188,7 @@ async function* answer(
         profile && profileContext(profile),
         options.questionPolicy && !answerMode && questionRules(questionAllowed, checked),
         options.intent && `The learner chose the intent "${options.intent}" for this question.`,
+        options.pathConcept && pathConceptRules(options.pathConcept),
         diffContext?.value,
         position,
       ]
@@ -292,6 +296,9 @@ async function* answer(
     yield { type: "error", message: lostThread };
     return;
   }
+  if (options.pathConcept && steps.length > 0) {
+    concepts = withConcept(concepts, options.pathConcept);
+  }
   const side = scope === "side";
   const eligible = !answerMode && steps.length > 0 && !side;
   const question =
@@ -334,6 +341,17 @@ async function* answer(
   const ranges = side ? anchorRanges(steps, allRanges) : allRanges;
   yield { type: "tour", tour, ranges };
   yield { type: "done" };
+}
+
+function pathConceptRules(name: string) {
+  const concept = wrapUntrusted("path_concept", redact(name));
+  return `The learner is following a learning path, and this question teaches the concept below. List it in "concepts" on your final line, named exactly like this:
+${concept}`;
+}
+
+function withConcept(concepts: TourConcept[] | undefined, name: string) {
+  if (concepts?.some((known) => sameConcept(known.name, name))) return concepts;
+  return [...(concepts ?? []), { name, important: true, kind: "repo" as const }];
 }
 
 function withoutPrimm({ primm, ...plain }: Step): Step {

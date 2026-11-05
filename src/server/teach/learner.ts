@@ -110,6 +110,13 @@ export function createLearnerRecord(root: string) {
     });
   }
 
+  async function conceptNames(keep: (state: ConceptState) => boolean) {
+    const names = await change((learner) => ({
+      result: learner.concepts.filter(({ state }) => keep(state)).map(({ name }) => name),
+    }));
+    return names ?? [];
+  }
+
   function reach(concepts: TourConcept[], state: ConceptState) {
     return change((learner) => ({ learner: reached(learner, concepts, state), result: undefined }));
   }
@@ -117,14 +124,8 @@ export function createLearnerRecord(root: string) {
   return {
     markSeen: (concepts: TourConcept[]) => reach(concepts, "seen"),
     markExplained: (concepts: TourConcept[]) => reach(concepts, "explained"),
-    async checkedConcepts() {
-      const names = await change((learner) => ({
-        result: learner.concepts
-          .filter(({ state }) => state === "checked" || state === "reviewed")
-          .map(({ name }) => name),
-      }));
-      return names ?? [];
-    },
+    checkedConcepts: () => conceptNames((state) => state === "checked" || state === "reviewed"),
+    explainedConcepts: () => conceptNames((state) => state !== "seen"),
     concept: (name: string) =>
       change((learner) => ({
         result: learner.concepts.find((known) => sameConcept(known.name, name)),

@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Learning path: "Plan a learning path" in the conversation panel plans 5 to 10 concepts for your goal (asking for the goal first if you haven't set one), ordered so files that others import come first. It shows as a checklist card in the panel and on the welcome pane. Next asks the next unticked item, clicking any item asks its question, and an item is ticked once its tour has been played. Planning again replaces the path, which is saved in `.tutor/private/path.json`.
 - Model routing: rubrics, prediction checks and summaries run on `claude-haiku-5-5` on the Claude API and Claude Code, and each of them is logged in the call log with its own call type (`summary`, `rubric`, `prediction`, `grade`).
 - Explain-back: the end question of a teach-mode tour without PRIMM is always "Explain <concept> back to me in your own words.". Once it has been reached, an "Explain back" chip shows, and the next message is graded by the strong model against a rubric written in the background, names one or two gaps with the code highlighted, passes at 4 of 5, and after 3 failed attempts gives a model answer. Passed concepts are reviewed after 1, 3 and 7 days (`GET /api/reviews`, a count on the welcome pane and an offer after a finished tour, never while one plays).
 - A local `askmiyagi` command that serves the browser app on loopback with host, origin, and session token checks.

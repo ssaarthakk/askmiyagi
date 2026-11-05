@@ -1,22 +1,11 @@
-import { z } from "zod";
 import { type Grade, gradeSchema } from "../../shared/learner.ts";
 import type { Result } from "../../shared/result.ts";
 import { wrapUntrusted } from "../../shared/untrusted.ts";
 import type { LLMProvider } from "./provider.ts";
-import { askToolsOff, type CallLog } from "./tools-off-call.ts";
+import { askToolsOff, type CallLog, jsonFromText } from "./tools-off-call.ts";
 
 const gradeTimeoutMs = 60_000;
-const gradeFromText = z
-  .string()
-  .transform((text, context) => {
-    try {
-      return JSON.parse(text) as unknown;
-    } catch {
-      context.addIssue({ code: "custom", message: "the grade was not JSON" });
-      return z.NEVER;
-    }
-  })
-  .pipe(gradeSchema);
+const gradeFromText = jsonFromText(gradeSchema, "the grade");
 
 const systemPrompt = `You are Miyagi, a voice tutor. You grade a learner's answer about one concept in their own words. The answer explains the concept, or answers the question the learner was asked.
 

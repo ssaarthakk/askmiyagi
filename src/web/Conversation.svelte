@@ -13,9 +13,11 @@ export type Turn = {
 import type { Snippet } from "svelte";
 import type { DiffRequest } from "../shared/diff-base.ts";
 import type { Intent } from "../shared/intent.ts";
+import type { PathItem, PathReplyItems } from "../shared/path.ts";
 import type { Profile } from "../shared/profile.ts";
 import DiffForm from "./DiffForm.svelte";
 import IntentTag from "./IntentTag.svelte";
+import PathCard from "./PathCard.svelte";
 import type { PrimmView } from "./primm.svelte.ts";
 import SetupItems from "./SetupItems.svelte";
 import type { SetupView } from "./setup.svelte.ts";
@@ -55,6 +57,10 @@ let {
   reviewOffer,
   onreviewstart,
   onreviewskip,
+  pathItems,
+  planning,
+  onplan,
+  onpathask,
 }: {
   turns: Turn[];
   tourVisible: boolean;
@@ -90,6 +96,10 @@ let {
   reviewOffer: string | undefined;
   onreviewstart: () => void;
   onreviewskip: () => void;
+  pathItems: PathReplyItems | undefined;
+  planning: boolean;
+  onplan: () => void;
+  onpathask: (item: PathItem) => void;
 } = $props();
 
 const predicting = $derived(primm?.phase === "predict");
@@ -141,10 +151,16 @@ function keydown(event: KeyboardEvent) {
         Teach mode
       </button>
       <button type="button" onclick={onprofile}>Profile</button>
+      <button type="button" disabled={teaching === undefined || planning || asking} onclick={onplan}>
+        {planning ? "Planning…" : "Plan a learning path"}
+      </button>
     </div>
   </header>
   <p role="status" class="muted notice">{voiceNotice}</p>
   <p role="status" class="muted notice">{profileNotice}</p>
+  {#if pathItems}
+    <div class="path-card"><PathCard items={pathItems} onask={onpathask} /></div>
+  {/if}
   <ul class="conversation" bind:this={list} aria-label="Conversation" aria-live="polite">
     {#if setup && setup.after === 0}
       <SetupItems {setup} {onanswer} {onskip} />
@@ -263,6 +279,12 @@ function keydown(event: KeyboardEvent) {
 
   [role="status"]:empty {
     display: none;
+  }
+
+  .path-card {
+    padding: var(--space) calc(var(--space) * 2) 0;
+    max-height: 40%;
+    overflow-y: auto;
   }
 
   .notice {

@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { z } from "zod";
 import type { CallRecord } from "../../shared/call-log.ts";
 import type { LLMRequest } from "../../shared/llm-request.ts";
 import { parseContract } from "../../shared/parse.ts";
@@ -8,6 +8,20 @@ import { redact } from "../files/redact.ts";
 import type { LLMProvider } from "./provider.ts";
 
 export type CallLog = { provider: string; write(record: CallRecord): Promise<void> };
+
+export function jsonFromText<T>(schema: z.ZodType<T>, what: string) {
+  return z
+    .string()
+    .transform((text, context) => {
+      try {
+        return JSON.parse(text) as unknown;
+      } catch {
+        context.addIssue({ code: "custom", message: `${what} was not JSON` });
+        return z.NEVER;
+      }
+    })
+    .pipe(schema);
+}
 
 type ToolsOffCall<T> = {
   callType: Exclude<CallRecord["callType"], "ask">;

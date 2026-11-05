@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildRepoMap } from "./repo-map.ts";
+import { buildRepoMap, readRepo } from "./repo-map.ts";
 
 const fixtureRoot = fileURLToPath(new URL("../../../test/fixtures/basic/", import.meta.url));
 const roots: string[] = [];
@@ -217,5 +217,26 @@ describe("repo map", () => {
         "## Config files",
       ].join("\n"),
     );
+  });
+});
+
+describe("readRepo", () => {
+  it("maps each source file to the visible files it imports with relative paths", async () => {
+    const root = await createRepo({
+      "src/app.ts": 'import { run } from "./service.ts";\nimport "zod";\nrun();',
+      "src/service.ts": 'import { clip } from "./lib/clip";\nexport const run = clip;',
+      "src/lib/clip.ts": "export const clip = 1;",
+      "src/other.ts":
+        'import { run } from "./service.ts";\nexport { missing } from "./missing.ts";',
+      "README.md": "# Readme",
+    });
+
+    const { imports } = await readRepo(root);
+
+    expect(imports.get("src/app.ts")).toEqual(new Set(["src/service.ts"]));
+    expect(imports.get("src/service.ts")).toEqual(new Set(["src/lib/clip.ts"]));
+    expect(imports.get("src/lib/clip.ts")).toEqual(new Set());
+    expect(imports.get("src/other.ts")).toEqual(new Set(["src/service.ts"]));
+    expect(imports.has("README.md")).toBe(false);
   });
 });

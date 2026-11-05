@@ -1,14 +1,21 @@
 <script lang="ts">
+import type { PathItem, PathReplyItems } from "../shared/path.ts";
+import PathCard from "./PathCard.svelte";
+
 let {
   projectName,
   onsuggest,
   reviewsDue,
   onreview,
+  pathItems,
+  onpathask,
 }: {
   projectName: string;
   onsuggest: (text: string) => void;
   reviewsDue: number;
   onreview: () => void;
+  pathItems: PathReplyItems | undefined;
+  onpathask: (item: PathItem) => void;
 } = $props();
 
 const suggestions = [
@@ -26,6 +33,9 @@ const suggestions = [
       {reviewsDue} {reviewsDue === 1 ? "review" : "reviews"} due
       <button type="button" onclick={onreview}>Start review</button>
     </p>
+  {/if}
+  {#if pathItems}
+    <PathCard items={pathItems} onask={onpathask} />
   {/if}
   <div class="suggestions">
     {#each suggestions as suggestion}

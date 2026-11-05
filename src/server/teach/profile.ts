@@ -1,9 +1,7 @@
-import { writeFile } from "node:fs/promises";
 import { type Profile, profileSchema } from "../../shared/profile.ts";
-import type { Result } from "../../shared/result.ts";
 import { wrapUntrusted } from "../../shared/untrusted.ts";
 import { redact } from "../files/redact.ts";
-import { privateFileOrProblem, readPrivateJson } from "../tutor-folder.ts";
+import { readPrivateJson, writePrivateJson } from "../tutor-folder.ts";
 
 const profileFile = "profile.json";
 
@@ -12,15 +10,8 @@ export async function readProfile(root: string) {
   return read.ok ? read.value : null;
 }
 
-export async function writeProfile(root: string, profile: Profile): Promise<Result<Profile>> {
-  try {
-    const file = await privateFileOrProblem(root, profileFile);
-    if (!file.ok) return file;
-    await writeFile(file.value, JSON.stringify(profile, null, 2));
-    return { ok: true, value: profile };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
-  }
+export function writeProfile(root: string, profile: Profile) {
+  return writePrivateJson(root, profileFile, profile);
 }
 
 export function profileContext(profile: Profile) {

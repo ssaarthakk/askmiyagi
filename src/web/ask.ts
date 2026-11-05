@@ -13,13 +13,14 @@ export async function ask(
   current: Current | undefined,
   diff: DiffRequest | undefined,
   intent: Intent | undefined,
+  pathConcept: string | undefined,
   onEvent: (event: AskEvent) => void,
   signal: AbortSignal,
 ) {
   const response = await fetch("/api/ask", {
     method: "POST",
     headers: { "content-type": "application/json", "x-miyagi-token": token },
-    body: JSON.stringify({ question, selection, current, diff, intent }),
+    body: JSON.stringify({ question, selection, current, diff, intent, pathConcept }),
     signal,
   });
   if (!response.ok || !response.body) throw await responseError(response, "Ask");

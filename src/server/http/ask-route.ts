@@ -29,6 +29,7 @@ const askBodySchema = z.object({
   current: currentSchema.optional(),
   diff: diffRequestSchema.optional(),
   intent: intentSchema.optional(),
+  pathConcept: conceptNameSchema.shape.concept.optional(),
 });
 
 const predictBodySchema = z.object({
@@ -137,6 +138,7 @@ export function createAskHandler(options: {
         current: body.current,
         diff: body.diff,
         intent: body.intent,
+        pathConcept: body.pathConcept,
         markSeen: learner.markSeen,
         questionPolicy,
         checkedConcepts: learner.checkedConcepts,
@@ -234,6 +236,7 @@ export function createAskHandler(options: {
 
   return {
     handle,
+    learner,
     played,
     skipped,
     predict,

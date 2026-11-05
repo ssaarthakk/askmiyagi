@@ -14,6 +14,7 @@ import { createAskHandler } from "./http/ask-route.ts";
 import { createEventsHandler } from "./http/events-route.ts";
 import { createFileHandler } from "./http/file-route.ts";
 import { createFirstSoundHandler } from "./http/first-sound-route.ts";
+import { createPathHandler } from "./http/path-route.ts";
 import { createProfileHandler } from "./http/profile-route.ts";
 import { serveRequest } from "./http/serve.ts";
 import { createSpeechHandler } from "./http/speech-route.ts";
@@ -153,6 +154,13 @@ async function runCli() {
   const handleSymbols = createSymbolsHandler(source.value.root);
   const handleFirstSound = createFirstSoundHandler(tutorRoot);
   const handleProfile = createProfileHandler(tutorRoot);
+  const handlePath = createPathHandler({
+    root: source.value.root,
+    tutorRoot,
+    provider: provider.value,
+    providerName: options.provider,
+    learner: ask.learner,
+  });
   const speech = speechOptions(options, process.env);
   const handleSpeech = createSpeechHandler(speech);
   const handleTranscribe = createTranscribeHandler({ apiKey: speech.apiKey });
@@ -201,6 +209,7 @@ async function runCli() {
       handleSymbols,
       handleFirstSound,
       handleProfile,
+      handlePath,
     ).catch((error: unknown) => {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
       if (!response.headersSent) response.writeHead(500);

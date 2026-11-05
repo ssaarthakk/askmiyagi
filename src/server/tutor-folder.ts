@@ -65,6 +65,21 @@ export async function writePrivateFile(
   }
 }
 
+export async function writePrivateJson<T>(
+  root: string,
+  name: string,
+  value: T,
+): Promise<Result<T>> {
+  try {
+    const file = await privateFileOrProblem(root, name);
+    if (!file.ok) return file;
+    await writeFile(file.value, JSON.stringify(value, null, 2));
+    return { ok: true, value };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export async function readPrivateJson<T>(
   root: string,
   name: string,

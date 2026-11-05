@@ -304,11 +304,11 @@ Recording the demo needs a person.
 - store tests for a corrupt file and for a GitClone source's store;
 - e2e tests for the first-launch questions and for PRIMM predict and investigate with the stub speaker.
 
-## Phase 12.5: Learning path
+## Phase 12.5: Learning path (shipped)
 
 Moved out of Phase 12 on 4 November 2026, because it needs the learner record and nothing else in Phase 12 needs it.
 
-- [ ] **Learning path.** A big goal produces an ordered path of concepts and tours over the repo.
+- [x] **Learning path.** A big goal produces an ordered path of concepts and tours over the repo.
   - It starts only when the learner asks: a "Plan a learning path" button in the conversation panel. The button uses the profile's goal, and asks for a goal first when there is none.
   - The strong model returns 5–10 items `{ concept, question, file }`. Code orders them by the relative-import dependency of their files: leaf modules first, files nobody imports last, and import cycles broken by path order. Each tour then builds on the ones before it.
   - The path is saved in `.tutor/private/path.json` (zod, using the same guarded write).

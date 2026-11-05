@@ -2,6 +2,7 @@
 import type { ResolvedAnchor, Selection } from "../shared/anchor.ts";
 import type { DiffRequest } from "../shared/diff-base.ts";
 import type { Intent } from "../shared/intent.ts";
+import type { PathItem } from "../shared/path.ts";
 import { spokenProgress } from "./announcer.ts";
 import { ask, interruptAsk } from "./ask.ts";
 import CodePane from "./CodePane.svelte";
@@ -11,6 +12,7 @@ import { createExplainBack } from "./explain-back.svelte.ts";
 import { chooseDetector } from "./hands-free.ts";
 import { type Highlight, moveHighlight } from "./highlight.ts";
 import Player from "./Player.svelte";
+import { createPath } from "./path.svelte.ts";
 import { postPlayed } from "./played.ts";
 import { anchorTarget, firstPosition, neighbour, type PlayerStep, type Position } from "./player.ts";
 import { createPrimm } from "./primm.svelte.ts";
@@ -99,13 +101,15 @@ const primm = createPrimm({
   tell: (text) => note("tutor", text),
 });
 
+function tutorSays(text: string) {
+  note("tutor", text);
+  if (voice.on) voice.announcer?.say(text);
+}
+
 const explainBack = createExplainBack({
   token,
   tour: () => tourQuestion,
-  tutorSays: (text) => {
-    note("tutor", text);
-    if (voice.on) voice.announcer?.say(text);
-  },
+  tutorSays,
   learnerSays: (text) => note("learner", text),
   problem: (text) => note("error", text),
   openTurn: () => startTurn("", []),
@@ -133,7 +137,9 @@ const voice = createVoice({
 });
 
 function markPlayed() {
-  postPlayed(tourQuestion, token).catch((error: unknown) =>
+  postPlayed(tourQuestion, token)
+    .then(path.refresh)
+    .catch((error: unknown) =>
     console.warn("Could not report the played tour", error),
   );
   if (pendingCheck) explainBack.expect(pendingCheck);
@@ -215,6 +221,11 @@ function askText(text: string) {
   return sendQuestion();
 }
 
+function askPathItem(item: PathItem) {
+  question = item.question;
+  return sendQuestion(undefined, item.concept);
+}
+
 function explainDiff(text: string, diff: DiffRequest) {
   question = text;
   return sendQuestion(diff);
@@ -246,6 +257,11 @@ async function gradeAnswer(text: string) {
 
 async function sendTyped() {
   const text = question.trim();
+  if (text && path.askingGoal) {
+    question = "";
+    await path.answerGoal(text);
+    return;
+  }
   if (text && primm.predicting) {
     question = "";
     primm.predict(text);
@@ -271,9 +287,10 @@ function pauseForTalk() {
   voice.pause();
 }
 
-async function sendQuestion(diff?: DiffRequest) {
+async function sendQuestion(diff?: DiffRequest, pathConcept?: string) {
   const text = question.trim();
   if (!text) return;
+  path.cancelGoal();
   const streaming = running !== undefined;
   if (running) {
     running.abort();
@@ -314,7 +331,7 @@ async function sendQuestion(diff?: DiffRequest) {
   let progressSpoken = 0;
   let toured = false;
   try {
-    await ask(text, token, attached, onScreen, diff, intentChoice, (askEvent) => {
+    await ask(text, token, attached, onScreen, diff, intentChoice, pathConcept, (askEvent) => {
       if (controller.signal.aborted) return;
       if (askEvent.type === "ack") {
         note("ack", askEvent.text);
@@ -382,6 +399,15 @@ const setup = createSetup({
   turnCount: () => turns.length,
 });
 
+const path = createPath({
+  token,
+  goal: () => setup.goal,
+  saveGoal: setup.saveGoal,
+  tutorSays,
+  problem: (text) => note("error", text),
+  openTurn: () => startTurn("", []),
+});
+
 let microphoneButton = $state<HTMLButtonElement>();
 
 const talk = createTalk({
@@ -418,6 +444,8 @@ const micNotice = $derived(
     onsuggest={askText}
     reviewsDue={setup.teaching === true ? explainBack.due.length : 0}
     onreview={() => explainBack.startReview(explainBack.due[0] ?? "")}
+    pathItems={path.items}
+    onpathask={askPathItem}
   >
     {#if voice.on && steps.length > 0}
       <VoicePill
@@ -467,6 +495,10 @@ const micNotice = $derived(
     reviewOffer={explainBack.offer}
     onreviewstart={explainBack.startOffer}
     onreviewskip={explainBack.skipOffer}
+    pathItems={path.items}
+    planning={path.planning}
+    onplan={path.plan}
+    onpathask={askPathItem}
   />
 </main>
 

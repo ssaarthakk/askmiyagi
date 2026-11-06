@@ -29,7 +29,7 @@ let {
   question = $bindable(),
   microphoneButton = $bindable(),
   selectionLabel,
-  elevenLabs,
+  voiceLabel,
   voiceNotice,
   profileNotice,
   setup,
@@ -71,7 +71,7 @@ let {
   question: string;
   microphoneButton: HTMLButtonElement | undefined;
   selectionLabel: string | undefined;
-  elevenLabs: boolean;
+  voiceLabel: string;
   voiceNotice: string;
   profileNotice: string;
   setup: SetupView | undefined;
@@ -143,8 +143,8 @@ function keydown(event: KeyboardEvent) {
 <aside aria-label="Conversation panel">
   <header>
     <h2>Miyagi</h2>
-    {#if elevenLabs}
-      <p class="muted">Voice by ElevenLabs</p>
+    {#if voiceLabel}
+      <p class="muted">{voiceLabel}</p>
     {/if}
     <div class="actions">
       <button
@@ -268,14 +268,17 @@ function keydown(event: KeyboardEvent) {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    min-width: 0;
     background: var(--panel);
     border-left: 1px solid var(--border);
   }
 
   header {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
+    gap: var(--space);
     padding: calc(var(--space) * 2);
     border-bottom: 1px solid var(--border);
   }
@@ -352,8 +355,13 @@ function keydown(event: KeyboardEvent) {
 
   .actions {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: var(--space);
+  }
+
+  .actions button {
+    white-space: nowrap;
   }
 
   @media (max-width: 899px) {

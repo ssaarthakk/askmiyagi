@@ -487,7 +487,7 @@ const micNotice = $derived(
     bind:question
     bind:microphoneButton
     {selectionLabel}
-    {elevenLabs}
+    voiceLabel={voice.label}
     voiceNotice={voice.notice}
     profileNotice={setup.notice}
     setup={setup.view}

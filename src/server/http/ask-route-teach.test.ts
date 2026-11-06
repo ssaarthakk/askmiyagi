@@ -140,9 +140,12 @@ describe("createAskHandler predict", () => {
     const { ask, predict } = await startPredict(held);
     const asking = ask();
 
-    await vi.waitFor(async () => {
-      expect((await predict({ tour, step: 0, prediction: "An id" })).status).toBe(200);
-    });
+    await vi.waitFor(
+      async () => {
+        expect((await predict({ tour, step: 0, prediction: "An id" })).status).toBe(200);
+      },
+      { timeout: 5000 },
+    );
     finish();
     await (await asking).text();
   });

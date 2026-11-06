@@ -133,6 +133,16 @@ describe("chooseApp", () => {
     }
   });
 
+  it("opens the whole repo for --app ., with or without workspaces", async () => {
+    for (const requested of [".", "./", ".\\"]) {
+      await expect(chooseApp({ apps, requested })).resolves.toEqual({ ok: true, value: undefined });
+      await expect(chooseApp({ apps: [], requested })).resolves.toEqual({
+        ok: true,
+        value: undefined,
+      });
+    }
+  });
+
   it("rejects an unknown app and lists the apps", async () => {
     const result = await chooseApp({ apps, requested: "apps/mobile" });
     expect(result).toMatchObject({ ok: false });
@@ -147,6 +157,7 @@ describe("chooseApp", () => {
     expect(result).toMatchObject({ ok: false });
     if (result.ok) return;
     expect(result.error).toContain("--app");
+    expect(result.error).toContain("--app . for the whole repo");
     expect(result.error).toContain("apps/api");
     expect(result.error).toContain("apps/web");
   });
@@ -162,14 +173,22 @@ describe("chooseApp", () => {
     });
 
     expect(result).toEqual({ ok: true, value: "apps/web" });
+    expect(questions[0]).toContain("0) The whole repo");
     expect(questions[0]).toContain("1) apps/api");
     expect(questions[0]).toContain("2) apps/web");
   });
 
+  it("opens the whole repo when the answer is 0", async () => {
+    await expect(chooseApp({ apps, ask: () => Promise.resolve("0") })).resolves.toEqual({
+      ok: true,
+      value: undefined,
+    });
+  });
+
   it("rejects an answer that is not on the list", async () => {
-    for (const answer of ["", "0", "3", "web", "1.5"]) {
+    for (const answer of ["", "3", "web", "1.5", "-1"]) {
       const result = await chooseApp({ apps, ask: () => Promise.resolve(answer) });
-      expect(result).toMatchObject({ ok: false, error: expect.stringContaining("1 to 2") });
+      expect(result).toMatchObject({ ok: false, error: expect.stringContaining("0 to 2") });
     }
   });
 });

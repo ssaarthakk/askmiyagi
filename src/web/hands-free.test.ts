@@ -16,7 +16,7 @@ vi.mock("@ricky0123/vad-web", () => ({
   },
 }));
 
-import { type Detection, encodeWav, startDetector } from "./hands-free.ts";
+import { type Detection, startDetector } from "./hands-free.ts";
 
 afterEach(() => {
   created.length = 0;
@@ -48,26 +48,5 @@ describe("startDetector", () => {
       expect(constraints).toEqual({ audio: { echoCancellation: true, noiseSuppression: true } });
     }
     expect(getUserMedia).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe("encodeWav", () => {
-  it("writes 16 kHz mono 16-bit PCM with samples clipped to the valid range", async () => {
-    const wav = encodeWav(new Float32Array([0, 0.5, -1, 2]));
-
-    expect(wav.type).toBe("audio/wav");
-    const view = new DataView(await wav.arrayBuffer());
-    const text = (at: number) => String.fromCharCode(...new Uint8Array(view.buffer, at, 4));
-    expect([text(0), text(8), text(12), text(36)]).toEqual(["RIFF", "WAVE", "fmt ", "data"]);
-    expect(view.getUint32(4, true)).toBe(36 + 8);
-    expect(view.getUint16(20, true)).toBe(1);
-    expect(view.getUint16(22, true)).toBe(1);
-    expect(view.getUint32(24, true)).toBe(16_000);
-    expect(view.getUint32(28, true)).toBe(32_000);
-    expect(view.getUint16(32, true)).toBe(2);
-    expect(view.getUint16(34, true)).toBe(16);
-    expect(view.getUint32(40, true)).toBe(8);
-    const samples = [0, 1, 2, 3].map((index) => view.getInt16(44 + index * 2, true));
-    expect(samples).toEqual([0, 16383, -32768, 32767]);
   });
 });

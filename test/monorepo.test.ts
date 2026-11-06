@@ -20,6 +20,14 @@ describe("monorepo CLI", () => {
     expect((await getFile(url, token, "README.md")).status).toBe(400);
   });
 
+  it("serves every app and the root files with --app .", async () => {
+    const { url, token } = await startServer(fixture, ["--app", "."]);
+
+    expect((await getFile(url, token, "apps/web/src/page.ts")).status).toBe(200);
+    expect((await getFile(url, token, "apps/api/src/server.ts")).status).toBe(200);
+    expect((await getFile(url, token, "README.md")).status).toBe(200);
+  });
+
   it("exits 1 with the list of apps when no app is chosen and stdin is not a terminal", async () => {
     const childProcess = startCli(sourceCli, ["--no-open", "--port", "0", fixture]);
 

@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-06
+
+### Added
+
+- A monorepo can be opened as a whole: `--app .`, or `0) The whole repo` in the app prompt, for questions that cross apps. Picking one app is still the sharper choice for questions about that app.
+- The panel header names the voice that is speaking: the system voice while Kokoro downloads (with its progress), then "Voice: Kokoro (local)", or that Kokoro failed.
+
+### Fixed
+
+- The Kokoro voice played static in Firefox. It now makes 16-bit WAV, which every browser decodes, at half the size.
+- The panel header buttons ran off the right edge and the page scrolled sideways; they now wrap inside the panel at every screen size.
+
+
 ## [0.2.0] - 2026-11-05
 
 ### Added

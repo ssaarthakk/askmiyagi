@@ -1,5 +1,5 @@
-import { RawAudio } from "@huggingface/transformers";
 import { TextSplitterStream } from "kokoro-js";
+import { encodeWav } from "./wav.ts";
 
 const voice = "af_heart";
 const kokoroSampleRate = 24000;
@@ -21,7 +21,7 @@ function join(clips: Clip[]) {
     audio.set(clip.audio, offset);
     offset += clip.audio.length;
   }
-  return new RawAudio(audio, clips[0]?.sampling_rate ?? kokoroSampleRate);
+  return encodeWav(audio, clips[0]?.sampling_rate ?? kokoroSampleRate);
 }
 
 export async function speakSentences(model: SentenceModel, text: string, signal: AbortSignal) {

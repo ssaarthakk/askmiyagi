@@ -79,13 +79,17 @@ export async function chooseApp(options: {
   ask?: ((question: string) => Promise<string>) | undefined;
 }): Promise<Result<string | undefined>> {
   const { apps, requested, ask } = options;
+  const app =
+    requested === undefined
+      ? undefined
+      : posix.normalize(requested.replaceAll("\\", "/")).replace(/\/+$/, "");
+  if (app === ".") return { ok: true, value: undefined };
   if (apps.length === 0) {
-    return requested === undefined
+    return app === undefined
       ? { ok: true, value: undefined }
       : { ok: false, error: "--app needs an npm, pnpm or yarn workspaces repo; none found" };
   }
-  if (requested !== undefined) {
-    const app = posix.normalize(requested.replaceAll("\\", "/")).replace(/\/+$/, "");
+  if (app !== undefined) {
     return apps.includes(app)
       ? { ok: true, value: app }
       : { ok: false, error: `Unknown app: ${requested}\nApps:\n${listApps(apps)}` };
@@ -93,13 +97,14 @@ export async function chooseApp(options: {
   if (!ask) {
     return {
       ok: false,
-      error: `This repo has several apps; pick one with --app <folder>:\n${listApps(apps)}`,
+      error: `This repo has several apps; pick one with --app <folder>, or --app . for the whole repo:\n${listApps(apps)}`,
     };
   }
   const numbered = apps.map((app, index) => `  ${index + 1}) ${app}`).join("\n");
-  const answer = (await ask(`Pick an app:\n${numbered}\nNumber: `)).trim();
-  const app = /^\d+$/.test(answer) ? apps[Number(answer) - 1] : undefined;
-  return app === undefined
-    ? { ok: false, error: `Choose a number from 1 to ${apps.length}` }
-    : { ok: true, value: app };
+  const answer = (await ask(`Pick an app:\n  0) The whole repo\n${numbered}\nNumber: `)).trim();
+  if (answer === "0") return { ok: true, value: undefined };
+  const chosen = /^\d+$/.test(answer) ? apps[Number(answer) - 1] : undefined;
+  return chosen === undefined
+    ? { ok: false, error: `Choose a number from 0 to ${apps.length}` }
+    : { ok: true, value: chosen };
 }

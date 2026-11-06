@@ -165,7 +165,10 @@ describe("chooseSpeaker", () => {
     const fetchStub = vi.fn();
     vi.stubGlobal("fetch", fetchStub);
 
-    void chooseSpeaker("browser", "tok", vi.fn()).speak("hello", new AbortController().signal);
+    void chooseSpeaker("browser", "tok", vi.fn(), vi.fn()).speak(
+      "hello",
+      new AbortController().signal,
+    );
     await vi.waitFor(() => expect(spoken).toHaveLength(1));
 
     expect(fetchStub).not.toHaveBeenCalled();
@@ -178,7 +181,7 @@ describe("chooseSpeaker", () => {
     );
     vi.stubGlobal("fetch", fetchStub);
 
-    chooseSpeaker("elevenlabs", "tok", vi.fn());
+    chooseSpeaker("elevenlabs", "tok", vi.fn(), vi.fn());
 
     const texts = fetchStub.mock.calls.map(([, init]) => JSON.parse(String(init.body)).text);
     expect(texts).toEqual(ackPhrases);
@@ -189,9 +192,64 @@ describe("chooseSpeaker", () => {
     vi.stubGlobal("fetch", async () => new Response("{}", { status: 502 }));
     const notify = vi.fn();
 
-    void chooseSpeaker("elevenlabs", "tok", notify).speak("hello", new AbortController().signal);
+    void chooseSpeaker("elevenlabs", "tok", notify, vi.fn()).speak(
+      "hello",
+      new AbortController().signal,
+    );
     await vi.waitFor(() => expect(spoken).toHaveLength(1));
 
     expect(notify).toHaveBeenCalledWith("ElevenLabs failed, using the browser voice");
+  });
+
+  it.each([
+    ["browser", "Voice: system"],
+    ["elevenlabs", "Voice by ElevenLabs"],
+  ])("labels the %s voice", (voice, label) => {
+    stubBrowser();
+    vi.stubGlobal("fetch", async () => new Response("audio-bytes"));
+    const labels: string[] = [];
+
+    chooseSpeaker(voice, "tok", vi.fn(), (text) => labels.push(text));
+
+    expect(labels).toEqual([label]);
+  });
+
+  describe("the kokoro label", () => {
+    function startKokoro() {
+      stubBrowser();
+      const worker = Object.assign(new EventTarget(), { postMessage: vi.fn(), terminate: vi.fn() });
+      vi.stubGlobal(
+        "Worker",
+        vi.fn(function fakeWorker() {
+          return worker;
+        }),
+      );
+      const labels: string[] = [];
+      chooseSpeaker("kokoro", "tok", vi.fn(), (text) => labels.push(text));
+      const reply = (data: object) => worker.dispatchEvent(new MessageEvent("message", { data }));
+      return { labels, reply };
+    }
+
+    it("says the system voice speaks while Kokoro downloads, then that Kokoro speaks", async () => {
+      const { labels, reply } = startKokoro();
+
+      reply({ type: "progress", percent: 80 });
+      reply({ type: "ready" });
+
+      await vi.waitFor(() => expect(labels.at(-1)).toBe("Voice: Kokoro (local)"));
+      expect(labels).toEqual([
+        "Voice: system until Kokoro loads",
+        "Voice: system, Kokoro downloading 80%",
+        "Voice: Kokoro (local)",
+      ]);
+    });
+
+    it("says the system voice stays when Kokoro fails to load", async () => {
+      const { labels, reply } = startKokoro();
+
+      reply({ type: "failed", message: "no model" });
+
+      await vi.waitFor(() => expect(labels.at(-1)).toBe("Voice: system, Kokoro failed"));
+    });
   });
 });

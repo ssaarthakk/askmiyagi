@@ -236,15 +236,32 @@ export function kokoroSpeaker(
   };
 }
 
-export function chooseSpeaker(voice: string, token: string, notify: (text: string) => void) {
+export function chooseSpeaker(
+  voice: string,
+  token: string,
+  notify: (text: string) => void,
+  label: (text: string) => void,
+) {
   const browser = browserSpeaker(speechSynthesis);
   if (voice === "kokoro") {
+    label("Voice: system until Kokoro loads");
     const worker = new Worker(new URL("./kokoro-worker.ts", import.meta.url), { type: "module" });
-    const onProgress = (percent: number) => notify(`Downloading the local voice: ${percent}%`);
+    const onProgress = (percent: number) => {
+      notify(`Downloading the local voice: ${percent}%`);
+      label(`Voice: system, Kokoro downloading ${percent}%`);
+    };
     const engine = createModelEngine<string, Blob>(worker, onProgress, "The local voice stopped");
+    engine.ready.then(
+      () => label("Voice: Kokoro (local)"),
+      () => label("Voice: system, Kokoro failed"),
+    );
     return kokoroSpeaker(engine, browser, notify);
   }
-  if (voice !== "elevenlabs") return browser;
+  if (voice !== "elevenlabs") {
+    label("Voice: system");
+    return browser;
+  }
+  label("Voice by ElevenLabs");
   const elevenLabs = elevenLabsSpeaker(token, browser, () => notify(elevenLabsFailed));
   elevenLabs.preload(ackPhrases);
   return elevenLabs;

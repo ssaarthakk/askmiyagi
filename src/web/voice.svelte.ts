@@ -20,13 +20,21 @@ export function createVoice(options: {
 }) {
   const injectedSpeaker = (window as { __MIYAGI_SPEAKER__?: Speaker }).__MIYAGI_SPEAKER__;
   let notice = $state("");
+  let label = $state("");
   const speaker =
     injectedSpeaker ??
     (typeof speechSynthesis === "undefined"
       ? undefined
-      : chooseSpeaker(options.choice, options.token, (text) => {
-          notice = text;
-        }));
+      : chooseSpeaker(
+          options.choice,
+          options.token,
+          (text) => {
+            notice = text;
+          },
+          (text) => {
+            label = text;
+          },
+        ));
   let on = $state(speaker !== undefined);
   let playing = $state(false);
   let caughtUp = false;
@@ -130,6 +138,9 @@ export function createVoice(options: {
     },
     get notice() {
       return notice;
+    },
+    get label() {
+      return label;
     },
     get caughtUp() {
       return caughtUp;

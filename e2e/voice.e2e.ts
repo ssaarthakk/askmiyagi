@@ -11,6 +11,13 @@ test("the browser voice with no local voice says the page stays in text mode", a
   await expect(page.getByText("Voice by ElevenLabs")).toBeHidden();
 });
 
+test("the panel says which voice is speaking", async ({ page }) => {
+  await page.goto("/");
+
+  const panel = page.getByRole("complementary", { name: "Conversation panel" });
+  await expect(panel.getByText("Voice: system")).toBeVisible();
+});
+
 test("the elevenlabs voice is credited on the page", async ({ page }) => {
   await useElevenLabsVoice(page);
   await page.goto("/");

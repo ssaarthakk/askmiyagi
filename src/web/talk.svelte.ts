@@ -1,6 +1,7 @@
-import { type Detection, type Detector, encodeWav } from "./hands-free.ts";
+import { type Detection, type Detector, detectorSampleRate } from "./hands-free.ts";
 import { startRecording } from "./recorder.ts";
 import { errorText } from "./response-error.ts";
+import { encodeWav } from "./wav.ts";
 
 const microphoneUnavailable = "Microphone unavailable. Type your question instead.";
 const microphoneErrors = ["NotAllowedError", "NotFoundError", "NotReadableError"];
@@ -84,7 +85,10 @@ export function createTalk(options: {
     transcribing = true;
     let text = "";
     try {
-      text = await options.transcribe(encodeWav(audio), (text) => (notice = text));
+      text = await options.transcribe(
+        encodeWav(audio, detectorSampleRate),
+        (text) => (notice = text),
+      );
       notice = "";
     } catch (error) {
       notice = errorText(error);

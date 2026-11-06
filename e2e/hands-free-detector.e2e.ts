@@ -2,10 +2,24 @@ import { expect, test } from "@playwright/test";
 import { stubSpeaker } from "./speaker-stub.ts";
 
 test.use({
-  permissions: ["microphone"],
-  launchOptions: {
-    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+  permissions: async ({ browserName }, use) => {
+    await use(browserName === "chromium" ? ["microphone"] : []);
   },
+  launchOptions: [
+    async ({ browserName }, use) => {
+      await use(
+        browserName === "chromium"
+          ? { args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] }
+          : {
+              firefoxUserPrefs: {
+                "media.navigator.streams.fake": true,
+                "media.navigator.permission.disabled": true,
+              },
+            },
+      );
+    },
+    { scope: "worker" },
+  ],
 });
 
 test("the voice detector loads its model and runtime from the Miyagi server", async ({

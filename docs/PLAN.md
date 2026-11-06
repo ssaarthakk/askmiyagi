@@ -354,6 +354,17 @@ Moved ahead of Saved tours on 4 November 2026, because interview prep is needed 
 
 **Gate:** `npm run check` and `npm run e2e` pass, with fake-provider tests for generation (the mix per difficulty, dropped anchors and drills), the session rules (the probe limit, the no-hints check, the timebox) and the debrief (scores, weak marking and clearing), a test proving every fixture file's hash is unchanged after a drill, and an e2e test of a whole friendly session with the stub speaker.
 
+## Phase 13.4: Whole monorepo (shipped)
+
+- [x] **Whole-repo choice.** A workspaces monorepo can also be opened as a whole, for questions that cross apps ("how does the web app call the API package?").
+  - `--app .` (also `./` and `.\`) opens the whole repo, with or without workspaces: no scoping, exactly like a repo without workspaces.
+  - The numbered prompt starts with `0) The whole repo`; answering 0 opens the whole repo. Any other answer outside 0 to N says "Choose a number from 0 to N".
+  - Without a terminal and without `--app`, Miyagi still exits 1 with the list of apps, and the message names `--app .` for the whole repo.
+  - Scoped stays the recommended choice: the repo map's token budget is shared by every package, so whole-repo tours are less detailed per package.
+  - `askmiyagi mcp <root> --app .` is not scoped either.
+
+**Gate:** `npm run check` passes, with a CLI test that `--app .` serves files from two apps and the root.
+
 ## Phase 13.5: OpenAI and OpenAI-compatible models
 
 Miyagi works with OpenAI and with any server that speaks OpenAI's Chat Completions API, hosted (DeepSeek, Kimi, Qwen, OpenRouter, Groq) or local (Ollama, LM Studio, llama.cpp, vLLM). Claude Code headless stays the default. Agent apps without an API (Codex CLI, Cursor, Gemini CLI) are not covered; `CodexHeadless` stays out of scope. See [ADR 0008](adr/0008-openai-compatible-provider.md).
@@ -410,6 +421,8 @@ The first `claude-headless` run of the fixtures suite (2026-10-31) had no retrie
 
 - **Graph hints.** When the project has a committed Understand-Anything graph (`.ua/knowledge-graph.json`, or the older `.understand-anything/knowledge-graph.json`), the repo map gains a `## Graph hints` section: each visible file's architectural layer and one-line summary, plus domain-flow entry points. The graph is read-only input: Miyagi never runs Understand-Anything and never writes `.ua/`. Summaries are untrusted, redacted and wrapped like tool results. A missing or invalid graph leaves the repo map unchanged and is never fatal. Anchors are still verified, so a stale graph can only cost an extra file read, never a wrong highlight.
 - **`find_callers` tool.** `find_callers({ name })` lists the call sites of a function or method by name in visible TS/JS files, one line each as `<path>:<line> in <enclosing symbol>: <line text>`, source files before test files, capped at 50. Matching is by name, not by type, and the result says so. It is added to the MCP server and the API providers' tools, with the progress text "Finding callers of <name>".
+
+- **Firefox acknowledgement delay.** In Firefox the spoken acknowledgement starts about 500 ms after submit (Chromium: under 300 ms), because the first bytes of the `/api/ask` event stream reach the page later. Find where Firefox holds them (response buffering or the first chunk size) and bring it under 300 ms; then drop the Firefox skip in `e2e/streamed.e2e.ts`.
 
 ## Open questions
 

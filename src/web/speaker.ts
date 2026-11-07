@@ -189,7 +189,7 @@ export function elevenLabsSpeaker(token: string, fallback: Speaker, onFallback: 
   return audioSpeaker((text, signal) => fetchSpeech(token, text, signal), fallback, onFallback);
 }
 
-export function kokoroSpeaker(
+export function localSpeaker(
   engine: ModelEngine<string, Blob>,
   fallback: Speaker,
   notify: (text: string) => void,
@@ -236,6 +236,18 @@ export function kokoroSpeaker(
   };
 }
 
+const localModels: Record<string, { name: string; worker: () => Worker }> = {
+  kokoro: {
+    name: "Kokoro",
+    worker: () => new Worker(new URL("./kokoro-worker.ts", import.meta.url), { type: "module" }),
+  },
+  chatterbox: {
+    name: "Chatterbox",
+    worker: () =>
+      new Worker(new URL("./chatterbox-worker.ts", import.meta.url), { type: "module" }),
+  },
+};
+
 export function chooseSpeaker(
   voice: string,
   token: string,
@@ -243,19 +255,23 @@ export function chooseSpeaker(
   label: (text: string) => void,
 ) {
   const browser = browserSpeaker(speechSynthesis);
-  if (voice === "kokoro") {
-    label("Voice: system until Kokoro loads");
-    const worker = new Worker(new URL("./kokoro-worker.ts", import.meta.url), { type: "module" });
+  const local = localModels[voice];
+  if (local) {
+    label(`Voice: system until ${local.name} loads`);
     const onProgress = (percent: number) => {
       notify(`Downloading the local voice: ${percent}%`);
-      label(`Voice: system, Kokoro downloading ${percent}%`);
+      label(`Voice: system, ${local.name} downloading ${percent}%`);
     };
-    const engine = createModelEngine<string, Blob>(worker, onProgress, "The local voice stopped");
-    engine.ready.then(
-      () => label("Voice: Kokoro (local)"),
-      () => label("Voice: system, Kokoro failed"),
+    const engine = createModelEngine<string, Blob>(
+      local.worker(),
+      onProgress,
+      "The local voice stopped",
     );
-    return kokoroSpeaker(engine, browser, notify);
+    engine.ready.then(
+      () => label(`Voice: ${local.name} (local)`),
+      () => label(`Voice: system, ${local.name} failed`),
+    );
+    return localSpeaker(engine, browser, notify);
   }
   if (voice !== "elevenlabs") {
     label("Voice: system");

@@ -144,7 +144,7 @@ function keydown(event: KeyboardEvent) {
   <header>
     <h2>Miyagi</h2>
     {#if voiceLabel}
-      <p class="muted">{voiceLabel}</p>
+      <p class="muted voice-label">{voiceLabel}</p>
     {/if}
     <div class="actions">
       <button
@@ -353,15 +353,26 @@ function keydown(event: KeyboardEvent) {
     gap: var(--space);
   }
 
+  .voice-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-basis: 100%;
     gap: var(--space);
   }
 
   .actions button {
+    padding: calc(var(--space) * 0.75) var(--space);
+    font-size: 0.875rem;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   @media (max-width: 899px) {

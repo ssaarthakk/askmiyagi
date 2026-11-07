@@ -214,8 +214,11 @@ describe("chooseSpeaker", () => {
     expect(labels).toEqual([label]);
   });
 
-  describe("the kokoro label", () => {
-    function startKokoro() {
+  describe.each([
+    ["kokoro", "Kokoro"],
+    ["chatterbox", "Chatterbox"],
+  ])("the %s label", (voice, name) => {
+    function startLocalVoice() {
       stubBrowser();
       const worker = Object.assign(new EventTarget(), { postMessage: vi.fn(), terminate: vi.fn() });
       vi.stubGlobal(
@@ -225,31 +228,35 @@ describe("chooseSpeaker", () => {
         }),
       );
       const labels: string[] = [];
-      chooseSpeaker("kokoro", "tok", vi.fn(), (text) => labels.push(text));
+      chooseSpeaker(voice, "tok", vi.fn(), (text) => labels.push(text));
       const reply = (data: object) => worker.dispatchEvent(new MessageEvent("message", { data }));
       return { labels, reply };
     }
 
-    it("says the system voice speaks while Kokoro downloads, then that Kokoro speaks", async () => {
-      const { labels, reply } = startKokoro();
+    it("says the system voice speaks while the model downloads, then that it speaks", async () => {
+      const { labels, reply } = startLocalVoice();
 
+      expect(Worker).toHaveBeenCalledWith(
+        expect.objectContaining({ href: expect.stringContaining(`${voice}-worker`) }),
+        { type: "module" },
+      );
       reply({ type: "progress", percent: 80 });
       reply({ type: "ready" });
 
-      await vi.waitFor(() => expect(labels.at(-1)).toBe("Voice: Kokoro (local)"));
+      await vi.waitFor(() => expect(labels.at(-1)).toBe(`Voice: ${name} (local)`));
       expect(labels).toEqual([
-        "Voice: system until Kokoro loads",
-        "Voice: system, Kokoro downloading 80%",
-        "Voice: Kokoro (local)",
+        `Voice: system until ${name} loads`,
+        `Voice: system, ${name} downloading 80%`,
+        `Voice: ${name} (local)`,
       ]);
     });
 
-    it("says the system voice stays when Kokoro fails to load", async () => {
-      const { labels, reply } = startKokoro();
+    it("says the system voice stays when the model fails to load", async () => {
+      const { labels, reply } = startLocalVoice();
 
       reply({ type: "failed", message: "no model" });
 
-      await vi.waitFor(() => expect(labels.at(-1)).toBe("Voice: system, Kokoro failed"));
+      await vi.waitFor(() => expect(labels.at(-1)).toBe(`Voice: system, ${name} failed`));
     });
   });
 });

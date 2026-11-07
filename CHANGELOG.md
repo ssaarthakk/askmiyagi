@@ -10,8 +10,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- `--voice chatterbox`: a more natural local voice (Resemble AI's Chatterbox), opt-in. It downloads about 1.5 GB once, needs WebGPU (Chrome or Edge), takes about two minutes to load on each launch, and is slower to start each sentence than Kokoro. Without WebGPU the system voice speaks.
 - A monorepo can be opened as a whole: `--app .`, or `0) The whole repo` in the app prompt, for questions that cross apps. Picking one app is still the sharper choice for questions about that app.
 - The panel header names the voice that is speaking: the system voice while Kokoro downloads (with its progress), then "Voice: Kokoro (local)", or that Kokoro failed.
+
+### Changed
+
+- The panel header puts the voice label beside the Miyagi title and the four actions in an even two-by-two grid, so it fits any screen without scrolling.
 
 ### Fixed
 

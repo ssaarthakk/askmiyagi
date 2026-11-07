@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ackPhrases } from "../shared/phrases.ts";
-import { kokoroSpeaker, noLocalVoice, type Speaker } from "./speaker.ts";
+import { localSpeaker, noLocalVoice, type Speaker } from "./speaker.ts";
 import { fallbackSpeaker, stubAudio } from "./speaker-helpers.ts";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("kokoroSpeaker", () => {
+describe("localSpeaker", () => {
   const signal = new AbortController().signal;
 
   function fakeEngine(ready: Promise<void>) {
@@ -35,7 +35,7 @@ describe("kokoroSpeaker", () => {
     const { speaker, spoken } = fallbackSpeaker();
     const notify = vi.fn();
 
-    await kokoroSpeaker(engine, speaker, notify).speak("hello", signal);
+    await localSpeaker(engine, speaker, notify).speak("hello", signal);
 
     expect(spoken).toEqual(["hello"]);
     expect(engine.run).not.toHaveBeenCalled();
@@ -47,7 +47,7 @@ describe("kokoroSpeaker", () => {
     const played = stubAudio();
     const { speaker, spoken } = fallbackSpeaker();
     const notify = vi.fn();
-    const voice = kokoroSpeaker(engine, speaker, notify);
+    const voice = localSpeaker(engine, speaker, notify);
     await vi.waitFor(() => expect(notify).toHaveBeenCalledWith("Local voice ready"));
 
     await voice.speak("hello", signal);
@@ -62,7 +62,7 @@ describe("kokoroSpeaker", () => {
     const elements: { playbackRate: number }[] = [];
     stubAudio(elements);
     const { speaker, rates } = fallbackSpeaker();
-    const voice = kokoroSpeaker(engine, speaker, vi.fn());
+    const voice = localSpeaker(engine, speaker, vi.fn());
     await engine.ready;
 
     voice.setRate?.(1.75);
@@ -77,7 +77,7 @@ describe("kokoroSpeaker", () => {
     const elements: { playbackRate: number; volume: number }[] = [];
     stubAudio(elements);
     const { speaker } = fallbackSpeaker();
-    const voice = kokoroSpeaker(engine, speaker, vi.fn());
+    const voice = localSpeaker(engine, speaker, vi.fn());
     await engine.ready;
 
     voice.setVolume?.(0.2);
@@ -90,7 +90,7 @@ describe("kokoroSpeaker", () => {
     const engine = fakeEngine(Promise.reject(new Error("no network")));
     const { speaker, spoken } = fallbackSpeaker();
     const notify = vi.fn();
-    const voice = kokoroSpeaker(engine, speaker, notify);
+    const voice = localSpeaker(engine, speaker, notify);
     await vi.waitFor(() =>
       expect(notify).toHaveBeenCalledWith("Local voice failed to load, using the browser voice"),
     );
@@ -110,7 +110,7 @@ describe("kokoroSpeaker", () => {
     );
     const played = stubAudio();
     const onStart = vi.fn();
-    const spoken = kokoroSpeaker(engine, noBrowserVoice(), vi.fn()).speak("hello", signal, onStart);
+    const spoken = localSpeaker(engine, noBrowserVoice(), vi.fn()).speak("hello", signal, onStart);
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(onStart).not.toHaveBeenCalled();
 
@@ -124,7 +124,7 @@ describe("kokoroSpeaker", () => {
   it("shows text when there is no browser voice and the model cannot load", async () => {
     const engine = fakeEngine(Promise.reject(new Error("no network")));
 
-    const spoken = kokoroSpeaker(engine, noBrowserVoice(), vi.fn()).speak("hello", signal);
+    const spoken = localSpeaker(engine, noBrowserVoice(), vi.fn()).speak("hello", signal);
 
     await expect(spoken).rejects.toThrow(noLocalVoice);
   });
@@ -132,7 +132,7 @@ describe("kokoroSpeaker", () => {
   it("stops waiting for the model when the segment is stopped", async () => {
     const engine = fakeEngine(new Promise(() => {}));
     const controller = new AbortController();
-    const spoken = kokoroSpeaker(engine, noBrowserVoice(), vi.fn()).speak(
+    const spoken = localSpeaker(engine, noBrowserVoice(), vi.fn()).speak(
       "hello",
       controller.signal,
     );
@@ -146,7 +146,7 @@ describe("kokoroSpeaker", () => {
   it("cancels the model request of a segment that is stopped", async () => {
     const engine = fakeEngine(Promise.resolve());
     engine.run.mockImplementation(() => new Promise<Blob>(() => {}));
-    const voice = kokoroSpeaker(engine, fallbackSpeaker().speaker, vi.fn());
+    const voice = localSpeaker(engine, fallbackSpeaker().speaker, vi.fn());
     await engine.ready;
     const controller = new AbortController();
     const spoken = voice.speak("hello", controller.signal);
@@ -161,7 +161,7 @@ describe("kokoroSpeaker", () => {
   it("cancels a prefetched sentence that is no longer next when another one is spoken", async () => {
     const engine = fakeEngine(Promise.resolve());
     stubAudio();
-    const voice = kokoroSpeaker(engine, fallbackSpeaker().speaker, vi.fn());
+    const voice = localSpeaker(engine, fallbackSpeaker().speaker, vi.fn());
     await engine.ready;
 
     voice.prefetch?.("old next sentence");

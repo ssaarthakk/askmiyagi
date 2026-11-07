@@ -394,6 +394,19 @@ Miyagi works with OpenAI and with any server that speaks OpenAI's Chat Completio
 
 **Gate:** `npm run check` and `npm run e2e` pass. Tests run against a fake Chat Completions server on `127.0.0.1`: a tour with tool calls, a tools-off call, each finish reason and error status, bad tool arguments, a think block, and no key with a loopback URL. Tests cover the flag and base-URL rules, and prove the key never appears in an error, a log line or the call log. A person runs one tour on OpenAI and one on a local Ollama model, and records the `fixtures` suite scores for both under this phase.
 
+## Phase 13.6: Chatterbox voice (shipped)
+
+- [x] **Chatterbox voice.** `--voice chatterbox` speaks with Resemble AI's Chatterbox (`onnx-community/chatterbox-ONNX`, MIT), a more natural local voice than Kokoro, opt-in and never the default. See [ADR 0009](adr/0009-chatterbox-voice.md).
+  - It runs in its own Web Worker on `@huggingface/transformers` 4.3.2, installed under the alias `huggingface-transformers-4` so Kokoro and Whisper stay on 3.8.1. Like the other model files, the weights (about 1.5 GB: `language_model` q4f16, the other sessions fp32) download once from Hugging Face and are cached by the browser; the ONNX runtime files are served by Miyagi, never a CDN. The worker streams every weight file into the cache before it builds any session: building the GPU sessions blocks the worker for minutes, and a download left unread that long is reset by the server. Chrome also refuses to cache a buffered file over 512 MiB, and the speech encoder is 564 MiB.
+  - It needs WebGPU. Without it the voice fails to load with "Chatterbox needs WebGPU", and the system voice speaks (the CPU build is too slow to narrate). A GPU without 16-bit float shaders is refused before anything downloads, because the q4f16 language model cannot run on it.
+  - The speaker is the model repo's `default_voice.wav` (24 kHz mono), read in the worker and encoded once.
+  - Text is spoken sentence by sentence (the same splitter as Kokoro), each with `max_new_tokens: 1000` (about 40 seconds of speech), and returned as 16-bit WAV.
+  - A download that ends short of its size fails and is not cached, so the next launch fetches it again.
+  - The panel label follows Kokoro's: "Voice: system until Chatterbox loads", the download progress, then "Voice: Chatterbox (local)" or "Voice: system, Chatterbox failed".
+- [x] **Panel header fits every screen.** The voice label sits beside the Miyagi title and the four actions form an even two-by-two grid. From 800×900 to 1920×1080, in Chromium and Firefox, the page has no horizontal or vertical scrollbar and every header button stays inside the panel (`e2e/panel-fit.e2e.ts`).
+
+**Gate:** `npm run check` and `npm run e2e` pass, and with `MIYAGI_LIVE=1` the Chatterbox worker produces audio that decodes as speech, and in Chrome with WebGPU a second load downloads no weights.
+
 ## Phase 14: Saved tours
 
 - [ ] **Save.** A tour is saved with author, date, intent, level, base commit and a hash per anchored block to `.tutor/tours/<slug>.json`. Text only; audio is made at play time.
@@ -423,6 +436,8 @@ The first `claude-headless` run of the fixtures suite (2026-10-31) had no retrie
 - **`find_callers` tool.** `find_callers({ name })` lists the call sites of a function or method by name in visible TS/JS files, one line each as `<path>:<line> in <enclosing symbol>: <line text>`, source files before test files, capped at 50. Matching is by name, not by type, and the result says so. It is added to the MCP server and the API providers' tools, with the progress text "Finding callers of <name>".
 
 - **Firefox acknowledgement delay.** In Firefox the spoken acknowledgement starts about 500 ms after submit (Chromium: under 300 ms), because the first bytes of the `/api/ask` event stream reach the page later. Find where Firefox holds them (response buffering or the first chunk size) and bring it under 300 ms; then drop the Firefox skip in `e2e/streamed.e2e.ts`.
+
+- **Kokoro quality in Firefox.** Kokoro sounds robotic in Firefox and natural in Chrome: Firefox gets the wasm path with the `q8` model, Chrome WebGPU with `fp32`. Check whether Firefox can use WebGPU in the worker, or load `fp32` (or `fp16`) on wasm when it is fast enough, and compare by ear.
 
 ## Open questions
 

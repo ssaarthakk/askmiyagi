@@ -22,3 +22,31 @@ export function encodeWav(samples: Float32Array, sampleRate: number) {
   }
   return new Blob([view.buffer], { type: "audio/wav" });
 }
+
+export function wavSamples(buffer: ArrayBuffer) {
+  const view = new DataView(buffer);
+  const text = (at: number) => String.fromCharCode(...new Uint8Array(buffer, at, 4));
+  if (buffer.byteLength < 12 || text(0) !== "RIFF" || text(8) !== "WAVE") {
+    throw new Error("The voice sample is not a WAV file");
+  }
+  let offset = 12;
+  let floatMono = false;
+  let sampleRate = 0;
+  while (offset + 8 <= buffer.byteLength) {
+    const size = view.getUint32(offset + 4, true);
+    if (text(offset) === "fmt ") {
+      floatMono =
+        view.getUint16(offset + 8, true) === 3 &&
+        view.getUint16(offset + 10, true) === 1 &&
+        view.getUint16(offset + 22, true) === 32;
+      sampleRate = view.getUint32(offset + 12, true);
+    }
+    if (text(offset) === "data") {
+      if (!floatMono) throw new Error("The voice sample must be a mono 32-bit float WAV");
+      const start = offset + 8;
+      return { samples: new Float32Array(buffer.slice(start, start + size)), sampleRate };
+    }
+    offset += 8 + size + (size % 2);
+  }
+  throw new Error("The voice sample is not a WAV file");
+}

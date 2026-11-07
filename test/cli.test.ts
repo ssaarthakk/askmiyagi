@@ -231,6 +231,10 @@ describe("voice options", () => {
     expect(parseCliArgs(["--voice", "browser"]).voice).toBe("browser");
   });
 
+  it("takes the local chatterbox voice", () => {
+    expect(parseCliArgs(["--voice", "chatterbox"]).voice).toBe("chatterbox");
+  });
+
   it("hands the chosen voice id and the key to the speech route with the elevenlabs voice", () => {
     const options = parseCliArgs(["--voice", "elevenlabs", "--voice-id", "abc123"]);
     expect(speechOptions(options, { ELEVENLABS_API_KEY: "test-key" })).toEqual({

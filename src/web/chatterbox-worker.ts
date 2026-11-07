@@ -5,7 +5,7 @@ import {
   chatterboxVoice,
   requireHalfFloats,
 } from "./chatterbox-speech.ts";
-import { speakSentences } from "./kokoro-speech.ts";
+import { speakText } from "./kokoro-speech.ts";
 import { serveModel } from "./model-worker.ts";
 import { wavSamples } from "./wav.ts";
 
@@ -47,5 +47,5 @@ serveModel(
     const speaker = await model.encode_speech(new Tensor("float32", samples, [1, samples.length]));
     return chatterboxVoice(model, processor, speaker);
   },
-  (voice, text: string, signal) => speakSentences(voice, text, signal),
+  (voice, text: string, signal) => speakText(voice, text, signal),
 );

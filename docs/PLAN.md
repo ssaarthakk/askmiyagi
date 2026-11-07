@@ -11,7 +11,7 @@ All paths in tools, anchors, routes and events are root-relative with `/` separa
 ## Phase 1: Server foundations (shipped)
 
 - [x] **CLI entry.**
-  - `src/server/cli.ts` (shebang `#!/usr/bin/env node`) runs `askmiyagi [path] [--port <n>] [--no-open]`. Args are parsed with `node:util` `parseArgs`, then validated with zod. `path` defaults to the current folder; `--port` defaults to `0` (a free port).
+  - `src/server/cli.ts` (shebang `#!/usr/bin/env node`) runs `askmiyagi [path] [--port <n>] [--no-open]`. Args are parsed with `node:util` `parseArgs`, then validated with zod. `path` defaults to the current folder; `--port` defaults to `4747`, so the page keeps the same origin and the browser keeps the downloaded voice models between runs; when 4747 is busy it warns and falls back to a free port. A busy port given with `--port` is an error.
   - Once listening on `127.0.0.1`, it prints exactly one stdout line: `http://127.0.0.1:<port>/`.
   - Unless `--no-open`, it opens the browser with `spawn(cmd, args, { shell: false, detached: true, stdio: "ignore" })`: Windows `rundll32 url.dll,FileProtocolHandler <url>`, macOS `open <url>`, Linux `xdg-open <url>`. If that fails, it prints `Open <url> in your browser` to stderr and keeps running.
   - A missing path or a file instead of a folder prints the error from `openLocalFolder` to stderr and exits 1. SIGINT and SIGTERM close the server and exit 0.
@@ -406,6 +406,33 @@ Miyagi works with OpenAI and with any server that speaks OpenAI's Chat Completio
 - [x] **Panel header fits every screen.** The voice label sits beside the Miyagi title and the four actions form an even two-by-two grid. From 800×900 to 1920×1080, in Chromium and Firefox, the page has no horizontal or vertical scrollbar and every header button stays inside the panel (`e2e/panel-fit.e2e.ts`).
 
 **Gate:** `npm run check` and `npm run e2e` pass, and with `MIYAGI_LIVE=1` the Chatterbox worker produces audio that decodes as speech, and in Chrome with WebGPU a second load downloads no weights.
+
+## Phase 13.7: Voice start-up fixes (shipped)
+
+- [x] **The voice models stay cached between runs.** The server starts on port 4747 by default instead of a random free port. The browser caches the Kokoro, Chatterbox and Whisper weights per origin, so a new port on every start meant a new empty cache and a full download each time. When 4747 is busy or reserved (`EADDRINUSE`, or `EACCES` for a port Windows has reserved for Hyper-V, WSL or Docker), the CLI writes "Port 4747 is not available, so the browser cannot reuse the voice models it downloaded before. Close the other Miyagi or choose a port with --port." to stderr and falls back to a free port. A busy port given with `--port` is still an error. Tested in `test/port.test.ts`.
+- [x] **The local voice plays sentence by sentence.** `audioSpeaker` in `src/web/audio-speaker.ts` splits each narration part into sentences with `Intl.Segmenter`, queues them all in the voice worker at once (the worker runs one request at a time, in order) and plays each sentence as soon as it is made, so the first sentence plays while the rest are still being made. Before, the whole part was made first: in the x-bot call logs of 2026-11-07 the first sound came 4 to 11 s after the first step arrived. `onStart` fires once, when the first sentence starts. If a sentence fails, the browser voice speaks the rest of the part. Stopping a part, or the fallback taking over, cancels its sentences that are not made yet, including those of a prefetched part; a prefetch with a failed sentence cancels its other sentences. Prefetch and the acknowledgement preload work sentence by sentence too. The worker makes one sentence per request (`speakText` in `src/web/kokoro-speech.ts`); it no longer splits and joins itself. ElevenLabs still makes one request per part.
+
+**Gate:** `npm run check` and `npm run e2e` pass. Hearing the first sentence start before the rest of a long part is made needs a person.
+
+## Phase 13.8: Streamed narration
+
+Speech starts when Claude has written the first narration part, not the whole first step. Today a step is one JSON line holding all its narration, and a simple question gets exactly one step, so nothing can be spoken until the whole answer is written (in the x-bot call logs of 2026-11-07 the first step arrived 11 to 14 s after the question).
+
+- [ ] **Step and narration lines.** The model writes each step as a step line `{"title": string, "anchors": Anchor[], "primm"?: Primm}` followed by one line per narration part `{"say": string, "anchor"?: number}`. The prompt's output format section says so, with one example. A narration line belongs to the step line before it; a narration line with no step line before it is dropped with a logged error.
+  - `modelLineEvents` stays stateless: a step line becomes a `step_start` provider event (validated with the step's title, anchors and primm rules; bad anchors and bad primm are dropped as now), and a narration line becomes a `narration` provider event `{ text, anchor? }`. A whole old-style Step line (with `narration`) still parses to a `step` event, so recordings and a model that slips into the old format keep working.
+  - `ask.ts` assembles the steps. It checks each narration part's `anchor` against the open step's anchors (after the same index move `withoutBadAnchors` does now); an out-of-range anchor is removed from that part and logged, never retried, because earlier parts of the step may already be playing.
+  - An invalid step line uses the step retry from Phase 8: nothing of that step has been sent, so the model re-emits from step N. `retryQuestion` shows the sent steps in the new line format.
+  - A step that ends with no narration parts is dropped and logged; it was never sent to the page.
+  - The conversation history (`conversation.ts`) and the retry message render steps in the new line format, so the model sees one format only.
+  - Tests: the parser over a recorded Claude Code stream with step and narration lines (`test/fixtures/recordings/claude-stream-narration.jsonl`), each drop rule, the retry, and the old-format line.
+- [ ] **Narration parts reach the page as they are written.** The `step` ask event gets an `index`. The server sends it when a step's first narration part arrives, and again with the same `index` each time a part is added; the page replaces `steps[index]` (or appends when `index` is the next one). Anchors are resolved once, when the step line arrives. The final `tour` event is unchanged. `firstContentMs` in the call log becomes the time to the first narration part.
+  - A step is open until the next step arrives, the `tour` event arrives, or the ask ends. Playback that reaches the last part of an open step waits there, caught up, without the step's after interlude (the PRIMM investigate prompt). When a part arrives it plays next; when the step closes, its after interlude plays and then the next step.
+  - The part right after the one playing is prefetched when it arrives, as it is today when the part starts.
+  - Interrupting while a step is open keeps the parts received so far on the tour stack (Phase 10 rule).
+  - Tests: ask-route tests with a fake recording that sends `step_start` and `narration` events with delays; e2e with the stub speaker proving that the first part is spoken before the second arrives, that a part arriving while caught up plays next, and that the after interlude waits for the step to close.
+- [ ] **The API providers stream their answer.** The Claude API and Gemini providers send the answer's lines as the model writes them, instead of all at once after the agent loop. `AgentModel.step` takes an `onText(delta)` callback; the Claude API provider reads the SDK stream's text deltas and Gemini uses `generateContentStream`. `agent-events.ts` splits the deltas into lines as `parseClaudeStream` does and yields their events at once. Text from a model call that ends with tool calls is parsed the same way as it is for Claude Code (it is usually empty). Tested with recorded streamed responses.
+
+**Gate:** `npm run check` and `npm run e2e` pass. A person asks a simple question with `--provider claude-headless` and the Kokoro voice and records `firstContentMs` and `firstSoundMs` from `.tutor/private/calls.jsonl` here, before and after this phase.
 
 ## Phase 14: Saved tours
 

@@ -7,7 +7,7 @@ import { createServer, type Server } from "node:http";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { pathToFileURL } from "node:url";
-import { parseCliArgs, speechOptions } from "./cli-args.ts";
+import { defaultPort, parseCliArgs, speechOptions } from "./cli-args.ts";
 import { scopeToApp } from "./files/file-filter.ts";
 import { watchFolder } from "./files/watcher.ts";
 import { createAskHandler } from "./http/ask-route.ts";
@@ -30,6 +30,31 @@ import { type CodeSource, openLocalFolder } from "./source/local-folder.ts";
 import { chooseApp, findApps } from "./source/monorepo.ts";
 import { projectName } from "./source/project-name.ts";
 import { createTourWatch } from "./tour-watch.ts";
+import { hasCode } from "./tutor-folder.ts";
+
+function listenOn(server: Server, port: number) {
+  return new Promise<void>((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(port, "127.0.0.1", () => {
+      server.off("error", rejectListen);
+      resolveListen();
+    });
+  });
+}
+
+async function listen(server: Server, port: number | undefined) {
+  if (port !== undefined) return listenOn(server, port);
+  try {
+    await listenOn(server, defaultPort);
+  } catch (error) {
+    if (!hasCode(error, "EADDRINUSE") && !hasCode(error, "EACCES")) throw error;
+    process.stderr.write(
+      `Port ${defaultPort} is not available, so the browser cannot reuse the voice models it downloaded before. Close the other Miyagi or choose a port with --port.
+`,
+    );
+    await listenOn(server, 0);
+  }
+}
 
 export function closeServer(server: Server, source: CodeSource) {
   return new Promise<void>((resolveClose) => {
@@ -228,10 +253,7 @@ async function runCli() {
   });
 
   try {
-    await new Promise<void>((resolveListen, rejectListen) => {
-      server.once("error", rejectListen);
-      server.listen(options.port, "127.0.0.1", resolveListen);
-    });
+    await listen(server, options.port);
   } catch (error) {
     process.stderr.write(
       `Could not start server: ${error instanceof Error ? error.message : String(error)}\n`,

@@ -8,7 +8,7 @@ import { logError } from "./log.ts";
 
 const tutorGitignore = "*\n!.gitignore\n!tours/\n!tours/**\n";
 
-function hasCode(error: unknown, code: string) {
+export function hasCode(error: unknown, code: string) {
   return error instanceof Error && "code" in error && error.code === code;
 }
 

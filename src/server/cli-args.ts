@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isUrl } from "./source/github-url.ts";
 
 const defaultVoiceId = "JBFqnCBsd6RMkjVDRZzb";
+export const defaultPort = 4747;
 
 const cliArgsSchema = z.object({
   positionals: z.array(z.string()).max(1, "Only one project path or URL can be provided"),
@@ -87,7 +88,7 @@ export function parseCliArgs(args: string[]) {
   return {
     path,
     isUrl: isUrl(path),
-    port: validated.data.port ?? 0,
+    port: validated.data.port,
     noOpen: validated.data.noOpen,
     provider,
     recording,

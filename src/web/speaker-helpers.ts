@@ -41,3 +41,15 @@ export function fallbackSpeaker() {
   };
   return { speaker, spoken, rates };
 }
+
+export function fakeEngine(ready: Promise<void>) {
+  const run = vi.fn(
+    async (text: string, _transfer?: Transferable[], _signal?: AbortSignal) =>
+      new Blob([`wav:${text}`]),
+  );
+  return { ready, stopped: false, run };
+}
+
+export function signalFor(engine: ReturnType<typeof fakeEngine>, text: string) {
+  return engine.run.mock.calls.find(([called]) => called === text)?.[2];
+}

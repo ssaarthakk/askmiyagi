@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ackPhrases } from "../shared/phrases.ts";
 import { browserSpeaker, chooseSpeaker, localVoices, noLocalVoice } from "./speaker.ts";
+import { stubAudio } from "./speaker-helpers.ts";
 
 type FakeUtterance = {
   text: string;
@@ -185,6 +186,22 @@ describe("chooseSpeaker", () => {
 
     const texts = fetchStub.mock.calls.map(([, init]) => JSON.parse(String(init.body)).text);
     expect(texts).toEqual(ackPhrases);
+  });
+
+  it("sends a whole narration part to ElevenLabs in one request, not sentence by sentence", async () => {
+    stubBrowser();
+    stubAudio();
+    const fetchStub = vi.fn(
+      async (_url: string, _init: RequestInit) => new Response("audio-bytes"),
+    );
+    vi.stubGlobal("fetch", fetchStub);
+    const speaker = chooseSpeaker("elevenlabs", "tok", vi.fn(), vi.fn());
+    fetchStub.mockClear();
+
+    await speaker.speak("First one. Second one.", new AbortController().signal);
+
+    const texts = fetchStub.mock.calls.map(([, init]) => JSON.parse(String(init.body)).text);
+    expect(texts).toEqual(["First one. Second one."]);
   });
 
   it("uses ElevenLabs for elevenlabs and shows the failure notice before the browser voice speaks", async () => {

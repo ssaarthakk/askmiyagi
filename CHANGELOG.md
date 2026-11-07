@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- The local voice model downloaded again on every start. Miyagi now starts on port 4747 every time, so the browser keeps the model in its cache. If 4747 is busy or reserved, it says so and uses a free port.
+- The local voice waited to make a whole narration part before speaking. It now speaks each sentence as soon as it is made, so speech starts sooner.
+
 ## [0.2.1] - 2026-11-06
 
 ### Added

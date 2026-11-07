@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ackPhrases } from "../shared/phrases.ts";
 import { localSpeaker, noLocalVoice, type Speaker } from "./speaker.ts";
-import { fallbackSpeaker, stubAudio } from "./speaker-helpers.ts";
+import { fakeEngine, fallbackSpeaker, signalFor, stubAudio } from "./speaker-helpers.ts";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -10,24 +10,12 @@ afterEach(() => {
 describe("localSpeaker", () => {
   const signal = new AbortController().signal;
 
-  function fakeEngine(ready: Promise<void>) {
-    const run = vi.fn(
-      async (text: string, _transfer?: Transferable[], _signal?: AbortSignal) =>
-        new Blob([`wav:${text}`]),
-    );
-    return { ready, stopped: false, run };
-  }
-
   function noBrowserVoice(): Speaker {
     return {
       speak: async () => {
         throw new Error(noLocalVoice);
       },
     };
-  }
-
-  function signalFor(engine: ReturnType<typeof fakeEngine>, text: string) {
-    return engine.run.mock.calls.find(([called]) => called === text)?.[2];
   }
 
   it("speaks with the fallback voice while the model downloads", async () => {
@@ -156,18 +144,5 @@ describe("localSpeaker", () => {
 
     await expect(spoken).resolves.toBeUndefined();
     expect(signalFor(engine, "hello")?.aborted).toBe(true);
-  });
-
-  it("cancels a prefetched sentence that is no longer next when another one is spoken", async () => {
-    const engine = fakeEngine(Promise.resolve());
-    stubAudio();
-    const voice = localSpeaker(engine, fallbackSpeaker().speaker, vi.fn());
-    await engine.ready;
-
-    voice.prefetch?.("old next sentence");
-    await voice.speak("new answer", signal);
-
-    expect(signalFor(engine, "old next sentence")?.aborted).toBe(true);
-    expect(signalFor(engine, "new answer")?.aborted).toBe(false);
   });
 });

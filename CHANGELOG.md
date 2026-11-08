@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-08
+
 ### Fixed
 
 - The local voice model downloaded again on every start. Miyagi now starts on port 4747 every time, so the browser keeps the model in its cache. If 4747 is busy or reserved, it says so and uses a free port.

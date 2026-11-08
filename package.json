@@ -1,6 +1,6 @@
 {
   "name": "askmiyagi",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A voice tutor for codebases: ask out loud, and it explains while highlighting the code it talks about.",
   "keywords": [
     "voice",
